@@ -1,0 +1,2959 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>学生作业正确率 · 个人工作台</title>
+<!-- 本工作台为单文件版本（v2 账号体系）：全部 CSS/JS/图标内联，双击即可运行；演示环境账号与数据暂存于浏览器 localStorage/sessionStorage，后端就绪后仅需替换 Api 层 -->
+<style>
+:root{
+  --cream:#FAF5E9; --cream2:#F4EDD9; --card:#FFFFFF;
+  --mint:#5FB89A; --mint-d:#3E9B7F; --mint-l:#E4F3EC; --mint-xl:#F0F8F4;
+  --ink:#31423B; --ink2:#6B7C74; --line:#EAE3D2;
+  --amber:#E8A94C; --amber-l:#FBF0DC;
+  --red:#DE6B6B; --red-l:#FBE9E7;
+  --yellow:#F3DFA9;
+  --shadow:0 4px 18px rgba(62,90,78,.08);
+  --r:16px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{font-size:16px}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  background:var(--cream); color:var(--ink); line-height:1.55;
+}
+#app{display:flex;min-height:100vh}
+/* ---------- 侧栏（桌面） ---------- */
+#sidebar{
+  width:216px;flex-shrink:0;background:var(--card);border-right:1px solid var(--line);
+  padding:22px 14px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column;gap:4px;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 18px;border-bottom:1px dashed var(--line);margin-bottom:12px}
+.brand svg{width:34px;height:34px;flex-shrink:0}
+.brand b{font-size:15px;display:block}
+.brand span{font-size:11px;color:var(--ink2)}
+.nav-btn{
+  display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;border:none;background:none;
+  border-radius:12px;font-size:15px;color:var(--ink2);cursor:pointer;text-align:left;min-height:44px;
+}
+.nav-btn svg{width:20px;height:20px;flex-shrink:0}
+.nav-btn:hover{background:var(--mint-xl)}
+.nav-btn.active{background:var(--mint-l);color:var(--mint-d);font-weight:600}
+.side-foot{margin-top:auto;font-size:11px;color:var(--ink2);padding:10px 8px;border-top:1px dashed var(--line)}
+/* ---------- 主区 ---------- */
+main{flex:1;max-width:1080px;padding:24px 28px 90px}
+.topbar{display:flex;align-items:center;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.topbar .illus{width:120px;flex-shrink:0}
+.topbar h1{font-size:22px}
+.topbar .date-pill{
+  background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;
+  font-size:13px;color:var(--ink2);display:inline-flex;align-items:center;gap:6px;margin-top:6px;
+}
+/* 示例数据横幅 */
+.sample-banner{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--amber-l);
+  border:1px solid #F0D9AC;border-radius:14px;padding:12px 16px;margin-bottom:18px;font-size:14px;
+}
+.sample-banner svg{width:20px;height:20px;flex-shrink:0}
+.sample-banner .spacer{flex:1}
+/* 备份提示 */
+.backup-tip{
+  display:flex;align-items:center;gap:8px;background:var(--mint-l);border:1px solid #BFE3D4;
+  border-radius:12px;padding:10px 14px;margin-bottom:18px;font-size:13px;color:var(--mint-d);
+}
+/* 卡片 */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:20px;margin-bottom:18px}
+.card h2{font-size:17px;display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.card h2 svg{width:20px;height:20px}
+.card h3{font-size:15px;margin:16px 0 10px}
+/* 今日要处理 */
+.todo-item{
+  display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;margin-bottom:10px;
+  background:var(--mint-xl);border:1px solid var(--line);flex-wrap:wrap;
+}
+.todo-item.overdue{background:var(--red-l);border-color:#F0C6C2}
+.todo-item .grow{flex:1;min-width:160px}
+.todo-item .who{font-weight:600}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;margin-left:6px;vertical-align:middle}
+.tag.red{background:var(--red);color:#fff}
+.tag.amber{background:var(--amber);color:#fff}
+.tag.mint{background:var(--mint);color:#fff}
+.tag.sample{background:#EFE7D2;color:#8A7B52;border:1px dashed #D8C89A}
+/* 今日概览：未交作业分组卡片（按学生合并，框内分科目） */
+.miss-group{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:10px 12px;margin-bottom:10px}
+.miss-group-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;padding-bottom:6px;border-bottom:1px dashed var(--line)}
+.miss-group-head .grow{flex:1;min-width:120px}
+.miss-group-head .who{font-weight:700;font-size:15px}
+.miss-group-head .cnt{font-size:12px;font-weight:700;color:var(--red);margin-left:auto}
+.miss-sub{margin-bottom:6px}
+.miss-sub:last-child{margin-bottom:0}
+.miss-sub-name{margin-bottom:4px}
+.miss-sub-name .tag{margin-left:0}
+.miss-group .todo-item{margin-bottom:5px;padding:6px 10px;gap:8px}
+.miss-group .todo-item .grow{min-width:150px}
+.miss-group .todo-item:last-child{margin-bottom:0}
+.miss-group .idx-tag{display:inline-block;font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--red-l);color:var(--red);margin-right:5px;vertical-align:middle}
+.miss-group .miss-date{font-size:12px;color:var(--ink2);margin-left:6px;vertical-align:middle}
+.empty-ok{display:flex;align-items:center;gap:10px;color:var(--mint-d);font-weight:600;padding:8px 2px}
+.empty-ok svg{width:26px;height:26px}
+/* 快捷统计 */
+.quick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.quick{
+  background:var(--mint-xl);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center;
+}
+.quick .num{font-size:24px;font-weight:700;color:var(--mint-d)}
+.quick .lbl{font-size:12px;color:var(--ink2);margin-top:2px}
+/* 表单 */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field.full{grid-column:1/-1}
+.field label{font-size:13px;font-weight:600;color:var(--ink2)}
+.field input,.field select{
+  font-size:16px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:#FDFCF8;
+  color:var(--ink);min-height:48px;width:100%;font-family:inherit;
+}
+.field input:focus,.field select:focus{outline:none;border-color:var(--mint)}
+.calc-preview{
+  grid-column:1/-1;display:flex;gap:18px;flex-wrap:wrap;background:var(--cream);border-radius:12px;
+  padding:12px 16px;font-size:14px;
+}
+.calc-preview b{color:var(--mint-d)}
+/* 按钮 */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;cursor:pointer;
+  border-radius:12px;font-size:14px;padding:10px 18px;min-height:44px;font-weight:600;font-family:inherit;
+}
+.btn svg{width:16px;height:16px}
+.btn.mint{background:var(--mint);color:#fff}
+.btn.mint:hover{background:var(--mint-d)}
+.btn.ghost{background:var(--card);border:1.5px solid var(--line);color:var(--ink)}
+.btn.danger{background:var(--red-l);color:var(--red);border:1px solid #F0C6C2}
+.btn.sm{min-height:38px;padding:7px 14px;font-size:13px;border-radius:10px}
+.btn.big{width:100%;font-size:16px;padding:14px}
+/* 图片上传 */
+.img-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+.img-thumb{
+  width:72px;height:72px;border-radius:10px;object-fit:cover;border:1px solid var(--line);cursor:pointer;position:relative;
+}
+.img-wrap{position:relative}
+.img-wrap .del{
+  position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;background:var(--red);color:#fff;
+  border:none;font-size:12px;cursor:pointer;line-height:1;
+}
+.dropzone{
+  border:2px dashed #C9BFA4;border-radius:14px;background:#FDFCF8;padding:22px 16px;text-align:center;
+  cursor:pointer;color:var(--ink2);font-size:14px;transition:all .15s;min-height:96px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+}
+.dropzone svg{width:30px;height:30px}
+.dropzone.over{border-color:var(--mint);background:var(--mint-xl);color:var(--mint-d)}
+.dropzone b{color:var(--mint-d)}
+.dropzone .types{font-size:12px;color:#A89B7E}
+.pdf-thumb{
+  width:72px;height:72px;border-radius:10px;border:1px solid var(--line);background:var(--red-l);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;
+  color:var(--red);font-size:10px;font-weight:700;padding:4px;text-align:center;word-break:break-all;overflow:hidden;
+}
+.pdf-thumb svg{width:22px;height:22px;flex-shrink:0}
+/* 记录列表 */
+.rec-card{
+  border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:12px;background:#FDFCF8;
+}
+.rec-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.rec-head .who{font-weight:700;font-size:15px}
+.rec-head .when{font-size:13px;color:var(--ink2)}
+.rec-head .grow{flex:1}
+.acc-badge{
+  font-weight:700;font-size:14px;padding:4px 12px;border-radius:999px;
+}
+.acc-good{background:var(--mint-l);color:var(--mint-d)}
+.acc-mid{background:var(--amber-l);color:#B9802A}
+.acc-low{background:var(--red-l);color:var(--red)}
+.rec-meta{font-size:14px;color:var(--ink2);display:flex;gap:14px;flex-wrap:wrap}
+.rec-meta b{color:var(--ink)}
+.wrong-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.wchip{
+  background:var(--red-l);color:var(--red);font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;
+}
+.rec-actions{display:flex;gap:8px;margin-top:10px}
+/* 历史记录分组折叠 */
+.rec-group{border:1px solid var(--line);border-radius:14px;margin-bottom:12px;background:#FDFCF8;overflow:hidden}
+.rec-group summary{
+  display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;font-weight:700;
+  font-size:15px;list-style:none;user-select:none;min-height:48px;flex-wrap:wrap;
+}
+.rec-group summary::-webkit-details-marker{display:none}
+.rec-group summary .g-avatar{
+  width:32px;height:32px;border-radius:50%;background:var(--mint-l);color:var(--mint-d);
+  display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;
+}
+.rec-group summary .g-meta{font-weight:400;font-size:12px;color:var(--ink2)}
+.rec-group summary .chev{margin-left:auto;width:18px;height:18px;transition:transform .15s;flex-shrink:0;color:var(--ink2)}
+.rec-group[open] summary .chev{transform:rotate(180deg)}
+.rec-group .g-body{padding:2px 14px 14px}
+/* 统计 */
+.stu-card{border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;background:#FDFCF8}
+.stu-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.stu-head .avatar{
+  width:42px;height:42px;border-radius:50%;background:var(--mint-l);color:var(--mint-d);
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0;
+}
+.stu-head .grow{flex:1}
+.stu-nums{display:flex;gap:20px;flex-wrap:wrap;margin-top:12px;font-size:14px;color:var(--ink2)}
+.stu-nums b{color:var(--ink);font-size:16px}
+.missed-list{font-size:13px;color:var(--red);margin-top:6px}
+/* 分科目正确率徽章 */
+.sub-acc{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.sub-chip{
+  display:inline-flex;align-items:center;gap:6px;background:var(--mint-xl);
+  border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:13px;
+}
+.sub-chip .sub-name{font-weight:600}
+.sub-chip .sub-cnt{font-size:11px;color:var(--ink2)}
+/* 逾期未交≥2次时科目名后的红色感叹号 */
+.sub-alert{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:15px;height:15px;padding:0 3px;border-radius:50%;
+  background:var(--red);color:#fff;font-size:11px;font-weight:800;line-height:1;
+  margin-left:1px;box-shadow:0 1px 3px rgba(222,107,107,.5);
+}
+/* 各科目平均正确率：横向条形列表（flex gap 统一行距，避免 margin 折叠导致间距不一致；表头禁止折行） */
+.chart-wrap{display:flex;flex-direction:column;gap:10px}
+.subj-cat{font-size:13px;font-weight:700;color:var(--mint-d);margin:6px 0 0;white-space:nowrap;line-height:1.4}
+.subj-cat:first-child{margin-top:0}
+.subj-row{display:flex;align-items:center;gap:12px}
+.chart-wrap > .hint{margin:0}
+.subj-name{
+  flex:0 0 132px;font-size:13px;font-weight:600;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.subj-bar{flex:1;background:var(--mint-xl);border-radius:999px;height:26px;position:relative;overflow:hidden}
+.subj-bar::after{content:'';position:absolute;left:60%;top:0;bottom:0;border-left:1.5px dashed #F0C6C2}
+.subj-fill{height:100%;border-radius:999px;min-width:2px}
+.subj-pct{
+  position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  font-size:12px;font-weight:700;color:var(--ink);
+}
+.subj-cnt{flex:0 0 46px;text-align:right;font-size:12px;color:var(--ink2)}
+/* 可点击的学生姓名 */
+.stu-name-link{cursor:pointer;color:var(--mint-d);border-bottom:1.5px dashed #BFE3D4;padding-bottom:1px}
+.stu-name-link:hover{color:var(--mint)}
+/* 科目徽章作为 Tab + 卡内快速录入 */
+.sub-chip{cursor:pointer;user-select:none}
+.sub-chip:hover{border-color:var(--mint)}
+.sub-chip.active{outline:2px solid var(--mint);background:var(--mint-l)}
+.qe-panel{margin-top:12px;border:1.5px dashed #BFE3D4;border-radius:14px;padding:14px;background:var(--mint-xl)}
+.qe-title{font-size:14px;font-weight:700;color:var(--mint-d);margin-bottom:10px}
+.qe-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.qe-grid input{
+  font-size:16px;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;
+  background:#fff;min-height:44px;width:100%;font-family:inherit;color:var(--ink);
+}
+.qe-grid input:focus{outline:none;border-color:var(--mint)}
+.qe-calc{grid-column:1/-1;font-size:13px;color:var(--ink2)}
+.qe-calc b{color:var(--mint-d)}
+.qe-full{grid-column:1/-1}
+.qe-grid .btn{min-height:44px}
+/* 应完成次数 + 作业打卡格子（合并作业录入与详细记录） */
+.plan-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.plan-row input{
+  font-size:16px;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;
+  background:#fff;min-height:44px;width:110px;font-family:inherit;color:var(--ink);
+}
+.plan-row input:focus{outline:none;border-color:var(--mint)}
+.plan-hint{font-size:12px;color:var(--ink2)}
+.ci-title{font-size:13px;font-weight:700;color:var(--mint-d);margin:2px 0 8px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+/* 生成报告：离屏渲染区（html2canvas 截图用）+ 打印兜底 */
+#reportArea{position:fixed;left:-20000px;top:0;width:794px;background:#fff;z-index:-1}
+@media print{
+  body > *:not(#reportArea){display:none !important}
+  #reportArea{position:static !important;width:auto !important;box-shadow:none !important;background:#fff}
+}
+.ci-grid{display:flex;flex-wrap:wrap;gap:8px}
+.ci-slot{
+  flex:0 0 108px;border-radius:12px;padding:8px 10px;font-size:12px;cursor:pointer;
+  border:1.5px solid var(--line);background:#fff;user-select:none;
+  transition:border-color .15s,transform .1s;line-height:1.5;
+}
+.ci-slot:hover{border-color:var(--mint);transform:translateY(-1px)}
+.ci-slot .ci-top{display:flex;align-items:center;gap:5px}
+.ci-idx{font-weight:700;color:var(--ink)}
+.ci-mark{font-size:15px;font-weight:900;line-height:1}
+.ci-slot.done{border-color:#BFE3D4;background:var(--mint-xl)}
+.ci-slot.done .ci-mark{color:var(--mint-d)}
+.ci-slot.miss{border-color:#F0C6C2;background:#FDF3F2}
+.ci-slot.miss .ci-mark{color:var(--red)}
+.ci-date{color:var(--ink2);font-size:11px}
+.ci-acc{font-weight:800;font-size:13px;color:var(--mint-d)}
+.ci-acc.mid{color:#B9802A}
+.ci-acc.bad{color:var(--red)}
+.ci-wrongs{color:var(--ink2);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot-edit{margin-top:10px;border:1.5px solid var(--mint);border-radius:12px;padding:12px;background:#fff}
+.slot-edit .se-title{font-size:13px;font-weight:700;color:var(--mint-d);margin-bottom:8px}
+.slot-edit .se-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.slot-edit input{
+  font-size:15px;padding:9px 11px;border:1.5px solid var(--line);border-radius:10px;
+  background:#fff;min-height:42px;width:100%;font-family:inherit;color:var(--ink);
+}
+.slot-edit input:focus{outline:none;border-color:var(--mint)}
+.slot-edit .se-full{grid-column:1/-1}
+.slot-edit .se-actions{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.slot-edit .se-calc{font-size:12px;color:var(--ink2);align-self:center}
+/* 老师评语（科目级） */
+.qe-comment{margin-top:12px;border-top:1.5px dashed #BFE3D4;padding-top:12px}
+.qe-comment textarea{
+  width:100%;min-height:64px;font-size:14px;padding:10px 12px;border:1.5px solid var(--line);
+  border-radius:10px;background:#fff;font-family:inherit;color:var(--ink);resize:vertical;line-height:1.5;
+}
+.qe-comment textarea:focus{outline:none;border-color:var(--mint)}
+.qe-comment-actions{display:flex;align-items:center;gap:10px;margin-top:8px}
+.qe-saved-tip{font-size:12px;color:var(--mint-d);font-weight:600}
+.sub-cmt-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--mint);flex-shrink:0}
+/* 模考预约与分数 */
+.qe-mock{margin-top:12px;border-top:1.5px dashed #BFE3D4;padding-top:12px}
+.mock-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+.mock-row input[type=date],.mock-row input[type=number]{
+  font-size:14px;padding:8px 10px;border:1.5px solid var(--line);border-radius:10px;
+  background:#fff;font-family:inherit;color:var(--ink);min-height:40px;
+}
+.mock-row input:focus{outline:none;border-color:var(--mint)}
+.mock-booked{
+  display:inline-flex;align-items:center;gap:6px;background:var(--mint-l);color:var(--mint-d);
+  font-weight:700;font-size:13px;padding:6px 12px;border-radius:999px;border:1px solid #BFE3D4;
+}
+.mock-score-shown{font-size:14px;color:var(--ink)}
+.mock-score-shown b{color:#B9802A;font-size:19px;margin:0 2px}
+.mock-tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;line-height:1.5}
+.mock-tag.booked{background:var(--amber-l);color:#B9802A;border:1px solid #F0D9AC}
+.mock-tag.score{background:var(--mint-l);color:var(--mint-d);border:1px solid #BFE3D4}
+/* 新增科目面板 */
+.add-subj-panel{margin-top:10px;border:1.5px dashed #BFE3D4;border-radius:14px;padding:14px;background:var(--mint-xl)}
+.add-subj-title{font-size:13px;font-weight:700;color:var(--mint-d);margin-bottom:8px}
+/* 科目重命名：徽章内 ✎ 图标 + 内联编辑框 */
+.sub-chip .edit-ico{
+  cursor:pointer;font-size:12px;color:var(--ink2);opacity:.5;padding:1px 2px;line-height:1;
+  border-radius:6px;user-select:none;
+}
+.sub-chip .edit-ico:hover{opacity:1;color:var(--mint-d);background:var(--mint-l)}
+.chip-edit{
+  display:inline-flex;align-items:center;gap:8px;background:#fff;
+  border:1.5px solid var(--mint);border-radius:12px;padding:5px 10px;font-size:13px;
+}
+.chip-edit input{
+  font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;
+  min-width:220px;font-family:inherit;color:var(--ink);
+}
+.chip-edit input:focus{outline:none;border-color:var(--mint)}
+.chart-wrap{overflow-x:auto}
+/* 搜索框 */
+.search-box{display:flex;align-items:center;gap:10px}
+.search-box svg{width:20px;height:20px;flex-shrink:0;color:var(--ink2)}
+.search-box input{
+  flex:1;font-size:16px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;
+  background:#FDFCF8;min-height:48px;font-family:inherit;color:var(--ink);
+}
+.search-box input:focus{outline:none;border-color:var(--mint)}
+/* 三级联动科目 */
+.subject-row{display:flex;gap:10px;flex-wrap:wrap}
+.subject-row select,.subject-row input{flex:1;min-width:130px}
+/* 学生详细记录折叠 */
+.stu-detail{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px}
+.stu-detail summary{
+  cursor:pointer;font-size:13px;font-weight:600;color:var(--mint-d);list-style:none;
+  display:flex;align-items:center;gap:6px;min-height:44px;
+}
+.stu-detail summary::-webkit-details-marker{display:none}
+.stu-detail summary::before{content:'▸';display:inline-block;transition:transform .15s;color:var(--mint)}
+.stu-detail[open] summary::before{transform:rotate(90deg)}
+.d-item{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;margin-bottom:8px;
+  background:var(--mint-xl);border:1px solid var(--line);border-radius:10px;font-size:13px;
+}
+.d-item .d-date{font-weight:600;min-width:92px}
+.d-item .d-meta{color:var(--ink2)}
+/* 底部 Tab（手机） */
+#bottombar{
+  display:none;position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);
+  padding:6px 4px calc(6px + env(safe-area-inset-bottom));z-index:50;
+}
+#bottombar .tabs{display:flex}
+#bottombar .tab-btn{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;border:none;background:none;
+  padding:8px 0;font-size:11px;color:var(--ink2);cursor:pointer;min-height:50px;border-radius:10px;
+}
+#bottombar .tab-btn svg{width:22px;height:22px}
+#bottombar .tab-btn.active{color:var(--mint-d);font-weight:700}
+/* 弹窗 */
+.modal-mask{
+  display:none;position:fixed;inset:0;background:rgba(40,50,45,.5);z-index:100;
+  align-items:center;justify-content:center;padding:20px;
+}
+.modal-mask.show{display:flex}
+.modal{background:var(--card);border-radius:18px;padding:24px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.2)}
+.modal h3{font-size:16px;margin-bottom:10px}
+.modal p{font-size:14px;color:var(--ink2);margin-bottom:18px}
+.modal .row{display:flex;gap:10px;justify-content:flex-end}
+#img-modal img{max-width:100%;max-height:80vh;border-radius:12px;display:block;margin:0 auto}
+/* 页签 */
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+.hint{font-size:12px;color:var(--ink2);margin-top:8px}
+.divider{height:1px;background:var(--line);margin:16px 0}
+/* ---------- 响应式 ---------- */
+@media (max-width:900px){
+  .quick-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media (max-width:768px){
+  #sidebar{display:none}
+  #bottombar{display:block}
+  main{padding:16px 14px calc(90px + env(safe-area-inset-bottom))}
+  .topbar .illus{width:84px}
+  .topbar h1{font-size:19px}
+  .form-grid{grid-template-columns:1fr}
+  .subj-name{flex-basis:96px;font-size:12px}
+  .subj-row{gap:8px}
+}
+/* ---------- 登录屏与账号体系 ---------- */
+#login-screen{
+  display:none;position:fixed;inset:0;background:var(--cream);z-index:200;
+  align-items:center;justify-content:center;padding:20px;
+}
+.login-card{
+  background:var(--card);border:1px solid var(--line);border-radius:20px;
+  box-shadow:var(--shadow);padding:28px 26px;max-width:380px;width:100%;
+}
+.login-card .brand{padding:0 0 16px;margin-bottom:16px}
+.login-card .field{margin-bottom:14px}
+.login-tag{
+  display:inline-block;background:var(--amber-l);color:#B9802A;font-size:12px;
+  font-weight:600;padding:4px 12px;border-radius:999px;margin-bottom:16px;
+}
+.login-demo{
+  margin-top:14px;font-size:12px;color:var(--ink2);background:var(--mint-xl);
+  border-radius:10px;padding:10px 12px;line-height:1.8;
+}
+.role-seg{display:flex;gap:8px}
+.role-opt{
+  flex:1;padding:10px 0;border:1.5px solid var(--line);border-radius:12px;background:#FDFCF8;
+  font-size:15px;font-family:inherit;color:var(--ink2);cursor:pointer;min-height:44px;
+}
+.role-opt.active{background:var(--mint-l);border-color:var(--mint);color:var(--mint-d);font-weight:600}
+.user-area{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.user-chip{
+  display:inline-flex;align-items:center;gap:6px;background:var(--mint-xl);
+  border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:14px;font-weight:600;
+}
+.role-badge{background:var(--mint);color:#fff;font-size:11px;padding:2px 8px;border-radius:999px}
+.role-badge.admin{background:var(--amber)}
+.scope-wrap{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);flex-wrap:wrap}
+.scope-wrap select{
+  font-size:14px;padding:8px 10px;border:1.5px solid var(--line);border-radius:10px;
+  background:#FDFCF8;font-family:inherit;color:var(--ink);min-height:40px;
+}
+.scope-hint{width:100%;font-size:12px;color:#B9802A}
+.acct-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 4px;border-bottom:1px dashed var(--line)}
+.acct-row:last-child{border-bottom:none}
+.acct-row .grow{flex:1;min-width:200px}
+.owner-tag{cursor:pointer}
+.owner-tag:hover{background:#DF9A3A}
+/* ---------- 教务数据看板 ---------- */
+.dash-filter{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.dash-filter .role-seg{flex:0 1 340px}
+.dash-filter select{
+  font-size:14px;padding:8px 10px;border:1.5px solid var(--line);border-radius:10px;
+  background:#FDFCF8;font-family:inherit;color:var(--ink);min-height:40px;
+}
+.dash-trend{display:flex;align-items:flex-end;gap:3px;height:110px;padding-top:6px}
+.dash-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+.dash-bar{width:100%;max-width:22px;border-radius:4px 4px 0 0;min-height:2px}
+.dash-bar-lbl{font-size:9px;color:var(--ink2);margin-top:4px;white-space:nowrap}
+.dash-ta-row{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 8px;border-bottom:1px dashed var(--line);
+  cursor:pointer;border-radius:10px;
+}
+.dash-ta-row:last-child{border-bottom:none}
+.dash-ta-row:hover{background:var(--mint-xl)}
+.dash-ta-row.active{background:var(--mint-l)}
+.dash-ta-row .grow{flex:1;min-width:140px}
+.dash-ta-bar{flex:0 1 160px;background:var(--mint-xl);border-radius:999px;height:10px;overflow:hidden}
+.dash-ta-fill{height:100%;background:var(--mint);border-radius:999px;min-width:0}
+.dash-ta-num{font-size:13px;color:var(--ink2);white-space:nowrap}
+.dash-cat-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 2px;border-bottom:1px dashed var(--line);font-size:14px}
+.dash-cat-row:last-child{border-bottom:none}
+.dash-cat-row .cat-name{font-weight:700;color:var(--mint-d);flex:0 0 64px}
+.dash-alerts{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.dash-alert-item{
+  display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:12px;background:#FDFCF8;
+  padding:10px 12px;margin-bottom:8px;cursor:pointer;font-size:13px;font-family:inherit;color:var(--ink);
+}
+.dash-alert-item:hover{border-color:var(--mint);background:var(--mint-xl)}
+.dash-alert-item .meta{color:var(--ink2);font-size:12px;margin-top:2px}
+.subj-name.low{color:var(--red)}
+@media (max-width:768px){
+  .user-area{width:100%;margin-left:0}
+  .dash-alerts{grid-template-columns:1fr}
+  .dash-ta-bar{flex-basis:100%}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- 桌面侧栏 -->
+  <aside id="sidebar">
+    <div class="brand">
+      <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="6" width="40" height="36" rx="6" fill="#E4F3EC"/><path d="M14 30l6-8 5 5 8-11" stroke="#3E9B7F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="14" r="4" fill="#F3DFA9"/></svg>
+      <div><b>学生作业正确率</b><span>个人工作台</span></div>
+    </div>
+    <button class="nav-btn active" data-tab="today">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+      今日概览
+    </button>
+    <button class="nav-btn" data-tab="dashboard" id="nav-dashboard" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      数据看板
+    </button>
+    <button class="nav-btn" data-tab="stats">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>
+      现有学生
+    </button>
+    <button class="nav-btn" data-tab="alumni">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>
+      历史学生
+    </button>
+    <button class="nav-btn" data-tab="accounts" id="nav-accounts" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg>
+      账号管理
+    </button>
+    <button class="nav-btn" data-tab="data">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+      数据管理
+    </button>
+    <div class="side-foot">账号体系 · 演示环境<br>数据暂存本机浏览器</div>
+  </aside>
+
+  <main>
+    <div class="topbar">
+      <!-- 学习插画 -->
+      <svg class="illus" viewBox="0 0 160 120" fill="none">
+        <ellipse cx="80" cy="106" rx="64" ry="8" fill="#EFE7D2"/>
+        <path d="M30 78c0-4 3-7 7-7h33c3 0 5 2 6 4 1-2 3-4 6-4h33c4 0 7 3 7 7v22c0 2-2 4-4 4H84c-3 0-6-2-8-4-2 2-5 4-8 4H34c-2 0-4-2-4-4V78z" fill="#fff" stroke="#3E9B7F" stroke-width="3"/>
+        <path d="M76 75v25" stroke="#3E9B7F" stroke-width="3"/>
+        <path d="M42 82h24M42 90h24M90 82h24M90 90h16" stroke="#BFE3D4" stroke-width="3" stroke-linecap="round"/>
+        <path d="M108 52l4-22 26 8-4 22" stroke="#E8A94C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M112 30l-6-14" stroke="#E8A94C" stroke-width="4" stroke-linecap="round"/>
+        <path d="M60 44l8-8 6 6 14-14" stroke="#5FB89A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="126" cy="18" r="3" fill="#F3DFA9"/><circle cx="30" cy="40" r="3" fill="#F3DFA9"/>
+        <path d="M140 40l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z" fill="#F3DFA9"/>
+      </svg>
+      <div>
+        <h1>学生作业正确率</h1>
+        <div class="date-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          <span id="today-str"></span>
+        </div>
+      </div>
+      <div class="user-area">
+        <span class="scope-wrap" id="scope-wrap" style="display:none">数据范围
+          <select id="scope-select"></select>
+          <span class="scope-hint" id="scope-hint"></span>
+        </span>
+        <span class="user-chip"><span id="user-name"></span><span class="role-badge" id="user-role"></span></span>
+        <button class="btn ghost sm" id="btn-chpwd">修改密码</button>
+        <button class="btn ghost sm" id="btn-logout">退出</button>
+      </div>
+    </div>
+
+    <div id="sample-banner"></div>
+    <div id="backup-tip"></div>
+
+    <!-- 今日概览 -->
+    <section id="pane-today" class="tab-pane active">
+      <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#DE6B6B" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>今天要处理</h2>
+        <div id="today-list"></div>
+      </div>
+      <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>快速一览</h2>
+        <div class="quick-grid" id="quick-grid"></div>
+      </div>
+    </section>
+
+    <!-- 数据看板（仅教务可见） -->
+    <section id="pane-dashboard" class="tab-pane">
+      <div class="card" style="padding:14px 20px">
+        <div class="dash-filter">
+          <div class="role-seg" id="dash-range">
+            <button type="button" class="role-opt" data-range="7">近 7 天</button>
+            <button type="button" class="role-opt active" data-range="30">近 30 天</button>
+            <button type="button" class="role-opt" data-range="90">近 90 天</button>
+            <button type="button" class="role-opt" data-range="0">全部</button>
+          </div>
+          <select id="dash-owner"></select>
+        </div>
+      </div>
+      <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>全局概览</h2>
+        <div class="quick-grid" id="dash-overview"></div>
+      </div>
+      <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>录入趋势（近 30 天）</h2>
+        <div class="dash-trend" id="dash-trend"></div>
+        <p class="hint">柱高 = 当天录入次数；柱色 = 当天平均正确率（绿 ≥85 / 黄 60-84 / 红 <60 / 灰 无数据）。</p>
+      </div>
+      <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg>助教维度对比</h2>
+        <div id="dash-tas"></div>
+        <p class="hint">点击某位助教可下钻，全页只看该助教的数据；再点筛选条「全部助教」返回。</p>
+      </div>
+      <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20V4H6.5A2.5 2.5 0 004 6.5v13z"/></svg>学科维度</h2>
+        <div id="dash-cats"></div>
+        <div class="chart-wrap" id="dash-subs"></div>
+      </div>
+      <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#DE6B6B" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>预警名单</h2>
+        <div class="dash-alerts">
+          <div>
+            <h3>低分学生（平均正确率 &lt;60%）</h3>
+            <div id="dash-alert-low"></div>
+          </div>
+          <div>
+            <h3>逾期未交</h3>
+            <div id="dash-alert-miss"></div>
+          </div>
+          <div>
+            <h3>沉睡学生（≥14 天无记录）</h3>
+            <div id="dash-alert-sleep"></div>
+          </div>
+        </div>
+        <p class="hint">口径说明：录入/正确率类指标受时间范围筛选影响；逾期未交与沉睡学生为当前状态指标，不受时间范围影响。</p>
+      </div>
+    </section>
+
+    <!-- 学生统计 -->
+    <section id="pane-stats" class="tab-pane">      <div class="card" style="padding:14px 20px">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="stu-search" placeholder="按学生姓名搜索，支持部分匹配，如：林">
+        </div>
+      </div>
+      <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>各科目平均正确率（全体学生）</h2>
+        <div class="chart-wrap" id="bar-chart"></div>
+      </div>
+      <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2"/><circle cx="10" cy="7" r="4"/></svg>学生明细<span style="flex:1"></span>
+          <button class="btn mint sm" id="btn-open-add-stu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            新增学生
+          </button>
+        </h2>
+        <div id="stu-list"></div>
+      </div>
+    </section>
+
+    <!-- 历史学生 -->
+    <section id="pane-alumni" class="tab-pane">
+      <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>历史学生（已毕业 / 已结课）</h2>
+        <p class="hint" style="margin-bottom:12px">从「现有学生」明细卡中可将学生转为历史学生；档案保留，作业记录不会删除。</p>
+        <div id="alumni-list"></div>
+      </div>
+    </section>
+
+    <!-- 数据管理 -->
+    <section id="pane-data" class="tab-pane">
+      <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/></svg>备份与恢复</h2>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn mint" id="btn-export">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+            导出 JSON 备份
+          </button>
+          <button class="btn ghost" id="btn-import">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
+            导入恢复
+          </button>
+          <input type="file" id="f-import" accept=".json,application/json" style="display:none">
+        </div>
+        <p class="hint">导入会替换当前全部数据（支持上千条记录），导入前会先让你确认。</p>
+        <div class="divider"></div>
+        <h3>清理数据</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn ghost" id="btn-clear-sample">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+            清空示例数据
+          </button>
+          <button class="btn mint" id="btn-load-sample">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6 4 4 6-6"/><path d="M14 7h6v6"/></svg>
+            重新载入示例数据
+          </button>
+          <button class="btn danger" id="btn-clear-all">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/><path d="M10 11v6M14 11v6"/></svg>
+            清空全部数据
+          </button>
+        </div>
+        <p class="hint">「清空示例数据」只删除标记为示例的内容，不影响你自己录入的数据。所有清空操作都会二次确认。</p>
+      </div>
+    </section>
+
+    <!-- 账号管理（仅教务可见） -->
+    <section id="pane-accounts" class="tab-pane">
+      <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg>账号列表</h2>
+        <div id="accounts-list"></div>
+      </div>
+      <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>创建助教账号</h2>
+        <div class="form-grid">
+          <div class="field"><label>姓名</label><input id="ac-name" placeholder="如：王助教"></div>
+          <div class="field"><label>登录账号</label><input id="ac-username" placeholder="登录用账号，需唯一"></div>
+          <div class="field"><label>初始密码（至少 6 位）</label><input id="ac-password" placeholder="首次登录后需修改"></div>
+        </div>
+        <p class="hint">新助教使用初始密码首次登录时会被要求修改密码。停用账号后其无法登录，但名下数据完整保留。</p>
+        <div style="margin-top:12px"><button class="btn mint" id="btn-create-ta">创建账号</button></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 手机底部 Tab -->
+  <nav id="bottombar">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="today">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+        今日
+      </button>
+      <button class="tab-btn" data-tab="dashboard" id="tab-dashboard" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        看板
+      </button>
+      <button class="tab-btn" data-tab="stats">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>
+        现有
+      </button>
+      <button class="tab-btn" data-tab="alumni">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>
+        历史
+      </button>
+      <button class="tab-btn" data-tab="data" id="tab-data">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+        数据
+      </button>
+      <button class="tab-btn" data-tab="accounts" id="tab-accounts" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg>
+        账号
+      </button>
+    </div>
+  </nav>
+</div>
+
+<!-- 新增学生弹窗 -->
+<div class="modal-mask" id="stu-modal">
+  <div class="modal">
+    <h3 id="ns-title">新增在服务学生</h3>
+    <p id="ns-desc">录入学生的基本信息，之后即可在「现有学生」明细中为其录入作业。</p>
+    <div class="field" style="margin-bottom:12px">
+      <label>学生姓名</label>
+      <input id="ns-name" placeholder="输入学生姓名">
+    </div>
+    <div class="field" style="margin-bottom:12px">
+      <label>学校名字</label>
+      <input id="ns-school" placeholder="如：深圳外国语学校">
+    </div>
+    <div class="field" style="margin-bottom:16px">
+      <label>毕业年份</label>
+      <select id="ns-gradyear"></select>
+    </div>
+    <div class="row">
+      <button class="btn ghost sm" id="ns-cancel">取消</button>
+      <button class="btn mint sm" id="ns-ok">保存学生</button>
+    </div>
+  </div>
+</div>
+
+<!-- 确认弹窗 -->
+<div class="modal-mask" id="confirm-modal">
+  <div class="modal">
+    <h3 id="cf-title">确认操作</h3>
+    <p id="cf-text"></p>
+    <div class="row">
+      <button class="btn ghost sm" id="cf-cancel">取消</button>
+      <button class="btn danger sm" id="cf-ok">确认执行</button>
+    </div>
+  </div>
+</div>
+
+<!-- 图片查看 -->
+<div class="modal-mask" id="img-modal">
+  <div class="modal" style="max-width:640px">
+    <img id="img-modal-src" alt="批改图片">
+    <div class="row" style="margin-top:14px"><button class="btn ghost sm" onclick="document.getElementById('img-modal').classList.remove('show')">关闭</button></div>
+  </div>
+</div>
+
+<!-- 登录屏（未登录时全屏显示） -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="brand">
+      <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="6" width="40" height="36" rx="6" fill="#E4F3EC"/><path d="M14 30l6-8 5 5 8-11" stroke="#3E9B7F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="14" r="4" fill="#F3DFA9"/></svg>
+      <div><b>学生作业正确率</b><span>内部工作台</span></div>
+    </div>
+    <div class="login-tag">内部系统 · 演示环境：数据暂存本机</div>
+    <div class="field">
+      <label>登录角色</label>
+      <div class="role-seg" id="login-role-seg">
+        <button type="button" class="role-opt active" data-role="ta">助教</button>
+        <button type="button" class="role-opt" data-role="admin">教务</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>登录账号</label>
+      <input id="login-user" autocomplete="username" placeholder="请输入账号">
+    </div>
+    <div class="field">
+      <label>密码</label>
+      <input id="login-pass" type="password" autocomplete="current-password" placeholder="请输入密码">
+    </div>
+    <p class="hint" id="login-err" style="color:var(--red);min-height:18px;margin-top:0"></p>
+    <button class="btn mint big" id="btn-login">登 录</button>
+    <div class="login-demo">
+      演示账号（请先选择对应角色再登录）：<br>
+      教务 <b>admin / admin123</b><br>
+      助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）
+    </div>
+  </div>
+</div>
+
+<!-- 修改密码弹窗 -->
+<div class="modal-mask" id="pwd-modal">
+  <div class="modal">
+    <h3 id="pwd-title">修改密码</h3>
+    <p id="pwd-desc">修改登录密码，下次登录生效。</p>
+    <div class="field" style="margin-bottom:12px">
+      <label>原密码</label>
+      <input id="pwd-old" type="password" autocomplete="current-password">
+    </div>
+    <div class="field" style="margin-bottom:12px">
+      <label>新密码（至少 6 位）</label>
+      <input id="pwd-new" type="password" autocomplete="new-password">
+    </div>
+    <div class="field" style="margin-bottom:6px">
+      <label>确认新密码</label>
+      <input id="pwd-new2" type="password" autocomplete="new-password">
+    </div>
+    <p class="hint" id="pwd-err" style="color:var(--red);min-height:18px;margin-top:0"></p>
+    <div class="row">
+      <button class="btn ghost sm" id="pwd-cancel">取消</button>
+      <button class="btn mint sm" id="pwd-ok">确认修改</button>
+    </div>
+  </div>
+</div>
+
+<!-- 转移学生归属弹窗（教务） -->
+<div class="modal-mask" id="transfer-modal">
+  <div class="modal">
+    <h3>转移学生归属</h3>
+    <p id="tf-desc">将该学生（含其全部作业记录、未交记录）转移给另一位助教。</p>
+    <div class="field" style="margin-bottom:16px">
+      <label>目标助教</label>
+      <select id="tf-target"></select>
+    </div>
+    <div class="row">
+      <button class="btn ghost sm" id="tf-cancel">取消</button>
+      <button class="btn mint sm" id="tf-ok">确认转移</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ================= 数据层 v2（账号体系，localStorage 模拟后端） =================
+   后端接口约定（Node+Express+SQLite 阶段 1:1 实现；届时用 HttpApi 替换下方 Api 实现，UI 零改动）：
+   POST /api/login                {username, password} → {token, user}
+   POST /api/logout
+   POST /api/password             {oldPwd, newPwd}
+   GET  /api/state?owner=…        教务可带 owner 参数；助教服务端强制只返回自己
+   PUT  /api/state                全量/增量保存（后端阶段定）
+   GET  /api/users                教务
+   POST /api/users                教务创建助教
+   POST /api/users/:id/reset      重置密码
+   POST /api/users/:id/toggle     停用/启用
+   POST /api/students/:id/owner   转移归属
+   旧版 key wb_homework_accuracy_v1 检测到即忽略（不迁移、不删除）。 */
+const LS_USERS = 'wb_ha_v2_users';
+const LS_DATA  = 'wb_ha_v2_data';
+const SS_SESSION = 'wb_ha_v2_session';
+let pool = { students: [], records: [], missed: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id）
+let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
+let currentUser = null;   // 当前登录用户对象
+let scope = 'all';        // 教务数据范围：'all' 或某位助教 id（助教恒为自己）
+
+function todayStr(){ return fmtDate(new Date()); }
+function fmtDate(d){
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
+  return y + '-' + m + '-' + dd;
+}
+function offsetDay(n){ const d = new Date(); d.setDate(d.getDate()+n); return fmtDate(d); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+function save(){ localStorage.setItem(LS_DATA, JSON.stringify(pool)); }
+function load(){
+  try{
+    const raw = localStorage.getItem(LS_DATA);
+    if(raw){ const s = JSON.parse(raw); if(s && Array.isArray(s.students)){ pool = s; return true; } }
+  }catch(e){}
+  return false;
+}
+
+/* ---- 密码散列：SHA-256(salt+密码)，纯 JS 同步实现（mock 期基本保护，不存明文） ----
+   说明：不使用 crypto.subtle——它在 file:// 等非安全上下文中不可用（Safari/部分浏览器），
+   会导致账号播种与登录直接失败。纯 JS 实现与标准 SHA-256 结果一致，已存散列保持有效。 */
+function sha256Hex(text){
+  function rr(v, n){ return (v>>>n) | (v<<(32-n)); }
+  // UTF-8 编码为字节数组
+  const bytes = [];
+  for(let i=0; i<text.length; i++){
+    let c = text.charCodeAt(i);
+    if(c < 0x80){ bytes.push(c); }
+    else if(c < 0x800){ bytes.push(0xC0|(c>>6), 0x80|(c&63)); }
+    else if(c >= 0xD800 && c <= 0xDBFF){
+      const c2 = text.charCodeAt(++i);
+      c = 0x10000 + ((c&0x3FF)<<10) + (c2&0x3FF);
+      bytes.push(0xF0|(c>>18), 0x80|((c>>12)&63), 0x80|((c>>6)&63), 0x80|(c&63));
+    }
+    else { bytes.push(0xE0|(c>>12), 0x80|((c>>6)&63), 0x80|(c&63)); }
+  }
+  const K = [
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let h0=0x6a09e667, h1=0xbb67ae85, h2=0x3c6ef372, h3=0xa54ff53a,
+      h4=0x510e527f, h5=0x9b05688c, h6=0x1f83d9ab, h7=0x5be0cd19;
+  const bitLen = bytes.length * 8;
+  bytes.push(0x80);
+  while(bytes.length % 64 !== 56) bytes.push(0);
+  bytes.push(0,0,0,0, (bitLen>>>24)&255, (bitLen>>>16)&255, (bitLen>>>8)&255, bitLen&255);
+  const w = new Array(64);
+  for(let off=0; off<bytes.length; off+=64){
+    for(let i=0; i<16; i++) w[i] = (bytes[off+i*4]<<24) | (bytes[off+i*4+1]<<16) | (bytes[off+i*4+2]<<8) | bytes[off+i*4+3];
+    for(let i=16; i<64; i++){
+      const s0 = rr(w[i-15],7) ^ rr(w[i-15],18) ^ (w[i-15]>>>3);
+      const s1 = rr(w[i-2],17) ^ rr(w[i-2],19) ^ (w[i-2]>>>10);
+      w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
+    }
+    let a=h0, b=h1, c=h2, d=h3, e=h4, f=h5, g=h6, h=h7;
+    for(let i=0; i<64; i++){
+      const S1 = rr(e,6) ^ rr(e,11) ^ rr(e,25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K[i] + w[i]) | 0;
+      const S0 = rr(a,2) ^ rr(a,13) ^ rr(a,22);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) | 0;
+      h=g; g=f; f=e; e=(d+t1)|0; d=c; c=b; b=a; a=(t1+t2)|0;
+    }
+    h0=(h0+a)|0; h1=(h1+b)|0; h2=(h2+c)|0; h3=(h3+d)|0;
+    h4=(h4+e)|0; h5=(h5+f)|0; h6=(h6+g)|0; h7=(h7+h)|0;
+  }
+  return [h0,h1,h2,h3,h4,h5,h6,h7].map(x=>(x>>>0).toString(16).padStart(8,'0')).join('');
+}
+function makeSalt(){ return uid() + uid(); }
+function hashPwd(salt, pwd){ return sha256Hex(salt + ':' + pwd); }
+
+/* ---- 视图过滤与权限 ---- */
+// 某条 ownerId 的数据是否在当前可见范围内
+function ownerInView(ownerId){
+  if(!currentUser) return false;
+  if(currentUser.role === 'ta') return ownerId === currentUser.id;
+  return scope === 'all' ? true : ownerId === scope;
+}
+// 当前视图：助教=自己的数据；教务=全部或指定助教
+function viewState(){
+  if(currentUser && currentUser.role==='admin' && scope==='all') return pool;
+  return {
+    students: pool.students.filter(s=>ownerInView(s.ownerId)),
+    records: pool.records.filter(r=>ownerInView(r.ownerId)),
+    missed: pool.missed.filter(m=>ownerInView(m.ownerId))
+  };
+}
+function refreshView(){ state = viewState(); }
+// 新录入数据的归属：助教=自己；教务在指定助教视角=该助教；教务在全部视角=教务自己
+function writeOwnerId(){
+  if(!currentUser) return null;
+  if(currentUser.role==='ta') return currentUser.id;
+  return scope==='all' ? currentUser.id : scope;
+}
+// 越权防护：编辑/删除前校验目标数据 ownerId 是否可写（教务全部可写，助教仅自己）
+function canWriteOwner(ownerId){
+  if(!currentUser) return false;
+  if(currentUser.role==='admin') return true;
+  return ownerId === currentUser.id;
+}
+function isAdminView(){ return !!(currentUser && currentUser.role==='admin'); }
+function ownerName(ownerId){
+  const u = Api.listUsers().find(x=>x.id===ownerId);
+  return u ? u.name : '未分配';
+}
+function stuOwnerId(sid){ const s = pool.students.find(x=>x.id===sid); return s ? s.ownerId : null; }
+
+/* ================= Api 层（当前实现 LocalApi：localStorage 驱动；后端就绪后替换为 HttpApi，方法签名一一对应上方 REST 约定） ================= */
+const Api = {
+  _users: null,
+  _loadUsers(){
+    if(this._users) return this._users;
+    try{ this._users = JSON.parse(localStorage.getItem(LS_USERS)) || []; }catch(e){ this._users = []; }
+    return this._users;
+  },
+  _saveUsers(){ localStorage.setItem(LS_USERS, JSON.stringify(this._users)); },
+  // POST /api/login（role 可选：传则校验所选角色与账号角色一致）
+  async login(username, password, role){
+    const u = this._loadUsers().find(x=>x.username===username);
+    if(!u) return {ok:false, msg:'账号不存在'};
+    if(role && u.role !== role){
+      return {ok:false, msg: u.role==='admin' ? '该账号是教务账号，请切换为「教务」角色登录' : '该账号是助教账号，请切换为「助教」角色登录'};
+    }
+    if(u.disabled) return {ok:false, msg:'该账号已被停用，请联系教务'};
+    if(hashPwd(u.salt, password) !== u.passHash) return {ok:false, msg:'密码错误'};
+    sessionStorage.setItem(SS_SESSION, JSON.stringify({uid:u.id, ts:Date.now()}));
+    return {ok:true, user:u};
+  },
+  // POST /api/logout
+  logout(){ sessionStorage.removeItem(SS_SESSION); },
+  // 会话存 sessionStorage：刷新保持，关闭浏览器需重登
+  currentSession(){
+    try{
+      const s = JSON.parse(sessionStorage.getItem(SS_SESSION));
+      if(!s) return null;
+      const u = this._loadUsers().find(x=>x.id===s.uid);
+      return (u && !u.disabled) ? u : null;
+    }catch(e){ return null; }
+  },
+  // POST /api/password
+  async changePassword(oldPwd, newPwd){
+    const u = currentUser;
+    if(!u) return {ok:false, msg:'未登录'};
+    if(!newPwd || newPwd.length < 6) return {ok:false, msg:'新密码至少 6 位'};
+    const h = await hashPwd(u.salt, oldPwd);
+    if(h !== u.passHash) return {ok:false, msg:'原密码不正确'};
+    u.salt = makeSalt();
+    u.passHash = await hashPwd(u.salt, newPwd);
+    u.mustChangePwd = false;
+    this._saveUsers();
+    return {ok:true};
+  },
+  // GET /api/state?owner=…（视图过滤由前端 viewState 完成；后端阶段助教由服务端强制过滤）
+  getState(){ return pool; },
+  // PUT /api/state
+  saveState(p){ pool = p; save(); refreshView(); },
+  // GET /api/users（教务）
+  listUsers(){ return this._loadUsers().slice(); },
+  // POST /api/users（教务创建助教，账号唯一）
+  async createUser(name, username, password, role){
+    role = role || 'ta';
+    if(!name || !username || !password) return {ok:false, msg:'请填写完整信息'};
+    if(password.length < 6) return {ok:false, msg:'初始密码至少 6 位'};
+    if(this._loadUsers().some(x=>x.username===username)) return {ok:false, msg:'该登录账号已存在'};
+    const salt = makeSalt();
+    const u = {id:uid(), username, name, role, salt, passHash:await hashPwd(salt, password),
+      disabled:false, createdAt:todayStr(), mustChangePwd:true};
+    this._users.push(u); this._saveUsers();
+    return {ok:true, user:u};
+  },
+  // POST /api/users/:id/reset（重置为指定初始密码，下次登录强制改密）
+  async resetPassword(id, newPwd){
+    const u = this._loadUsers().find(x=>x.id===id);
+    if(!u) return {ok:false, msg:'账号不存在'};
+    u.salt = makeSalt();
+    u.passHash = await hashPwd(u.salt, newPwd);
+    u.mustChangePwd = true;
+    this._saveUsers();
+    return {ok:true};
+  },
+  // POST /api/users/:id/toggle（停用拒登但数据保留；不能停自己，不能停最后一个教务）
+  toggleUser(id){
+    const u = this._loadUsers().find(x=>x.id===id);
+    if(!u) return {ok:false, msg:'账号不存在'};
+    if(currentUser && u.id===currentUser.id) return {ok:false, msg:'不能停用自己的账号'};
+    if(u.role==='admin' && !u.disabled){
+      const admins = this._users.filter(x=>x.role==='admin' && !x.disabled);
+      if(admins.length<=1) return {ok:false, msg:'至少保留一个可用的教务账号'};
+    }
+    u.disabled = !u.disabled;
+    this._saveUsers();
+    return {ok:true, user:u};
+  },
+  // POST /api/students/:id/owner（学生 + 其作业记录 + 未交记录一并改 ownerId）
+  transferStudent(ids, newOwnerId){
+    const t = this._loadUsers().find(x=>x.id===newOwnerId);
+    if(!t || t.role!=='ta') return {ok:false, msg:'目标助教不存在'};
+    let n = 0;
+    pool.students.forEach(s=>{ if(ids.includes(s.id)){ s.ownerId = newOwnerId; n++; } });
+    pool.records.forEach(r=>{ if(ids.includes(r.studentId)) r.ownerId = newOwnerId; });
+    pool.missed.forEach(m=>{ if(ids.includes(m.studentId)) m.ownerId = newOwnerId; });
+    save(); refreshView();
+    return {ok:true, count:n};
+  },
+  /* 首次运行播种：教务 admin/admin123 + 示例助教 ta1/ta2（ta123456）及各自示例数据。
+     演示期账号均不强制改密（mustChangePwd 仅用于教务新建/重置的账号）。 */
+  async _ensureSeed(){
+    const users = this._loadUsers();
+    let fresh = false;
+    if(!users.length){
+      const mk = (name, username, pwd, role)=>{
+        const salt = makeSalt();
+        return {id:uid(), username, name, role, salt, passHash:hashPwd(salt, pwd),
+          disabled:false, createdAt:todayStr(), mustChangePwd:false};
+      };
+      this._users = [ mk('教务管理员','admin','admin123','admin'),
+                      mk('王助教','ta1','ta123456','ta'),
+                      mk('李助教','ta2','ta123456','ta') ];
+      this._saveUsers();
+      fresh = true;
+    } else {
+      // 演示期：清掉早期版本播种的演示账号上的「首登强制改密」标记
+      let changed = false;
+      users.forEach(u=>{
+        if((u.username==='admin' || u.username==='ta1' || u.username==='ta2') && u.mustChangePwd){
+          u.mustChangePwd = false; changed = true;
+        }
+      });
+      if(changed) this._saveUsers();
+    }
+    if(!load()){ pool = {students:[], records:[], missed:[]}; }
+    if(fresh && !pool.students.length && !pool.records.length && !pool.missed.length){
+      const tas = this._users.filter(u=>u.role==='ta');
+      tas.forEach(t=>seedSamplesFor(t.id));
+      if(tas.length) save();
+    }
+  }
+};
+
+/* ================= 示例数据（相对当前日期；按归属助教分别生成，带 ownerId 与 sample 标记） ================= */
+function seedSamplesFor(ownerId){
+  const s1 = {id:uid(), name:'林小满', sample:true, ownerId:ownerId};
+  const s2 = {id:uid(), name:'陈星宇', sample:true, ownerId:ownerId};
+  const s3 = {id:uid(), name:'苏晚晴', sample:true, ownerId:ownerId};
+  const s4 = {id:uid(), name:'周子墨', sample:true, ownerId:ownerId};
+  const s5 = {id:uid(), name:'林小满', sample:true, ownerId:ownerId};  // 同名示例：与 s1 同名，用于演示「同名合并」
+  pool.students.push(s1,s2,s3,s4,s5);
+  pool.records.push(
+    {id:uid(), studentId:s1.id, date:offsetDay(-1), total:20, correct:18, wrongs:[7,14], subject:'学科 / AP / 微积分BC', images:[], sample:true, ownerId:ownerId},
+    {id:uid(), studentId:s2.id, date:offsetDay(-1), total:20, correct:13, wrongs:[3,5,9,11,16,18,20], subject:'学科 / AP / 物理1', images:[], sample:true, ownerId:ownerId},
+    {id:uid(), studentId:s3.id, date:offsetDay(-2), total:15, correct:15, wrongs:[], subject:'语培 / 托福', images:[], sample:true, ownerId:ownerId},
+    {id:uid(), studentId:s5.id, date:offsetDay(-3), total:18, correct:14, wrongs:[3,9,12,17], subject:'学科 / IB / 数学', images:[], sample:true, ownerId:ownerId},
+    {id:uid(), studentId:s3.id, date:offsetDay(-5), total:15, correct:12, wrongs:[4,10,15], subject:'竞赛 / AMC10', images:[], sample:true, ownerId:ownerId}
+  );
+  // 1 条逾期未交（示例）：周子墨 3 天前未交，至今未补
+  pool.missed.push(
+    {id:uid(), studentId:s4.id, date:offsetDay(-3), resolved:false, sample:true, ownerId:ownerId},
+    {id:uid(), studentId:s2.id, date:offsetDay(-6), resolved:true, sample:true, ownerId:ownerId}
+  );
+}
+
+/* ================= 工具 ================= */
+function stuName(id){ const s = state.students.find(x=>x.id===id); return s ? s.name : '（已删除学生）'; }
+function acc(r){ return r.total>0 ? Math.round(r.correct/r.total*100) : 0; }
+function accClass(a){ return a>=85 ? 'acc-good' : (a>=60 ? 'acc-mid' : 'acc-low'); }
+// 科目路径缩短显示：「学科 / AP / 微积分BC」→「AP·微积分BC」；「竞赛 / AMC10」→「AMC10」
+function shortSubject(s){
+  if(!s) return '未指定';
+  const p = s.split(' / ');
+  if(p.length === 3) return p[1] + '·' + p[2];
+  if(p.length === 2) return p[1];
+  return s;
+}
+function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// 某学生（组）某科目的逾期未交次数：未处理 且 未交日期早于系统今天
+function overdueMissCount(ids, subject){
+  const t = todayStr();
+  return state.missed.filter(m=>!m.resolved && m.date < t && (m.subject||'')===subject && ids.indexOf(m.studentId)>=0).length;
+}
+function hasSample(){
+  return state.students.some(s=>s.sample) || state.records.some(r=>r.sample) || state.missed.some(m=>m.sample);
+}
+// 现有学生 = 未归档；历史学生 = 已归档（已毕业/结课）
+function activeStudents(){ return state.students.filter(s=>!s.archived); }
+function archivedStudents(){ return state.students.filter(s=>s.archived); }
+
+/* ================= 页签切换 ================= */
+function switchTab(name){
+  if((name==='accounts' || name==='dashboard') && !isAdminView()) name = 'today';  // 账号管理/数据看板仅教务可见
+  document.querySelectorAll('.nav-btn,.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active', p.id==='pane-'+name));
+  if(name==='stats') renderStats();
+  if(name==='alumni') renderAlumni();
+  if(name==='accounts') renderAccounts();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click', ()=>switchTab(b.dataset.tab)));
+
+/* ================= 确认弹窗 ================= */
+let cfCallback = null;
+function askConfirm(title, text, cb){
+  document.getElementById('cf-title').textContent = title;
+  document.getElementById('cf-text').textContent = text;
+  cfCallback = cb;
+  document.getElementById('confirm-modal').classList.add('show');
+}
+document.getElementById('cf-cancel').onclick = ()=>document.getElementById('confirm-modal').classList.remove('show');
+document.getElementById('cf-ok').onclick = ()=>{
+  document.getElementById('confirm-modal').classList.remove('show');
+  if(cfCallback) cfCallback();
+};
+
+/* ================= 横幅 ================= */
+function renderBanners(){
+  const sb = document.getElementById('sample-banner');
+  if(hasSample()){
+    sb.style.display = 'flex';
+    sb.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="#B9802A" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>' +
+      '<span>当前包含<b>示例数据</b>（日期按今天自动生成，仅用于演示）</span><span class="spacer"></span>' +
+      '<button class="btn ghost sm" onclick="clearSamples()">清空示例数据</button>';
+  } else { sb.style.display = 'none'; }
+
+  const total = state.records.length + state.missed.length;
+  const bt = document.getElementById('backup-tip');
+  if(total >= 30){
+    bt.style.display = 'flex';
+    bt.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>' +
+      '数据已积累 ' + total + ' 条，建议导出 JSON 备份。';
+  } else { bt.style.display = 'none'; }
+}
+
+/* ================= 今日概览 ================= */
+function renderToday(){
+  const list = document.getElementById('today-list');
+  const t = todayStr();
+  let html = '';
+
+  // 未交作业：按学生合并成一个卡片，姓名显示一次，框内按科目分列；
+  // 科目按最新未交日期倒序，科目内按日期升序编号（第N次）；逾期标红
+  const stuGroups = {};
+  state.missed.filter(m=>!m.resolved).forEach(m=>{
+    (stuGroups[m.studentId] = stuGroups[m.studentId] || []).push(m);
+  });
+  Object.entries(stuGroups)
+    .map(([stu, arr])=>{
+      const subMap = {};
+      arr.forEach(m=>{
+        const key = m.subject || '';
+        (subMap[key] = subMap[key] || []).push(m);
+      });
+      const subs = Object.entries(subMap).map(([sub, subArr])=>{
+        subArr.sort((a,b)=>a.date<b.date?-1:1);
+        return {sub, arr: subArr, latest: subArr[subArr.length-1].date};
+      }).sort((a,b)=>a.latest>b.latest?-1:1);
+      return {stu, subs, latest: subs[0] ? subs[0].latest : ''};
+    })
+    .sort((a,b)=>a.latest>b.latest?-1:1)
+    .forEach(g=>{
+      const sample = g.subs.some(s=>s.arr.some(m=>m.sample));
+      const total = g.subs.reduce((n,s)=>n+s.arr.length,0);
+      html += '<div class="miss-group">' +
+        '<div class="miss-group-head">' +
+        '<span class="grow"><span class="who">' + esc(stuName(g.stu)) + '</span>' +
+        (sample ? '<span class="tag sample">示例</span>' : '') +
+        '</span>' +
+        '<span class="cnt">' + total + ' 次未交</span>' +
+        '</div>';
+      g.subs.forEach(s=>{
+        html += '<div class="miss-sub">' +
+          '<div class="miss-sub-name"><span class="tag mint">' + esc(shortSubject(s.sub || '未指定科目')) + '</span></div>';
+        s.arr.forEach((m,i)=>{
+          const overdue = m.date < t;
+          html += '<div class="todo-item' + (overdue?' overdue':'') + '">' +
+            '<div class="grow"><span class="idx-tag">第' + (i+1) + '次</span>' +
+            (overdue ? '<span class="tag red" title="未交日期早于今天，尚未补交">逾期</span>' : '<span class="tag amber" title="今天（或之后）的未交">今日</span>') +
+            '<span class="miss-date">' + m.date + '</span></div>' +
+            '<button class="btn mint sm" onclick="resolveMissed(\'' + m.id + '\')" title="跳转到该生该科目的打卡面板补录这次作业；填写并保存后，该条未交才算补交完成">去补录</button>' +
+            '<button class="btn ghost sm" onclick="removeMissed(\'' + m.id + '\')" title="删除该未交记录">删除</button>' +
+            '</div>';
+        });
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+
+  // 近 7 天正确率 < 60% 的记录 → 需关注
+  const weekAgo = offsetDay(-7);
+  state.records.filter(r=>acc(r)<60 && r.date>=weekAgo).forEach(r=>{
+    html += '<div class="todo-item">' +
+      '<div class="grow"><span class="who">' + esc(stuName(r.studentId)) + '</span>' +
+      '<span class="tag red">正确率偏低 ' + acc(r) + '%</span>' +
+      (r.sample ? '<span class="tag sample">示例</span>' : '') +
+      '<div style="font-size:13px;color:var(--ink2)">' + r.date + ' 作业，错题 ' + (r.total-r.correct) + ' 道，建议安排订正</div></div>' +
+      '<button class="btn mint sm" onclick="gotoCorrect(\'' + r.studentId + '\')">录入订正</button>' +
+      '</div>';
+  });
+
+  if(!html){
+    html = '<div class="empty-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" fill="#E4F3EC" stroke="none"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>今天没有待处理事项，全部完成！</div>';
+  }
+  list.innerHTML = html;
+
+  // 快速统计
+  const todayRecs = state.records.filter(r=>r.date===t).length;
+  const unresolved = state.missed.filter(m=>!m.resolved).length;
+  const recent = state.records.filter(r=>r.date>=weekAgo);
+  const avgAcc = recent.length ? Math.round(recent.reduce((s,r)=>s+acc(r),0)/recent.length) : null;
+  document.getElementById('quick-grid').innerHTML =
+    '<div class="quick"><div class="num">' + new Set(activeStudents().map(s=>s.name.trim())).size + '</div><div class="lbl">学生总数</div></div>' +
+    '<div class="quick"><div class="num">' + todayRecs + '</div><div class="lbl">今日已录入</div></div>' +
+    '<div class="quick"><div class="num">' + (avgAcc===null?'—':avgAcc+'%') + '</div><div class="lbl">近7天平均正确率</div></div>' +
+    '<div class="quick"><div class="num" style="color:' + (unresolved?'var(--red)':'var(--mint-d)') + '">' + unresolved + '</div><div class="lbl">未补交作业</div></div>';
+}
+/* 今日概览「去补录」：跳转到该生该科目的打卡面板，并直接打开这次未交的补录表单。
+   注意：这里不立即标记补交——只有保存了作业记录（saveSlot）才视为补交完成；
+   若未填写或取消退出，未交记录保持原样，仍显示在「今日概览」。 */
+function resolveMissed(id){
+  const m = state.missed.find(x=>x.id===id);
+  if(!m) return;
+  const stu = state.students.find(s=>s.id===m.studentId);
+  const canJump = stu && !stu.archived && m.subject;  // 现有学生且有科目 → 跳转打卡面板补录
+  if(!canJump) return;  // 历史学生或无科目：不跳转、不标记
+  const items = subjectItems(m.studentId, m.subject);
+  const pos = items.findIndex(it=>it.type==='miss' && it.miss.id===id);
+  switchTab('stats');
+  // 打开该生该科目的「作业打卡」面板（若已是同一面板则不重复切换）
+  if(quickEntry && quickEntry.gid===stu.id && quickEntry.subject===m.subject){
+    renderAll();
+  } else {
+    toggleQuickEntry(stu.id, m.subject);
+  }
+  // 自动展开补录表单：定位原未交所在格子（表单内日期自动预填为该未交日期）
+  if(pos >= 0){
+    slotEdit = {gid: stu.id, subject: m.subject, idx: pos+1};
+    renderAll();
+  }
+}
+function removeMissed(id){
+  const m = pool.missed.find(x=>x.id===id);
+  if(!m || !canWriteOwner(m.ownerId)){ alert('没有权限操作该数据'); return; }
+  askConfirm('删除未交记录', '确定删除这条未交记录吗？此操作不可恢复。', ()=>{
+    pool.missed = pool.missed.filter(x=>x.id!==id); save(); renderAll();
+  });
+}
+function gotoCorrect(studentId){
+  switchTab('stats');
+  const stu = state.students.find(s=>s.id===studentId);
+  if(stu){
+    const g = activeStudents().find(s=>s.name.trim()===stu.name.trim());
+    if(g && g.subjects && g.subjects.length){
+      toggleQuickEntry(g.id, g.subjects[0]);
+    }
+  }
+}
+
+/* ================= 科目树（三级联动） ================= */
+const SUBJECT_TREE = {
+  '学科': {
+    'AP': ['微积分AB','微积分BC','物理1','物理2','物理力学','物理电磁','化学','生物','宏观','微观','统计','心理学','人文地理','环境科学','欧洲史','世界史','美国历史','语言与写作','文学与写作','艺术史','计算机A','计算机原理'],
+    'IB': ['数学','物理','化学','经济','历史','生物'],
+    'AL': ['数学','物理','化学','经济','历史','生物']
+  },
+  '竞赛': {'AMC10':null,'AMC12':null,'ABO':null,'BPHO':null,'BBO':null,'UKCHO':null,'物理碗':null},
+  '语培': {'托福':null,'雅思':null,'SAT':null,'ACT':null}
+};
+/* ================= 学生统计 ================= */
+let stuQuery = '';
+document.getElementById('stu-search').addEventListener('input', function(){
+  stuQuery = this.value.trim();
+  renderStats();
+});
+function renderStats(){
+  // 同名同姓合并为一组（统计按姓名聚合，原始记录不受影响）；只统计现有学生
+  // 归属不同的同名学生不合并（按 ownerId+姓名 分组），避免跨助教混同
+  const groups = [];
+  activeStudents().forEach(s=>{
+    const key = (s.ownerId||'') + '|' + s.name.trim();
+    let g = groups.find(x=>x.key===key);
+    if(!g){ g = {key:key, name:s.name.trim(), ownerId:s.ownerId||'', ids:[], sample:false}; groups.push(g); }
+    g.ids.push(s.id);
+    if(s.sample) g.sample = true;
+    if(s.school) g.school = s.school;
+    if(s.gradYear) g.gradYear = s.gradYear;
+  });
+
+  // 柱状图
+  const wrap = document.getElementById('bar-chart');
+  // 按姓名搜索过滤
+  const filtered = stuQuery ? groups.filter(g=>g.name.indexOf(stuQuery) !== -1) : groups;
+
+  // 柱状图：每个科目 → 范围内所有学生的平均正确率
+  const chartRecs = state.records.filter(r=>filtered.some(g=>g.ids.includes(r.studentId)));
+  const subjMap = {};
+  chartRecs.forEach(r=>{
+    const k = r.subject || '未指定';
+    (subjMap[k] = subjMap[k] || []).push(r);
+  });
+  // 按科目树顺序规整排列（学科 → 竞赛 → 语培 → 其他/未指定）
+  const ordered = [];
+  Object.keys(SUBJECT_TREE).forEach(cat=>{
+    Object.keys(SUBJECT_TREE[cat]).forEach(l2=>{
+      const kids = SUBJECT_TREE[cat][l2];
+      if(kids){ kids.forEach(l3=>ordered.push(cat + ' / ' + l2 + ' / ' + l3)); }
+      else { ordered.push(cat + ' / ' + l2); }
+    });
+  });
+  Object.keys(subjMap).forEach(k=>{ if(ordered.indexOf(k)===-1) ordered.push(k); });
+  const stats = ordered.filter(k=>subjMap[k]).map(k=>{
+    const arr = subjMap[k];
+    const cat = SUBJECT_TREE[k.split(' / ')[0]] ? k.split(' / ')[0] : '其他';
+    return {key:k, cat:cat, name:shortSubject(k), cnt:arr.length,
+      avg:Math.round(arr.reduce((x,r)=>x+acc(r),0)/arr.length)};
+  });
+
+  if(!stats.length){
+    wrap.innerHTML = stuQuery
+      ? '<p class="hint">没有匹配「' + esc(stuQuery) + '」的作业记录。</p>'
+      : '<p class="hint">暂无作业记录，录入后即可看到图表。</p>';
+  } else {
+    // 横向条形列表：分组标题 + 每行一个科目（名称/进度条/正确率/次数），长标签不再重叠
+    let html = '', lastCat = '';
+    stats.forEach(x=>{
+      if(x.cat !== lastCat){
+        lastCat = x.cat;
+        html += '<div class="subj-cat">' + esc(x.cat) + '</div>';
+      }
+      const color = x.avg>=85 ? '#5FB89A' : (x.avg>=60 ? '#E8A94C' : '#DE6B6B');
+      html += '<div class="subj-row">' +
+        '<div class="subj-name" title="' + esc(x.key) + '">' + esc(x.name) + '</div>' +
+        '<div class="subj-bar"><div class="subj-fill" style="width:' + x.avg + '%;background:' + color + '"></div>' +
+        '<span class="subj-pct">' + x.avg + '%</span></div>' +
+        '<div class="subj-cnt">' + x.cnt + ' 次</div>' +
+        '</div>';
+    });
+    wrap.innerHTML = html;
+  }
+
+  // 学生明细
+  const list = document.getElementById('stu-list');
+  if(!activeStudents().length){
+    list.innerHTML = '<p class="hint">暂无在服务学生，点右上角「新增学生」录入。</p>';
+    return;
+  }
+  if(!filtered.length){
+    list.innerHTML = '<p class="hint">没有匹配「' + esc(stuQuery) + '」的学生，换个关键词试试。</p>';
+    return;
+  }
+  list.innerHTML = filtered.map(g=>{
+    const recs = state.records.filter(r=>g.ids.includes(r.studentId)).sort((a,b)=>a.date<b.date?-1:1);
+    const avg = recs.length ? Math.round(recs.reduce((x,r)=>x+acc(r),0)/recs.length) : null;
+    const misses = state.missed.filter(m=>g.ids.includes(m.studentId));
+    const openMiss = misses.filter(m=>!m.resolved);
+    const s = {id:g.ids[0], name:g.name, sample:g.sample};  // 组内第一个条目用于操作
+
+    // 趋势迷你折线（最近 8 次）
+    let trend = '<span class="hint">暂无记录</span>';
+    if(recs.length){
+      const last = recs.slice(-8);
+      const pts = last.map((r,i)=>{
+        const x = 6 + i*(108/Math.max(1,last.length-1 || 1));
+        const y = 34 - acc(r)*0.28;
+        return x.toFixed(1) + ',' + y.toFixed(1);
+      }).join(' ');
+      trend = '<svg width="120" height="40" viewBox="0 0 120 40"><polyline points="' + pts + '" fill="none" stroke="#5FB89A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+
+    // 分科目正确率（每位同学按科目分别统计）；徽章可点击作为 Tab，展开该科目快速录入
+    // 同时包含学生手动添加的学习科目（可能尚无作业记录）
+    const subMap = {};
+    recs.forEach(r=>{ const k = r.subject || '未指定'; (subMap[k]=subMap[k]||[]).push(r); });
+    const orderedSubjects = [];
+    const _seen = new Set();
+    recs.forEach(r=>{ const k = r.subject || '未指定'; if(!_seen.has(k)){ _seen.add(k); orderedSubjects.push(k); } });
+    g.ids.forEach(id=>{
+      const stu = state.students.find(x=>x.id===id);
+      if(stu && stu.subjects) stu.subjects.forEach(sub=>{ if(!_seen.has(sub)){ _seen.add(sub); orderedSubjects.push(sub); } });
+    });
+    let subHtml = '';
+    if(orderedSubjects.length){
+      subHtml = '<div class="sub-acc">' + orderedSubjects.map(k=>{
+        const arr = subMap[k] || [];
+        const sa = arr.length ? Math.round(arr.reduce((x,r)=>x+acc(r),0)/arr.length) : null;
+        const isActive = quickEntry && quickEntry.gid===s.id && quickEntry.subject===k;
+        const isRenaming = renaming && renaming.gid===s.id && renaming.subject===k;
+        const repStuCmt = state.students.find(x=>x.id===s.id);
+        const hasCmt = !!(repStuCmt && repStuCmt.subjComments && repStuCmt.subjComments[k]);
+        const planCnt = (repStuCmt && repStuCmt.subjPlans && repStuCmt.subjPlans[k]) || null;
+        const mockSt = (repStuCmt && repStuCmt.mock && repStuCmt.mock[k]) || {};
+        const mockDate = mockSt.date || '';
+        const mockScore = (mockSt.score!==undefined && mockSt.score!==null && mockSt.score!=='') ? mockSt.score : null;
+        const omc = overdueMissCount(g.ids, k);
+        if(isRenaming){
+          return '<span class="chip-edit">' +
+            '<input id="ren-input" value="' + esc(k) + '" onkeydown="if(event.key===\'Enter\')saveRenameSubject();if(event.key===\'Escape\')cancelRename()">' +
+            '<button class="btn mint sm" onclick="saveRenameSubject()">保存</button>' +
+            '<button class="btn ghost sm" onclick="cancelRename()">取消</button>' +
+            '<button class="btn danger sm" onclick="deleteSubject()" title="删除该科目及其全部作业记录、打卡计划、评语、模考信息">删除科目</button>' +
+            '</span>';
+        }
+        return '<span class="sub-chip' + (isActive?' active':'') + '" onclick="toggleQuickEntry(\'' + s.id + '\',\'' + esc(k) + '\')" title="点击录入该科目作业">' +
+          '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
+          (omc>=2 ? '<span class="sub-alert" title="该科目有 ' + omc + ' 次逾期未交作业">!</span>' : '') +
+          (hasCmt ? '<span class="sub-cmt-dot" title="已有老师评语"></span>' : '') +
+          (mockDate ? '<span class="mock-tag booked" title="已预约 ' + esc(mockDate) + ' 模考">约</span>' : '') +
+          (mockScore!==null ? '<span class="mock-tag score" title="结课模考分数">模考 ' + esc(mockScore) + '</span>' : '') +
+          (arr.length ? '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>' : '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">未录入</span>') +
+          '<span class="sub-cnt" title="' + (planCnt!==null ? '已完成 ' + arr.length + ' 次，应完成 ' + planCnt + ' 次' : '已录入 ' + arr.length + ' 次') + '">' + (planCnt!==null ? arr.length + '/' + planCnt : arr.length) + ' 次</span>' +
+          '<span class="edit-ico" onclick="startRenameSubject(\'' + s.id + '\',\'' + esc(k) + '\',event)" title="修改科目名">✎</span></span>';
+      }).join('') + '</div>';
+    }
+
+    let missHtml = '';
+    if(openMiss.length){
+      missHtml = '<div class="missed-list">未交 ' + openMiss.length + ' 次：' +
+        openMiss.map(m=>m.date + (m.subject ? '（' + esc(shortSubject(m.subject)) + '）' : '')).join('、') + '</div>';
+    } else {
+      missHtml = '<div style="font-size:13px;color:var(--ink2);margin-top:6px">历史未交 ' + misses.length + ' 次（均已处理）</div>';
+    }
+
+    // 每次详细记录已合并进科目 Tab 的打卡格子视图（点击科目徽章查看）
+
+    return '<div class="stu-card">' +
+      '<div class="stu-head"><div class="avatar">' + esc(g.name.slice(0,1)) + '</div>' +
+      '<div class="grow"><b class="stu-name-link" onclick="openEditStudent([\'' + g.ids.join('\',\'') + '\'])" title="点击修改学生信息">' + esc(g.name) + '</b>' +
+      (g.school ? ' <span style="font-weight:400;font-size:12px;color:var(--ink2)">' + esc(g.school) + '</span>' : '') +
+      (g.gradYear ? ' <span class="tag mint">' + g.gradYear + ' 届</span>' : '') +
+      (g.ids.length>1 ? ' <span class="tag mint">同名合并 ×' + g.ids.length + '</span>' : '') +
+      (g.sample?' <span class="tag sample">示例</span>':'') +
+      (isAdminView() ? ' <span class="tag amber owner-tag" onclick="openTransfer([\'' + g.ids.join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '</span>' : '') + '</div>' +
+      trend +
+      '<button class="btn ghost sm" onclick="toggleAddSubject(\'' + s.id + '\')" title="为该学生添加学习科目">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>新增科目</button>' +
+      '</div>' +
+      '<div class="stu-nums"><span>作业次数 <b>' + recs.length + '</b></span><span>未交次数 <b style="color:var(--red)">' + misses.length + '</b></span>' +
+      (recs.length ? '<span>最近正确率 <b>' + acc(recs[recs.length-1]) + '%</b></span>' : '') +
+      '<span style="margin-left:auto"><button class="btn ghost sm" onclick="archiveGroup([\'' + g.ids.join('\',\'') + '\'])">转为历史学生</button></span></div>' +
+      subHtml +
+      (addSubjGid===s.id ? addSubjPanelHtml(s.id) : '') +
+      (quickEntry && quickEntry.gid===s.id ? qePanelHtml() : '') +
+      missHtml +
+      '</div>';
+  }).join('');
+}
+/* ================= 卡内科目 Tab 快速录入 ================= */
+let quickEntry = null;  // {gid: 学生代表id, subject: 科目路径}
+function toggleQuickEntry(gid, subject){
+  if(quickEntry && quickEntry.gid===gid && quickEntry.subject===subject){
+    quickEntry = null;  // 再点一次收起
+  } else {
+    quickEntry = {gid:gid, subject:subject};
+  }
+  renderAll();
+}
+function qePanelHtml(){
+  const st = state.students.find(x=>x.id===quickEntry.gid);
+  const isArchived = !!(st && st.archived);  // 历史学生：只读查看
+  const savedComment = (st && st.subjComments && st.subjComments[quickEntry.subject]) ? st.subjComments[quickEntry.subject] : '';
+  // 模考数据：{date:'YYYY-MM-DD', score:数字}，按 学生×科目 存储
+  const mock = (st && st.mock && st.mock[quickEntry.subject]) || {};
+  const mockDate = mock.date || '';
+  const mockScore = (mock.score!==undefined && mock.score!==null && mock.score!=='') ? mock.score : '';
+  const isMockEditDate = mockEdit && mockEdit.gid===quickEntry.gid && mockEdit.subject===quickEntry.subject && mockEdit.field==='date';
+  const isMockEditScore = mockEdit && mockEdit.gid===quickEntry.gid && mockEdit.subject===quickEntry.subject && mockEdit.field==='score';
+  let mockBookHtml;
+  if(mockDate && !isMockEditDate){
+    mockBookHtml = '<span class="mock-booked">✓ 已预约 ' + esc(mockDate) + ' 模考</span>' +
+      '<button class="btn ghost sm" onclick="editMock(\'date\')">修改日期</button>' +
+      '<button class="btn ghost sm" onclick="cancelMockExam()">取消预约</button>';
+  } else {
+    mockBookHtml = '<input id="mock-date" type="date" value="' + (mockDate || todayStr()) + '">' +
+      '<button class="btn mint sm" onclick="bookMockExam()">预约模考</button>';
+  }
+  let mockScoreHtml;
+  if(mockScore!=='' && !isMockEditScore){
+    mockScoreHtml = '<span class="mock-score-shown">结课模考分数：<b>' + esc(mockScore) + '</b>分</span>' +
+      '<button class="btn ghost sm" onclick="editMock(\'score\')">修改</button>' +
+      '<button class="btn ghost sm" onclick="clearMockScore()">清除</button>';
+  } else {
+    mockScoreHtml = '<input id="mock-score" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="结课模考分数（0-100，直接输入数字）" value="' + (mockScore!==''?esc(mockScore):'') + '">' +
+      '<button class="btn mint sm" onclick="saveMockScore()">保存模考分数</button>';
+  }
+  const plan = (st && st.subjPlans && st.subjPlans[quickEntry.subject]) || '';
+  return '<div class="qe-panel">' +
+    '<div class="qe-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span>「' + esc(shortSubject(quickEntry.subject)) + '」作业打卡</span>' +
+    '<button class="btn mint sm" onclick="genReport()" title="生成该生该科目的作业打卡报告 PDF（含打卡情况、老师评语、模考信息）">⬇ 生成报告</button></div>' +
+    '<div class="plan-row">' +
+    (isArchived
+      ? '<span style="font-size:14px;font-weight:600">应完成作业次数</span><span class="plan-hint">' + (plan ? '已定 ' + plan + ' 次，已完成 ' + countSubjectRecs(quickEntry.gid, quickEntry.subject) + ' 次' : '未设置计划') + '</span>'
+      : '<span style="font-size:14px;font-weight:600">应完成作业次数</span>' +
+        '<input id="qe-plan" type="number" min="0" inputmode="numeric" placeholder="如 10" value="' + esc(plan) + '">' +
+        '<button class="btn mint sm" onclick="savePlanCount()">保存</button>' +
+        (plan ? '<span class="plan-hint">已定 ' + plan + ' 次，点击格子录入或查看当次作业</span>' : '<span class="plan-hint">填写次数并保存后，自动生成打卡格子</span>')) +
+    '</div>' +
+    '<div class="ci-title">打卡情况' + (plan ? '（应完成 ' + plan + ' 次，已完成 ' + countSubjectRecs(quickEntry.gid, quickEntry.subject) + ' 次）' : '') + '</div>' +
+    '<div class="ci-grid">' + checkinGridHtml() + '</div>' +
+    (slotEdit && slotEdit.gid===quickEntry.gid && slotEdit.subject===quickEntry.subject ? slotEditHtml() : '') +
+    '<div class="qe-comment">' +
+    '<div class="qe-title">老师评语（' + esc(shortSubject(quickEntry.subject)) + '）</div>' +
+    (isArchived
+      ? '<div style="font-size:13px;color:var(--ink2);background:var(--cream2);border-radius:8px;padding:8px 10px;white-space:pre-wrap">' + (savedComment ? esc(savedComment) : '<span class="hint">暂无评语</span>') + '</div>'
+      : '<textarea id="qe-comment" rows="2" placeholder="写一句给这位学生的科目评语，保存后科目旁会出现绿色小圆点…">' + esc(savedComment) + '</textarea>' +
+        '<div class="qe-comment-actions">' +
+        '<button class="btn mint sm" onclick="saveSubjectComment()">保存评语</button>' +
+        '<span class="qe-saved-tip" id="qe-comment-tip" style="display:none">✓ 已保存</span>' +
+        '</div>') +
+    '</div>' +
+    '<div class="qe-mock">' +
+    '<div class="qe-title">模考（' + esc(shortSubject(quickEntry.subject)) + '）</div>' +
+    (isArchived
+      ? '<div class="mock-row">' + (mockDate ? '<span class="mock-booked">✓ 已预约 ' + esc(mockDate) + ' 模考</span>' : '<span class="hint">未预约模考</span>') + '</div>' +
+        '<div class="mock-row" style="margin-top:8px">' + (mockScore!=='' ? '结课模考分数：<b>' + esc(mockScore) + '</b> 分' : '<span class="hint">未录入模考分数</span>') + '</div>'
+      : '<div class="mock-row">' + mockBookHtml + '</div>' +
+        '<div class="mock-row" style="margin-top:8px">' + mockScoreHtml + '</div>') +
+    '</div>' +
+    '</div>';
+}
+function qeCalc(){
+  const total = parseInt(document.getElementById('qe-total').value, 10);
+  const correct = parseInt(document.getElementById('qe-correct').value, 10);
+  const box = document.getElementById('qe-calc');
+  if(!isNaN(total) && !isNaN(correct) && total>0 && correct>=0 && correct<=total){
+    const a = Math.round(correct/total*100);
+    box.innerHTML = '错误数 <b>' + (total-correct) + '</b>　正确率 <b style="color:' +
+      (a>=85?'var(--mint-d)':(a>=60?'#B9802A':'var(--red)')) + '">' + a + '%</b>';
+  } else {
+    box.innerHTML = '错误数 <b>—</b>　正确率 <b>—</b>';
+  }
+}
+function saveQuickEntry(){
+  const date = document.getElementById('qe-date').value || todayStr();
+  const total = parseInt(document.getElementById('qe-total').value, 10);
+  const correct = parseInt(document.getElementById('qe-correct').value, 10);
+  if(isNaN(total) || total<=0){ alert('请填写有效的总题数'); return; }
+  if(isNaN(correct) || correct<0 || correct>total){ alert('正确题目数需在 0 到总题数之间'); return; }
+  const wrongs = document.getElementById('qe-wrongs').value.split(/[,，、\s]+/).map(s=>s.trim()).filter(Boolean);
+  const st = pool.students.find(x=>x.id===quickEntry.gid);
+  if(!st || !canWriteOwner(st.ownerId)){ alert('没有权限操作该数据'); return; }
+  pool.records.push({id:uid(), studentId:quickEntry.gid, date:date, total:total, correct:correct,
+    wrongs:wrongs, subject:quickEntry.subject, images:[], pdfs:[], ownerId:st.ownerId});
+  quickEntry = null;
+  save();
+  renderAll();
+}
+/* ================= 应完成次数 + 作业打卡（合并作业录入与详细记录） ================= */
+let slotEdit = null;  // {gid, subject, idx} 当前展开编辑的打卡格子
+function countSubjectRecs(gid, subject){
+  return state.records.filter(r=>r.studentId===gid && r.subject===subject).length;
+}
+function subjectRecsSorted(gid, subject){
+  return state.records.filter(r=>r.studentId===gid && r.subject===subject)
+    .sort((a,b)=>a.date<b.date?-1:1);
+}
+/* 保存应完成作业次数：写入 student.subjPlans[subject]，总次数显示在科目名旁 */
+function savePlanCount(){
+  if(!quickEntry) return;
+  const v = parseInt(document.getElementById('qe-plan').value, 10);
+  if(isNaN(v) || v<0){ alert('请填写有效的次数（0 或正整数）'); return; }
+  const st = state.students.find(x=>x.id===quickEntry.gid);
+  if(st){
+    st.subjPlans = st.subjPlans || {};
+    st.subjPlans[quickEntry.subject] = v;
+    save();
+  }
+  renderAll();
+}
+/* 打卡区「今日未交」：按同表单页选择的日期登记未交（默认今天，支持补登历史日期），生成对应打卡格子 */
+function markMissedToday(){
+  if(!quickEntry) return;
+  const gid = quickEntry.gid, subject = quickEntry.subject;
+  const st = state.students.find(x=>x.id===gid);
+  if(st && st.archived) return;
+  if(!st || !canWriteOwner(st.ownerId)){ alert('没有权限操作该数据'); return; }
+  // 优先取当前录入表单中的日期（补登未交场景），无表单则默认今天
+  const dateInput = document.getElementById('sl-date');
+  const date = (dateInput && dateInput.value) ? dateInput.value : todayStr();
+  const hasRec = state.records.some(r=>r.studentId===gid && r.subject===subject && r.date===date);
+  if(hasRec){ alert('该日期已录入该科目的作业记录，无需登记未交'); return; }
+  const dup = state.missed.some(m=>m.studentId===gid && m.date===date && (m.subject||'')===subject && !m.resolved);
+  if(dup){ alert('该学生在该日期已有此科目的未交记录'); return; }
+  pool.missed.push({id:uid(), studentId:gid, date:date, subject:subject, resolved:false, ownerId:st.ownerId});
+  save();
+  renderAll();
+}
+/* 该科目打卡序列：作业记录 + 未处理的未交记录按日期合并排序，作为打卡格子数据源 */
+function subjectItems(gid, subject){
+  const recs = subjectRecsSorted(gid, subject).map(r=>({type:'rec', date:r.date, rec:r}));
+  const miss = state.missed.filter(m=>m.studentId===gid && (m.subject||'')===subject && !m.resolved)
+    .map(m=>({type:'miss', date:m.date, miss:m}));
+  return recs.concat(miss).sort((a,b)=> a.date===b.date ? (a.type==='rec'?-1:1) : (a.date<b.date?-1:1));
+}
+/* 生成打卡格子：有记录=完成✓（日期/正确率/错题），未交=未交✗（日期/0%/错题0），无记录=未完成（无标记） */
+function checkinGridHtml(){
+  const gid = quickEntry.gid, subject = quickEntry.subject;
+  const st = state.students.find(x=>x.id===gid);
+  const plan = (st && st.subjPlans && st.subjPlans[subject]) || 0;
+  const items = subjectItems(gid, subject);
+  let total = Math.max(plan, items.length);
+  // 补录中：编辑区指向的格子需显示出来
+  if(slotEdit && slotEdit.gid===gid && slotEdit.subject===subject && slotEdit.idx>total) total = slotEdit.idx;
+  if(!total) return '<span style="font-size:12px;color:var(--ink2)">暂无计划与记录，先在上方填写应完成次数</span>';
+  return Array.from({length: total}, (_,i)=>{
+    const idx = i+1;
+    const it = items[i];
+    if(it && it.type==='miss'){
+      return '<div class="ci-slot miss" onclick="openSlot(' + idx + ')" title="第 ' + idx + ' 次：' + it.miss.date + ' 未交（' + (st&&st.archived?'点击查看':'点击补录') + '）">' +
+        '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">未交✗</span></div>' +
+        '<div class="ci-date">' + it.miss.date + '</div>' +
+        '<div class="ci-acc" style="color:var(--red)">0%</div>' +
+        '<div class="ci-wrongs">错题 0</div>' +
+        '</div>';
+    }
+    const r = it && it.type==='rec' ? it.rec : null;
+    if(r){
+      const ra = acc(r);
+      const acls = ra>=85?'good':(ra>=60?'mid':'bad');
+      return '<div class="ci-slot done" onclick="openSlot(' + idx + ')" title="第 ' + idx + ' 次：' + r.date + '，正确率 ' + ra + '%' +
+        (r.wrongs&&r.wrongs.length ? '，错题 ' + esc(r.wrongs.join('、')) : '') + '（点击查看/修改）">' +
+        '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">✓</span></div>' +
+        '<div class="ci-date">' + r.date + '</div>' +
+        '<div class="ci-acc ' + acls + '">' + ra + '%</div>' +
+        '<div class="ci-wrongs">' + (r.wrongs&&r.wrongs.length ? '错 ' + esc(r.wrongs.join('、')) : '无错题') + '</div>' +
+        '</div>';
+    }
+    return '<div class="ci-slot miss" onclick="openSlot(' + idx + ')" title="第 ' + idx + ' 次作业未完成' + (st&&st.archived?'':'，点击补录') + '">' +
+      '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span></div>' +
+      '<div class="ci-date">未完成</div>' +
+      '<div class="ci-acc" style="color:var(--red)">—</div>' +
+      '<div class="ci-wrongs">' + (st&&st.archived?'未完成':'点击补录') + '</div>' +
+      '</div>';
+  }).join('');
+}
+/* 点击格子：展开/收起当次录入（有记录则修改，无记录则新增） */
+function openSlot(idx){
+  if(slotEdit && slotEdit.gid===quickEntry.gid && slotEdit.subject===quickEntry.subject && slotEdit.idx===idx){
+    slotEdit = null;
+  } else {
+    slotEdit = {gid:quickEntry.gid, subject:quickEntry.subject, idx:idx};
+  }
+  renderAll();
+  // 表单打开后立即计算一次：有已存记录且非满分无错题时，错题号立即显示必填红框
+  if(slotEdit && document.getElementById('sl-wrongs')) slCalc();
+}
+/* 当次作业编辑区 HTML */
+function slotEditHtml(){
+  const items = subjectItems(slotEdit.gid, slotEdit.subject);
+  const it = items[slotEdit.idx-1];
+  const r = it && it.type==='rec' ? it.rec : null;
+  const miss = it && it.type==='miss' ? it.miss : null;
+  const st = state.students.find(x=>x.id===slotEdit.gid);
+  // 历史学生：只读展示当次详情
+  if(st && st.archived){
+    if(miss){
+      return '<div class="slot-edit"><div class="se-title">第 ' + slotEdit.idx + ' 次作业</div>' +
+        '<div style="font-size:13px;color:var(--red);padding:4px 0">该次作业未交（' + miss.date + '），正确率 0%，错题 0。</div>' +
+        '<div class="se-actions"><button class="btn ghost sm" onclick="openSlot(' + slotEdit.idx + ')">关闭</button></div></div>';
+    }
+    if(!r){
+      return '<div class="slot-edit"><div class="se-title">第 ' + slotEdit.idx + ' 次作业</div>' +
+        '<div style="font-size:13px;color:var(--red);padding:4px 0">该次作业未完成（未录入记录）。</div>' +
+        '<div class="se-actions"><button class="btn ghost sm" onclick="openSlot(' + slotEdit.idx + ')">关闭</button></div></div>';
+    }
+    const ra = acc(r);
+    return '<div class="slot-edit"><div class="se-title">第 ' + slotEdit.idx + ' 次作业（' + esc(shortSubject(slotEdit.subject)) + '）</div>' +
+      '<div class="se-grid">' +
+      '<div class="se-calc">日期 <b>' + r.date + '</b></div>' +
+      '<div class="se-calc">总题数 <b>' + r.total + '</b>　正确数 <b>' + r.correct + '</b>　错误数 <b>' + (r.total-r.correct) + '</b></div>' +
+      '<div class="se-calc">正确率 <b style="color:' + (ra>=85?'var(--mint-d)':(ra>=60?'#B9802A':'var(--red)')) + '">' + ra + '%</b></div>' +
+      (r.wrongs && r.wrongs.length ? '<div class="se-calc">错题 <b>' + esc(r.wrongs.join('、')) + '</b></div>' : '<div class="se-calc">错题 <span class="hint">无</span></div>') +
+      '</div>' +
+      '<div class="se-actions"><button class="btn ghost sm" onclick="openSlot(' + slotEdit.idx + ')">关闭</button></div></div>';
+  }
+  // 该次为未交记录：展示未交信息并直接提供补录表单（保存后该次未交自动视为已补交）
+  if(miss){
+    return '<div class="slot-edit">' +
+      '<div class="se-title">补录第 ' + slotEdit.idx + ' 次作业（' + esc(shortSubject(slotEdit.subject)) + '）</div>' +
+      '<div style="font-size:13px;color:var(--red);padding:4px 0 2px">该次为 ' + miss.date + ' 的未交作业（正确率 0%、错题 0）。填写下方信息并保存即完成这次补交；取消则保持未交状态。</div>' +
+      '<div class="se-grid">' +
+      '<input id="sl-date" type="date" value="' + miss.date + '">' +
+      '<input id="sl-total" type="number" min="1" inputmode="numeric" placeholder="总题数" oninput="slCalc()">' +
+      '<input id="sl-correct" type="number" min="0" inputmode="numeric" placeholder="正确题目数" oninput="slCalc()">' +
+      '<div class="se-calc" id="sl-calc">错误数 <b>—</b>　正确率 <b>—</b></div>' +
+      '<input id="sl-wrongs" class="se-full" placeholder="错题号（用逗号分隔，可空）">' +
+      '</div>' +
+      '<div class="se-actions">' +
+      '<button class="btn mint sm" onclick="saveSlot()">保存并补交</button>' +
+      '<button class="btn ghost sm" onclick="openSlot(' + slotEdit.idx + ')">取消</button>' +
+      '</div></div>';
+  }
+  return '<div class="slot-edit">' +
+    '<div class="se-title">' + (r ? '修改' : '录入') + '第 ' + slotEdit.idx + ' 次作业（' + esc(shortSubject(slotEdit.subject)) + '）</div>' +
+    '<div class="se-grid">' +
+    '<input id="sl-date" type="date" value="' + (r ? r.date : todayStr()) + '">' +
+    '<input id="sl-total" type="number" min="1" inputmode="numeric" placeholder="总题数" value="' + (r ? r.total : '') + '" oninput="slCalc()">' +
+    '<input id="sl-correct" type="number" min="0" inputmode="numeric" placeholder="正确题目数" value="' + (r ? r.correct : '') + '" oninput="slCalc()">' +
+    '<div class="se-calc" id="sl-calc">' + (r ? '已保存：错误数 <b>' + (r.total-r.correct) + '</b>　正确率 <b>' + acc(r) + '%</b>' : '错误数 <b>—</b>　正确率 <b>—</b>') + '</div>' +
+    '<input id="sl-wrongs" class="se-full" placeholder="错题号（用逗号分隔，可空）" value="' + (r && r.wrongs ? esc(r.wrongs.join(',')) : '') + '">' +
+    '</div>' +
+    '<div class="se-actions">' +
+    '<button class="btn mint sm" onclick="saveSlot()">' + (r ? '保存修改' : '完成打卡') + '</button>' +
+    '<button class="btn ghost sm" onclick="openSlot(' + slotEdit.idx + ')">取消</button>' +
+    (r ? '<button class="btn danger sm" onclick="deleteSlot()">删除该次记录</button>' : '') +
+    '<span style="margin-left:auto"></span>' +
+    '<button class="btn danger sm" onclick="markMissedToday()" title="按本表单选择的日期登记该生该科目未交，并在打卡格子中生成对应的一次（正确率 0%、错题 0）；日期留空默认今天，可补登历史日期">今日未交</button>' +
+    '</div></div>';
+}
+/* 当次编辑实时计算 */
+function slCalc(){
+  const total = parseInt(document.getElementById('sl-total').value, 10);
+  const correct = parseInt(document.getElementById('sl-correct').value, 10);
+  const box = document.getElementById('sl-calc');
+  if(!isNaN(total) && !isNaN(correct) && total>0 && correct>=0 && correct<=total){
+    const a = Math.round(correct/total*100);
+    box.innerHTML = '错误数 <b>' + (total-correct) + '</b>　正确率 <b style="color:' +
+      (a>=85?'var(--mint-d)':(a>=60?'#B9802A':'var(--red)')) + '">' + a + '%</b>';
+  } else {
+    box.innerHTML = '错误数 <b>—</b>　正确率 <b>—</b>';
+  }
+  // 非满分时错题号必填：红框 + 必填提示，填写后自动恢复
+  const w = document.getElementById('sl-wrongs');
+  if(w){
+    const need = !isNaN(total) && !isNaN(correct) && total>0 && correct>=0 && correct<total;
+    const filled = w.value.trim().length > 0;
+    if(need && !filled){
+      w.style.borderColor = 'var(--red)';
+      w.style.background = '#FDF1F1';
+      w.placeholder = '必填：错题号（用逗号分隔）';
+    } else {
+      w.style.borderColor = '';
+      w.style.background = '';
+      w.placeholder = '错题号（用逗号分隔，可空）';
+    }
+  }
+}
+/* 保存当次打卡：有记录则更新，无记录则新增 */
+function saveSlot(){
+  if(!slotEdit) return;
+  const st0 = pool.students.find(x=>x.id===slotEdit.gid);
+  if(!st0 || !canWriteOwner(st0.ownerId)){ alert('没有权限操作该数据'); return; }
+  const date = document.getElementById('sl-date').value || todayStr();
+  const total = parseInt(document.getElementById('sl-total').value, 10);
+  const correct = parseInt(document.getElementById('sl-correct').value, 10);
+  if(isNaN(total) || total<=0){ alert('请填写有效的总题数'); return; }
+  if(isNaN(correct) || correct<0 || correct>total){ alert('正确题目数需在 0 到总题数之间'); return; }
+  const wrongs = document.getElementById('sl-wrongs').value.split(/[,，、\s]+/).map(s=>s.trim()).filter(Boolean);
+  if(correct < total && wrongs.length === 0){ alert('正确题目数小于总题数，请填写错题号'); return; }
+  const items = subjectItems(slotEdit.gid, slotEdit.subject);
+  const it = items[slotEdit.idx-1];
+  const r = it && it.type==='rec' ? it.rec : null;
+  const miss = it && it.type==='miss' ? it.miss : null;
+  if(r){
+    if(!canWriteOwner(r.ownerId)){ alert('没有权限操作该数据'); return; }
+    r.date = date; r.total = total; r.correct = correct; r.wrongs = wrongs;
+  } else {
+    pool.records.push({id:uid(), studentId:slotEdit.gid, date:date, total:total, correct:correct,
+      wrongs:wrongs, subject:slotEdit.subject, images:[], pdfs:[], ownerId:st0.ownerId});
+    if(miss) miss.resolved = true;  // 补录成功：该次未交视为已补交，不再占用打卡格子
+  }
+  slotEdit = null;
+  save();
+  renderAll();
+}
+/* 删除当次打卡记录 */
+function deleteSlot(){
+  if(!slotEdit) return;
+  const items = subjectItems(slotEdit.gid, slotEdit.subject);
+  const it = items[slotEdit.idx-1];
+  const r = it && it.type==='rec' ? it.rec : null;
+  if(!r) return;
+  if(!canWriteOwner(r.ownerId)){ alert('没有权限操作该数据'); return; }
+    askConfirm('删除作业记录', '确定删除第 ' + slotEdit.idx + ' 次作业记录（' + r.date + '）？此操作不可恢复。', ()=>{
+      pool.records = pool.records.filter(x=>x.id!==r.id);
+      slotEdit = null;
+      save();
+      renderAll();
+    });
+}
+/* ================= 生成作业打卡报告 PDF（打卡情况 + 老师评语 + 模考） ================= */
+const REPORT_CDN = {
+  jspdf: 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+  html2canvas: 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'
+};
+function loadScript(src){
+  return new Promise((res, rej)=>{
+    if(document.querySelector('script[data-rpt="1"][src="' + src + '"]')){ res(); return; }
+    const s = document.createElement('script');
+    s.src = src; s.dataset.rpt = '1';
+    s.onload = () => res();
+    s.onerror = () => rej(new Error('load fail'));
+    document.head.appendChild(s);
+    setTimeout(()=>rej(new Error('timeout')), 25000);
+  });
+}
+function subjFileName(s){ return shortSubject(s).replace(/[\\/:*?"<>|]/g,'_'); }
+/* 构建报告 HTML：白底 A4 布局（794px），全内联样式便于截图 */
+function reportHtml(st, subject){
+  const gid = st.id;
+  const recs = subjectRecsSorted(gid, subject);
+  const plan = (st.subjPlans && st.subjPlans[subject]) || 0;
+  const done = recs.length;
+  const total = Math.max(plan, done);
+  const rate = plan>0 ? Math.round(done/plan*100) + '%' : '—';
+  const today = todayStr();
+  const subjName = shortSubject(subject);
+  let rows = '';
+  for(let i=0;i<total;i++){
+    const r = recs[i];
+    const idx = i+1;
+    const td = 'padding:7px 10px;border:1px solid #DDE3E0;font-size:13px;color:#374151';
+    if(r){
+      const ra = acc(r);
+      const wrongs = (r.wrongs && r.wrongs.length) ? esc(r.wrongs.join('、')) : '无错题';
+      rows += '<tr>' +
+        '<td style="' + td + '">第' + idx + '次</td>' +
+        '<td style="' + td + '">' + esc(r.date) + '</td>' +
+        '<td style="' + td + ';font-weight:700;color:' + (ra>=85?'#0F8F68':(ra>=60?'#B9802A':'#DC2626')) + '">' + ra + '%</td>' +
+        '<td style="' + td + '">' + wrongs + '</td></tr>';
+    } else {
+      rows += '<tr>' +
+        '<td style="' + td + '">第' + idx + '次</td>' +
+        '<td style="' + td + '">未完成</td>' +
+        '<td style="' + td + ';font-weight:700;color:#DC2626">—</td>' +
+        '<td style="' + td + ';color:#DC2626">未完成</td></tr>';
+    }
+  }
+  if(!rows) rows = '<tr><td colspan="4" style="padding:10px;border:1px solid #DDE3E0;font-size:13px;color:#9CA3AF">暂无作业记录</td></tr>';
+  const comment = (st.subjComments && st.subjComments[subject]) ? st.subjComments[subject] : '';
+  const mock = (st.mock && st.mock[subject]) || {};
+  const mockDate = mock.date || '';
+  const mockScore = (mock.score!==undefined && mock.score!==null && mock.score!=='') ? mock.score : '';
+  return '<div style="width:702px;padding:40px 46px 46px;box-sizing:border-box;background:#fff;color:#1F2937;font-family:-apple-system,BlinkMacSystemFont,\'PingFang SC\',\'Hiragino Sans GB\',\'Microsoft YaHei\',sans-serif">' +
+    '<div style="border-bottom:3px solid #2FBF8F;padding-bottom:14px;margin-bottom:18px">' +
+      '<div style="font-size:26px;font-weight:800;letter-spacing:1px">作业打卡报告</div>' +
+      '<div style="font-size:13px;color:#6B7280;margin-top:8px">学生：<b style="color:#1F2937">' + esc(st.name) + '</b>' +
+      (st.school ? '　｜　学校：' + esc(st.school) : '') +
+      (st.gradYear ? '　｜　年级：' + esc(st.gradYear) + ' 届' : '') +
+      '　｜　科目：<b style="color:#1F2937">' + esc(subjName) + '</b></div>' +
+      '<div style="font-size:12px;color:#9CA3AF;margin-top:4px">生成日期：' + today + '</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:10px;margin-bottom:20px">' +
+      '<div style="flex:1;background:#F0FBF6;border:1px solid #D8F0E5;border-radius:10px;padding:10px 14px;text-align:center">' +
+        '<div style="font-size:12px;color:#6B7280">应完成</div><div style="font-size:20px;font-weight:800;color:#0F8F68">' + plan + ' 次</div></div>' +
+      '<div style="flex:1;background:#F0FBF6;border:1px solid #D8F0E5;border-radius:10px;padding:10px 14px;text-align:center">' +
+        '<div style="font-size:12px;color:#6B7280">已完成</div><div style="font-size:20px;font-weight:800;color:#0F8F68">' + done + ' 次</div></div>' +
+      '<div style="flex:1;background:#FDF3F2;border:1px solid #F0C6C2;border-radius:10px;padding:10px 14px;text-align:center">' +
+        '<div style="font-size:12px;color:#6B7280">未完成</div><div style="font-size:20px;font-weight:800;color:#DC2626">' + Math.max(0,total-done) + ' 次</div></div>' +
+      '<div style="flex:1;background:#F0FBF6;border:1px solid #D8F0E5;border-radius:10px;padding:10px 14px;text-align:center">' +
+        '<div style="font-size:12px;color:#6B7280">完成率</div><div style="font-size:20px;font-weight:800;color:#0F8F68">' + rate + '</div></div>' +
+    '</div>' +
+    '<div style="font-size:15px;font-weight:700;color:#0F8F68;margin-bottom:8px">一、作业打卡情况</div>' +
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:20px">' +
+      '<tr style="background:#2FBF8F">' +
+        '<th style="padding:7px 10px;border:1px solid #2FBF8F;font-size:13px;color:#fff;text-align:left">次数</th>' +
+        '<th style="padding:7px 10px;border:1px solid #2FBF8F;font-size:13px;color:#fff;text-align:left">日期</th>' +
+        '<th style="padding:7px 10px;border:1px solid #2FBF8F;font-size:13px;color:#fff;text-align:left">正确率</th>' +
+        '<th style="padding:7px 10px;border:1px solid #2FBF8F;font-size:13px;color:#fff;text-align:left">错题</th>' +
+      '</tr>' + rows + '</table>' +
+    '<div style="font-size:15px;font-weight:700;color:#0F8F68;margin-bottom:8px">二、老师评语</div>' +
+    (comment
+      ? '<div style="background:#F8FAF9;border-left:4px solid #2FBF8F;padding:12px 14px;font-size:13px;color:#374151;line-height:1.7;white-space:pre-wrap;margin-bottom:20px">' + esc(comment) + '</div>'
+      : '<div style="padding:12px 14px;font-size:13px;color:#9CA3AF;background:#F8FAF9;margin-bottom:20px">暂无评语</div>') +
+    '<div style="font-size:15px;font-weight:700;color:#0F8F68;margin-bottom:8px">三、模考信息</div>' +
+    '<table style="width:100%;border-collapse:collapse;margin-bottom:6px">' +
+      '<tr><td style="padding:7px 10px;border:1px solid #DDE3E0;font-size:13px;color:#374151;background:#F8FAF9;width:110px">预约日期</td>' +
+      '<td style="padding:7px 10px;border:1px solid #DDE3E0;font-size:13px;color:#374151">' + (mockDate ? esc(mockDate) : '未预约') + '</td></tr>' +
+      '<tr><td style="padding:7px 10px;border:1px solid #DDE3E0;font-size:13px;color:#374151;background:#F8FAF9">结课模考分数</td>' +
+      '<td style="padding:7px 10px;border:1px solid #DDE3E0;font-size:13px;color:#374151">' + (mockScore!=='' ? esc(mockScore) + ' 分' : '未录入') + '</td></tr>' +
+    '</table>' +
+    '<div style="margin-top:26px;text-align:right;font-size:11px;color:#9CA3AF">本报告由「学生作业正确率工作台」自动生成</div>' +
+    '</div>';
+}
+async function genReport(){
+  if(!quickEntry) return;
+  const st = state.students.find(x=>x.id===quickEntry.gid);
+  if(!st){ alert('未找到学生数据'); return; }
+  const subject = quickEntry.subject;
+  let area = document.getElementById('reportArea');
+  if(!area){ area = document.createElement('div'); area.id = 'reportArea'; document.body.appendChild(area); }
+  area.innerHTML = reportHtml(st, subject);
+  const fileName = st.name + '_' + subjFileName(subject) + '_作业报告_' + todayStr() + '.pdf';
+  try{
+    await Promise.all([loadScript(REPORT_CDN.jspdf), loadScript(REPORT_CDN.html2canvas)]);
+  }catch(e){
+    alert('PDF 组件加载失败（可能网络受限），已打开打印窗口，请选择「另存为 PDF」。');
+    printReport(area); return;
+  }
+  // 置于屏幕中央截图（遮罩效果），clone 完成后立即隐藏原始 DOM
+  area.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:99999;background:#fff;box-shadow:0 0 0 9999px rgba(30,41,59,.45)';
+  try{
+    const canvas = await html2canvas(area, {scale:2, backgroundColor:'#ffffff', useCORS:true,
+      onclone:()=>{ area.style.display='none'; }});
+    const pageW = 794, pageH = 1123, pxPerPage = pageH*2;
+    const pdf = new jspdf.jsPDF({orientation:'portrait', unit:'px', format:[pageW, pageH], compress:true});
+    let y = 0, p = 1;
+    while(y < canvas.height){
+      if(p>1) pdf.addPage();
+      const h = Math.min(pxPerPage, canvas.height - y);
+      const c = document.createElement('canvas');
+      c.width = canvas.width; c.height = h;
+      c.getContext('2d').drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+      pdf.addImage(c.toDataURL('image/png'), 'PNG', 0, 0, pageW, h/2);
+      y += h; p++;
+    }
+    pdf.save(fileName);
+  }catch(e){
+    area.style.display='none';
+    alert('PDF 生成失败，已打开打印窗口，请选择「另存为 PDF」。');
+    printReport(area);
+  }
+}
+function printReport(area){
+  area.style.cssText = 'position:absolute;left:0;top:0;width:100%;background:#fff;z-index:99999;';
+  window.print();
+  setTimeout(()=>{ if(area) area.style.display='none'; }, 1500);
+}
+/* 保存老师评语（按 学生×科目 存储，同名组合并共享） */
+function saveSubjectComment(){
+  if(!quickEntry) return;
+  const ta = document.getElementById('qe-comment');
+  const text = ta ? ta.value : '';
+  const st = state.students.find(x=>x.id===quickEntry.gid);
+  if(st){
+    st.subjComments = st.subjComments || {};
+    st.subjComments[quickEntry.subject] = text.trim();
+    save();
+  }
+  const tip = document.getElementById('qe-comment-tip');
+  if(tip){ tip.style.display='inline'; setTimeout(()=>{ if(tip) tip.style.display='none'; }, 2500); }
+}
+
+/* ================= 模考预约与结课分数（按 学生×科目 存储） ================= */
+let mockEdit = null;  // {gid, subject, field:'date'|'score'} 当前展开的编辑行
+function editMock(field){
+  if(!quickEntry) return;
+  mockEdit = {gid:quickEntry.gid, subject:quickEntry.subject, field:field};
+  renderStats();
+}
+function getMockStu(){
+  return state.students.find(x=>x.id===quickEntry.gid);
+}
+function getMockSlot(st, subject){
+  if(!st) return null;
+  st.mock = st.mock || {};
+  st.mock[subject] = st.mock[subject] || {};
+  return st.mock[subject];
+}
+function bookMockExam(){
+  if(!quickEntry) return;
+  const d = document.getElementById('mock-date').value;
+  if(!d){ alert('请选择模考日期'); return; }
+  const slot = getMockSlot(getMockStu(), quickEntry.subject);
+  slot.date = d;
+  mockEdit = null;
+  save();
+  renderAll();
+}
+function cancelMockExam(){
+  if(!quickEntry) return;
+  const st = getMockStu();
+  if(st && st.mock && st.mock[quickEntry.subject]){
+    delete st.mock[quickEntry.subject].date;
+    if(!Object.keys(st.mock[quickEntry.subject]).length) delete st.mock[quickEntry.subject];
+  }
+  mockEdit = null;
+  save();
+  renderAll();
+}
+function saveMockScore(){
+  if(!quickEntry) return;
+  const v = parseInt(document.getElementById('mock-score').value, 10);
+  if(isNaN(v) || v<0 || v>100){ alert('请填写 0-100 之间的模考分数'); return; }
+  const slot = getMockSlot(getMockStu(), quickEntry.subject);
+  slot.score = v;
+  mockEdit = null;
+  save();
+  renderAll();
+}
+function clearMockScore(){
+  if(!quickEntry) return;
+  const st = getMockStu();
+  if(st && st.mock && st.mock[quickEntry.subject]){
+    delete st.mock[quickEntry.subject].score;
+    if(!Object.keys(st.mock[quickEntry.subject]).length) delete st.mock[quickEntry.subject];
+  }
+  mockEdit = null;
+  save();
+  renderAll();
+}
+
+/* ================= 卡内新增科目 Tab ================= */
+let addSubjGid = null;  // 当前展开新增科目面板的学生代表 id
+function toggleAddSubject(gid){
+  addSubjGid = (addSubjGid === gid) ? null : gid;
+  renderStats();
+}
+function addSubjPanelHtml(gid){
+  const p = 'as-' + gid;
+  const s1opts = '<option value="">选择分类…</option>' +
+    Object.keys(SUBJECT_TREE).map(k=>'<option value="' + k + '">' + k + '</option>').join('') +
+    '<option value="__custom__">自定义…</option>';
+  return '<div class="add-subj-panel">' +
+    '<div class="add-subj-title">选择该学生的学习科目</div>' +
+    '<div class="subject-row">' +
+    '<select id="' + p + '-s1" onchange="asSub1Change(\'' + gid + '\')">' + s1opts + '</select>' +
+    '<select id="' + p + '-s2" onchange="asSub2Change(\'' + gid + '\')" disabled><option value="">二级科目…</option></select>' +
+    '<select id="' + p + '-s3" disabled style="display:none"><option value="">三级科目…</option></select>' +
+    '<input id="' + p + '-custom" placeholder="输入自定义科目" style="display:none">' +
+    '</div>' +
+    '<div style="margin-top:10px;display:flex;gap:8px">' +
+    '<button class="btn mint sm" onclick="confirmAddSubject(\'' + gid + '\')">确认添加科目</button>' +
+    '<button class="btn ghost sm" onclick="toggleAddSubject(\'' + gid + '\')">取消</button>' +
+    '</div>' +
+    '</div>';
+}
+function asSub1Change(gid){
+  const p = 'as-' + gid;
+  const v = document.getElementById(p + '-s1').value;
+  const s2 = document.getElementById(p + '-s2');
+  const s3 = document.getElementById(p + '-s3');
+  const custom = document.getElementById(p + '-custom');
+  s2.innerHTML = '<option value="">二级科目…</option>'; s2.disabled = true;
+  s3.innerHTML = '<option value="">三级科目…</option>'; s3.disabled = true; s3.style.display = 'none';
+  custom.style.display = 'none';
+  if(v === '__custom__'){ custom.style.display = 'block'; return; }
+  if(v && SUBJECT_TREE[v]){
+    s2.innerHTML = '<option value="">二级科目…</option>' +
+      Object.keys(SUBJECT_TREE[v]).map(k=>'<option value="' + k + '">' + k + '</option>').join('');
+    s2.disabled = false;
+  }
+}
+function asSub2Change(gid){
+  const p = 'as-' + gid;
+  const v1 = document.getElementById(p + '-s1').value;
+  const v2 = document.getElementById(p + '-s2').value;
+  const s3 = document.getElementById(p + '-s3');
+  s3.innerHTML = '<option value="">三级科目…</option>'; s3.disabled = true; s3.style.display = 'none';
+  const children = (v1 && SUBJECT_TREE[v1]) ? SUBJECT_TREE[v1][v2] : null;
+  if(children){
+    s3.innerHTML = '<option value="">三级科目…</option>' +
+      children.map(k=>'<option value="' + k + '">' + k + '</option>').join('');
+    s3.disabled = false; s3.style.display = 'block';
+  }
+}
+function getAddSubjValue(gid){
+  const p = 'as-' + gid;
+  const v1 = document.getElementById(p + '-s1').value;
+  if(!v1) return null;
+  if(v1 === '__custom__') return document.getElementById(p + '-custom').value.trim() || null;
+  const v2 = document.getElementById(p + '-s2').value;
+  if(!v2) return v1;
+  const s3 = document.getElementById(p + '-s3');
+  if(!s3.disabled && s3.value) return v1 + ' / ' + v2 + ' / ' + s3.value;
+  return v1 + ' / ' + v2;
+}
+function confirmAddSubject(gid){
+  const subj = getAddSubjValue(gid);
+  if(!subj){ alert('请选择科目'); return; }
+  const repStu = state.students.find(s=>s.id===gid);
+  if(!repStu) return;
+  const name = repStu.name.trim();
+  let added = false;
+  state.students.forEach(s=>{
+    if(!s.archived && s.name.trim()===name){
+      if(!s.subjects) s.subjects = [];
+      if(!s.subjects.includes(subj)){ s.subjects.push(subj); added = true; }
+    }
+  });
+  addSubjGid = null;
+  save();
+  renderAll();
+  if(!added) alert('该科目已在列表中，无需重复添加。');
+}
+
+/* ================= 科目重命名 ================= */
+let renaming = null;  // {gid: 学生代表id, subject: 科目路径}
+function startRenameSubject(gid, subject, ev){
+  if(ev) ev.stopPropagation();  // 避免触发 Tab 的快速录入
+  renaming = {gid:gid, subject:subject};
+  renderStats();
+  const inp = document.getElementById('ren-input');
+  if(inp){ inp.focus(); inp.select(); }
+}
+function cancelRename(){
+  renaming = null;
+  renderStats();
+}
+function saveRenameSubject(){
+  if(!renaming) return;
+  const oldName = renaming.subject;
+  const newName = document.getElementById('ren-input').value.trim();
+  if(!newName){ alert('科目名不能为空'); return; }
+  if(newName === oldName){ renaming = null; renderStats(); return; }
+  const repStu = state.students.find(s=>s.id===renaming.gid);
+  if(!repStu){ renaming = null; renderStats(); return; }
+  // 该学生（含同名组）的全部学生 id
+  const ids = state.students.filter(s=>!s.archived && s.name.trim()===repStu.name.trim()).map(s=>s.id);
+  // 重名检查：该学生已有其他科目叫新名字
+  const dup = state.records.some(r=>ids.includes(r.studentId) && r.subject===newName) ||
+    state.missed.some(m=>ids.includes(m.studentId) && m.subject===newName) ||
+    ids.some(id=>{ const st = state.students.find(x=>x.id===id); return !!(st && Array.isArray(st.subjects) && st.subjects.includes(newName)); });
+  if(dup){ alert('该学生已有科目「' + newName + '」，不能重复命名。'); return; }
+  // 同步更新：作业记录、未交记录、手动科目列表
+  state.records.forEach(r=>{ if(ids.includes(r.studentId) && r.subject===oldName) r.subject = newName; });
+  state.missed.forEach(m=>{ if(ids.includes(m.studentId) && m.subject===oldName) m.subject = newName; });
+  state.students.forEach(s=>{
+    if(ids.includes(s.id) && Array.isArray(s.subjects)){
+      const i = s.subjects.indexOf(oldName);
+      if(i!==-1) s.subjects[i] = newName;
+    }
+  });
+  // 同步老师评语的科目键名
+  state.students.forEach(s=>{
+    if(ids.includes(s.id) && s.subjComments && s.subjComments[oldName] !== undefined){
+      s.subjComments[newName] = s.subjComments[oldName];
+      delete s.subjComments[oldName];
+    }
+  });
+  // 同步模考数据的科目键名
+  state.students.forEach(s=>{
+    if(ids.includes(s.id) && s.mock && s.mock[oldName] !== undefined){
+      s.mock[newName] = s.mock[oldName];
+      delete s.mock[oldName];
+    }
+  });
+  // 同步应完成作业次数（打卡计划）的科目键名
+  state.students.forEach(s=>{
+    if(ids.includes(s.id) && s.subjPlans && s.subjPlans[oldName] !== undefined){
+      s.subjPlans[newName] = s.subjPlans[oldName];
+      delete s.subjPlans[oldName];
+    }
+  });
+  // 若该科目的快速录入面板正打开，同步更新
+  if(quickEntry && quickEntry.gid===renaming.gid && quickEntry.subject===oldName){
+    quickEntry.subject = newName;
+  }
+  if(slotEdit && slotEdit.gid===renaming.gid && slotEdit.subject===oldName){
+    slotEdit.subject = newName;
+  }
+  renaming = null;
+  save();
+  renderAll();
+}
+/* 删除科目：清除该科目下的全部关联数据（同名组合并处理），带确认 */
+function deleteSubject(){
+  if(!renaming) return;
+  const oldName = renaming.subject;
+  const repStu = state.students.find(s=>s.id===renaming.gid);
+  if(!repStu){ renaming = null; renderStats(); return; }
+  const ids = state.students.filter(s=>!s.archived && s.name.trim()===repStu.name.trim()).map(s=>s.id);
+  const nRecs = state.records.filter(r=>ids.includes(r.studentId) && r.subject===oldName).length;
+  const nMiss = state.missed.filter(m=>ids.includes(m.studentId) && m.subject===oldName).length;
+  askConfirm('删除科目', '确定删除科目「' + oldName + '」吗？该科目下的 ' + nRecs + ' 条作业记录' +
+    (nMiss? '、' + nMiss + ' 条未交记录' : '') +
+    '，以及打卡计划、老师评语、模考信息将一并清除，此操作不可恢复。', ()=>{
+    pool.records = pool.records.filter(r=>!(ids.includes(r.studentId) && r.subject===oldName));
+    pool.missed = pool.missed.filter(m=>!(ids.includes(m.studentId) && m.subject===oldName));
+    state.students.forEach(s=>{
+      if(ids.includes(s.id)){
+        if(Array.isArray(s.subjects)) s.subjects = s.subjects.filter(x=>x!==oldName);
+        if(s.subjComments) delete s.subjComments[oldName];
+        if(s.mock) delete s.mock[oldName];
+        if(s.subjPlans) delete s.subjPlans[oldName];
+      }
+    });
+    // 关闭指向该科目的各种编辑状态
+    if(quickEntry && ids.includes(quickEntry.gid) && quickEntry.subject===oldName) quickEntry = null;
+    if(slotEdit && ids.includes(slotEdit.gid) && slotEdit.subject===oldName) slotEdit = null;
+    if(mockEdit && ids.includes(mockEdit.gid) && mockEdit.subject===oldName) mockEdit = null;
+    renaming = null;
+    save();
+    renderAll();
+  });
+}
+
+/* ================= 新增/编辑学生弹窗 & 历史学生 ================= */
+let editStuIds = null;  // null=新增；数组=正在编辑的同名组学生 id
+function initGradYears(){
+  const sel = document.getElementById('ns-gradyear');
+  const y = new Date().getFullYear();
+  let html = '<option value="">选择毕业年份…</option>';
+  for(let i=0;i<11;i++) html += '<option value="' + (y+i) + '">' + (y+i) + ' 年</option>';
+  sel.innerHTML = html;
+}
+document.getElementById('btn-open-add-stu').addEventListener('click', ()=>{
+  editStuIds = null;
+  document.getElementById('ns-title').textContent = '新增在服务学生';
+  document.getElementById('ns-desc').textContent = '录入学生的基本信息，之后即可在「现有学生」明细中为其录入作业。';
+  document.getElementById('ns-name').value = '';
+  document.getElementById('ns-school').value = '';
+  initGradYears();
+  document.getElementById('stu-modal').classList.add('show');
+});
+// 点击明细卡姓名 → 编辑该同名组学生的信息
+function openEditStudent(ids){
+  const group = state.students.filter(s=>ids.includes(s.id));
+  if(!group.length) return;
+  editStuIds = ids;
+  const rep = group.find(s=>s.school || s.gradYear) || group[0];
+  document.getElementById('ns-title').textContent = '修改学生信息';
+  document.getElementById('ns-desc').textContent = '修改会应用到「' + rep.name + '」的全部档案，作业记录自动跟随。';
+  document.getElementById('ns-name').value = rep.name;
+  document.getElementById('ns-school').value = rep.school || '';
+  initGradYears();
+  document.getElementById('ns-gradyear').value = rep.gradYear || '';
+  document.getElementById('stu-modal').classList.add('show');
+}
+document.getElementById('ns-cancel').addEventListener('click', ()=>document.getElementById('stu-modal').classList.remove('show'));
+document.getElementById('ns-ok').addEventListener('click', ()=>{
+  const name = document.getElementById('ns-name').value.trim();
+  const school = document.getElementById('ns-school').value.trim();
+  const gradYear = document.getElementById('ns-gradyear').value;
+  if(!name){ alert('请输入学生姓名'); return; }
+  if(!gradYear){ alert('请选择毕业年份'); return; }
+  if(editStuIds){
+    // 越权防护：只能编辑可见范围内的学生
+    const denied = editStuIds.some(id=>{ const s = pool.students.find(x=>x.id===id); return !s || !canWriteOwner(s.ownerId); });
+    if(denied){ alert('没有权限操作该数据'); return; }
+    // 编辑模式：同名冲突检查（排除本组）
+    const clash = activeStudents().some(s=>!editStuIds.includes(s.id) && s.name.trim()===name);
+    if(clash){ alert('已有另一位同名学生「' + name + '」，不能改成相同姓名。'); return; }
+    pool.students.forEach(s=>{ if(editStuIds.includes(s.id)){ s.name = name; s.school = school; s.gradYear = gradYear; } });
+  } else {
+    if(activeStudents().some(s=>s.name.trim()===name)){ alert('「' + name + '」已在现有学生中，同名不能重复录入。'); return; }
+    pool.students.push({id:uid(), name, school, gradYear, ownerId:writeOwnerId()});
+  }
+  save();
+  document.getElementById('stu-modal').classList.remove('show');
+  renderAll();
+});
+
+/* 归档 / 恢复学生（按同名组操作，作业记录保留） */
+function archiveGroup(ids){
+  const denied = ids.some(id=>{ const s = pool.students.find(x=>x.id===id); return !s || !canWriteOwner(s.ownerId); });
+  if(denied){ alert('没有权限操作该数据'); return; }
+  askConfirm('转为历史学生', '该学生将从「现有学生」移到「历史学生」，录入下拉中不再出现；科目、作业记录、打卡、评语、模考等数据完整保留，可在历史板块查看（恢复为现有学生后可继续编辑）。确定吗？', ()=>{
+    pool.students.forEach(s=>{ if(ids.includes(s.id)) s.archived = true; });
+    save(); renderAll();
+  });
+}
+function restoreGroup(ids){
+  const denied = ids.some(id=>{ const s = pool.students.find(x=>x.id===id); return !s || !canWriteOwner(s.ownerId); });
+  if(denied){ alert('没有权限操作该数据'); return; }
+  pool.students.forEach(s=>{ if(ids.includes(s.id)) s.archived = false; });
+  save(); renderAll();
+}
+
+/* 历史学生列表（完整明细同步：科目正确率、评语、模考、打卡计划、未交记录；只读查看） */
+function renderAlumni(){
+  const list = document.getElementById('alumni-list');
+  const groups = [];
+  archivedStudents().forEach(s=>{
+    const key = (s.ownerId||'') + '|' + s.name.trim();
+    let g = groups.find(x=>x.key===key);
+    if(!g){ g = {key:key, name:s.name.trim(), ownerId:s.ownerId||'', ids:[], school:'', gradYear:'', sample:false}; groups.push(g); }
+    g.ids.push(s.id);
+    if(s.sample) g.sample = true;
+    if(s.school) g.school = s.school;
+    if(s.gradYear) g.gradYear = s.gradYear;
+  });
+  if(!groups.length){
+    list.innerHTML = '<p class="hint">暂无历史学生。学生毕业或结课后，可在「现有学生」明细卡中转为历史学生。</p>';
+    return;
+  }
+  list.innerHTML = groups.map(g=>{
+    const recs = state.records.filter(r=>g.ids.includes(r.studentId)).sort((a,b)=>a.date<b.date?-1:1);
+    const misses = state.missed.filter(m=>g.ids.includes(m.studentId));
+    const openMiss = misses.filter(m=>!m.resolved);
+    const s = {id:g.ids[0], name:g.name, sample:g.sample};
+
+    // 趋势迷你折线（最近 8 次）
+    let trend = '<span class="hint">暂无记录</span>';
+    if(recs.length){
+      const last = recs.slice(-8);
+      const pts = last.map((r,i)=>{
+        const x = 6 + i*(108/Math.max(1,last.length-1 || 1));
+        const y = 34 - acc(r)*0.28;
+        return x.toFixed(1) + ',' + y.toFixed(1);
+      }).join(' ');
+      trend = '<svg width="120" height="40" viewBox="0 0 120 40"><polyline points="' + pts + '" fill="none" stroke="#5FB89A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+
+    // 分科目统计（含手动添加的学习科目），点击徽章可查看打卡情况（只读）
+    const subMap = {};
+    recs.forEach(r=>{ const k = r.subject || '未指定'; (subMap[k]=subMap[k]||[]).push(r); });
+    const orderedSubjects = [];
+    const _seen = new Set();
+    recs.forEach(r=>{ const k = r.subject || '未指定'; if(!_seen.has(k)){ _seen.add(k); orderedSubjects.push(k); } });
+    g.ids.forEach(id=>{
+      const stu = state.students.find(x=>x.id===id);
+      if(stu && stu.subjects) stu.subjects.forEach(sub=>{ if(!_seen.has(sub)){ _seen.add(sub); orderedSubjects.push(sub); } });
+    });
+    let subHtml = '';
+    if(orderedSubjects.length){
+      subHtml = '<div class="sub-acc">' + orderedSubjects.map(k=>{
+        const arr = subMap[k] || [];
+        const sa = arr.length ? Math.round(arr.reduce((x,r)=>x+acc(r),0)/arr.length) : null;
+        const isActive = quickEntry && quickEntry.gid===s.id && quickEntry.subject===k;
+        const repStuCmt = state.students.find(x=>x.id===s.id);
+        const hasCmt = !!(repStuCmt && repStuCmt.subjComments && repStuCmt.subjComments[k]);
+        const planCnt = (repStuCmt && repStuCmt.subjPlans && repStuCmt.subjPlans[k]) || null;
+        const mockSt = (repStuCmt && repStuCmt.mock && repStuCmt.mock[k]) || {};
+        const mockDate = mockSt.date || '';
+        const mockScore = (mockSt.score!==undefined && mockSt.score!==null && mockSt.score!=='') ? mockSt.score : null;
+        const omc = overdueMissCount(g.ids, k);
+        return '<span class="sub-chip' + (isActive?' active':'') + '" onclick="toggleQuickEntry(\'' + s.id + '\',\'' + esc(k) + '\')" title="点击查看该科目打卡情况、评语与模考">' +
+          '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
+          (omc>=2 ? '<span class="sub-alert" title="该科目有 ' + omc + ' 次逾期未交作业">!</span>' : '') +
+          (hasCmt ? '<span class="sub-cmt-dot" title="已有老师评语"></span>' : '') +
+          (mockDate ? '<span class="mock-tag booked" title="已预约 ' + esc(mockDate) + ' 模考">约</span>' : '') +
+          (mockScore!==null ? '<span class="mock-tag score" title="结课模考分数">模考 ' + esc(mockScore) + '</span>' : '') +
+          (arr.length ? '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>' : '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">未录入</span>') +
+          '<span class="sub-cnt" title="' + (planCnt!==null ? '已完成 ' + arr.length + ' 次，应完成 ' + planCnt + ' 次' : '已录入 ' + arr.length + ' 次') + '">' + (planCnt!==null ? arr.length + '/' + planCnt : arr.length) + ' 次</span></span>';
+      }).join('') + '</div>';
+    }
+
+    // 未交记录（只读展示）
+    const missHtml = '<div style="font-size:13px;color:var(--ink2);margin-top:6px">历史未交 <b style="color:var(--red)">' + misses.length + '</b> 次' +
+      (openMiss.length
+        ? '（含 ' + openMiss.length + ' 次未处理：' + openMiss.map(m=>m.date + (m.subject ? '（' + esc(shortSubject(m.subject)) + '）' : '')).join('、') + '）'
+        : '（均已处理）') + '</div>';
+
+    return '<div class="stu-card">' +
+      '<div class="stu-head"><div class="avatar">' + esc(g.name.slice(0,1)) + '</div>' +
+      '<div class="grow"><b>' + esc(g.name) + '</b>' +
+      (g.school ? ' <span style="font-weight:400;font-size:12px;color:var(--ink2)">' + esc(g.school) + '</span>' : '') +
+      (g.gradYear ? ' <span class="tag mint">' + g.gradYear + ' 届</span>' : '') +
+      (g.ids.length>1 ? ' <span class="tag mint">同名合并 ×' + g.ids.length + '</span>' : '') +
+      (g.sample?' <span class="tag sample">示例</span>':'') +
+      (isAdminView() ? ' <span class="tag amber owner-tag" onclick="openTransfer([\'' + g.ids.join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '</span>' : '') + '</div>' +
+      trend +
+      '</div>' +
+      '<div class="stu-nums"><span>历史作业 <b>' + recs.length + '</b> 次</span><span>未交次数 <b style="color:var(--red)">' + misses.length + '</b></span>' +
+      (recs.length ? '<span>最近正确率 <b>' + acc(recs[recs.length-1]) + '%</b></span>' : '') +
+      '<span style="margin-left:auto"><button class="btn ghost sm" onclick="restoreGroup([\'' + g.ids.join('\',\'') + '\'])">恢复为现有学生</button></span></div>' +
+      subHtml +
+      (quickEntry && quickEntry.gid===s.id ? qePanelHtml() : '') +
+      missHtml +
+      '</div>';
+  }).join('');
+}
+/* 导出内容 = 当前视图数据（助教只导出自己名下；教务按当前数据范围） */
+function buildExport(){ return JSON.parse(JSON.stringify(state)); }
+document.getElementById('btn-export').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(buildExport(), null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '作业正确率备份-' + todayStr().replace(/-/g,'') + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+document.getElementById('btn-import').addEventListener('click', ()=>document.getElementById('f-import').click());
+document.getElementById('f-import').addEventListener('change', function(e){
+  const f = e.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      if(!data || !Array.isArray(data.students) || !Array.isArray(data.records) || !Array.isArray(data.missed)){
+        throw new Error('bad');
+      }
+      askConfirm('导入恢复', '将用备份文件替换当前数据范围的数据（共 ' + data.records.length + ' 条作业记录；助教导入时数据归属强制记为本人），确定继续吗？', ()=>{
+        // 先移除当前范围内的数据，再写入导入数据
+        pool.students = pool.students.filter(s=>!ownerInView(s.ownerId));
+        pool.records = pool.records.filter(r=>!ownerInView(r.ownerId));
+        pool.missed = pool.missed.filter(m=>!ownerInView(m.ownerId));
+        // 助教（或教务在指定助教视角）导入：ownerId 强制覆盖为当前归属；教务全部视角：保留文件内 ownerId
+        const targetOwner = (currentUser.role==='ta' || scope!=='all') ? writeOwnerId() : null;
+        ['students','records','missed'].forEach(k=>{
+          data[k].forEach(it=>{ it.ownerId = targetOwner || it.ownerId || currentUser.id; pool[k].push(it); });
+        });
+        save(); renderAll();
+        alert('导入完成！');
+      });
+    }catch(err){ alert('文件格式不正确，请选择本工作台导出的 JSON 备份文件。'); }
+  };
+  reader.readAsText(f);
+  e.target.value = '';
+});
+/* 清空当前数据范围内的示例数据（按 ownerId 分别生效） */
+function clearSamplesOfView(){
+  const sampleStuIds = state.students.filter(s=>s.sample).map(s=>s.id);
+  pool.records = pool.records.filter(r=>!(ownerInView(r.ownerId) && (r.sample || sampleStuIds.includes(r.studentId))));
+  pool.missed = pool.missed.filter(m=>!(ownerInView(m.ownerId) && (m.sample || sampleStuIds.includes(m.studentId))));
+  pool.students = pool.students.filter(s=>!(ownerInView(s.ownerId) && s.sample));
+}
+function clearSamples(){
+  askConfirm('清空示例数据', '将删除当前数据范围内所有标记为「示例」的学生、作业记录和未交记录，你自己录入的数据不受影响。确定吗？', ()=>{
+    clearSamplesOfView();
+    save(); renderAll();
+  });
+}
+document.getElementById('btn-clear-sample').addEventListener('click', clearSamples);
+function loadSampleData(){
+  askConfirm('重新载入示例数据', '将在当前数据范围重新生成示例数据（该范围原有示例数据会先清除），你自己录入的数据不受影响。确定继续吗？', ()=>{
+    // 备份当前数据，防止误覆盖
+    try{ localStorage.setItem('wb_ha_v2_backup', JSON.stringify(pool)); }catch(e){}
+    clearSamplesOfView();
+    seedSamplesFor(writeOwnerId());
+    save(); renderAll();
+    alert('已载入最新示例数据（含同名合并演示）！旧数据已自动备份到本机浏览器。');
+  });
+}
+document.getElementById('btn-load-sample').addEventListener('click', loadSampleData);
+document.getElementById('btn-clear-all').addEventListener('click', ()=>{
+  askConfirm('清空全部数据', '将删除当前数据范围内的所有学生、作业记录和未交记录（含你自己录入的数据），此操作不可恢复！建议先导出备份。确定继续吗？', ()=>{
+    pool.students = pool.students.filter(s=>!ownerInView(s.ownerId));
+    pool.records = pool.records.filter(r=>!ownerInView(r.ownerId));
+    pool.missed = pool.missed.filter(m=>!ownerInView(m.ownerId));
+    save(); renderAll();
+  });
+});
+
+/* ================= 登录与会话 ================= */
+function showLogin(){
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+function enterApp(){
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  scope = 'all';
+  document.getElementById('user-name').textContent = currentUser.name;
+  const rb = document.getElementById('user-role');
+  rb.textContent = currentUser.role==='admin' ? '教务' : '助教';
+  rb.classList.toggle('admin', currentUser.role==='admin');
+  // 「账号管理」「数据看板」页签与数据范围切换器仅教务可见；教务端底部 Tab 用看板替换低频的「数据管理」
+  const isAdmin = isAdminView();
+  ['nav-accounts','tab-accounts','nav-dashboard','tab-dashboard'].forEach(id=>{ document.getElementById(id).style.display = isAdmin ? '' : 'none'; });
+  document.getElementById('tab-data').style.display = isAdmin ? 'none' : '';
+  document.getElementById('scope-wrap').style.display = isAdmin ? '' : 'none';
+  if(isAdmin) renderScopeOptions();
+  updateScopeHint();
+  refreshView();
+  renderAll();
+  switchTab('today');
+}
+function renderScopeOptions(){
+  const sel = document.getElementById('scope-select');
+  const tas = Api.listUsers().filter(u=>u.role==='ta');
+  sel.innerHTML = '<option value="all">全部数据</option>' +
+    tas.map(u=>'<option value="' + u.id + '"' + (u.disabled?' disabled':'') + '>' + esc(u.name) + (u.disabled?'（已停用）':'') + '</option>').join('');
+  sel.value = scope;
+}
+/* 教务录入身份提示：指定助教视角下新数据归属该助教 */
+function updateScopeHint(){
+  const el = document.getElementById('scope-hint');
+  if(!el) return;
+  if(!isAdminView()){ el.textContent = ''; return; }
+  if(scope==='all'){
+    el.textContent = '当前为全部数据视角，新录入数据归属教务';
+  } else {
+    el.textContent = '当前以「' + ownerName(scope) + '」身份查看，新录入数据归属该助教';
+  }
+}
+/* 登录界面角色选择：助教 / 教务（默认助教） */
+let loginRole = 'ta';
+document.querySelectorAll('#login-role-seg .role-opt').forEach(b=>b.addEventListener('click', ()=>{
+  loginRole = b.dataset.role;
+  document.querySelectorAll('#login-role-seg .role-opt').forEach(x=>x.classList.toggle('active', x===b));
+}));
+async function doLogin(u, p, role){
+  u = u!==undefined ? u : document.getElementById('login-user').value.trim();
+  p = p!==undefined ? p : document.getElementById('login-pass').value;
+  role = role!==undefined ? role : loginRole;
+  const err = document.getElementById('login-err');
+  if(!u || !p){ err.textContent = '请输入账号和密码'; return; }
+  const res = await Api.login(u, p, role);
+  if(!res.ok){ err.textContent = res.msg; return; }
+  currentUser = res.user;
+  document.getElementById('login-pass').value = '';
+  err.textContent = '';
+  if(currentUser.mustChangePwd){ openPwdModal(true); return; }  // 首登/重置后强制改密
+  enterApp();
+}
+function doLogout(){
+  Api.logout();
+  currentUser = null;
+  document.getElementById('pwd-modal').classList.remove('show');
+  document.getElementById('transfer-modal').classList.remove('show');
+  showLogin();
+}
+document.getElementById('btn-login').addEventListener('click', ()=>doLogin());
+document.getElementById('login-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+document.getElementById('login-user').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+document.getElementById('btn-logout').addEventListener('click', doLogout);
+document.getElementById('scope-select').addEventListener('change', function(){
+  scope = this.value;
+  updateScopeHint();
+  refreshView();
+  renderAll();
+});
+
+/* ================= 修改密码（验旧密；mustChangePwd 时强制，不可取消） ================= */
+let pwdForced = false;
+function openPwdModal(forced){
+  pwdForced = !!forced;
+  document.getElementById('pwd-title').textContent = forced ? '首次登录请修改密码' : '修改密码';
+  document.getElementById('pwd-desc').textContent = forced ? '为保障账号安全，请设置新密码后继续使用。' : '修改登录密码，下次登录生效。';
+  document.getElementById('pwd-old').value = '';
+  document.getElementById('pwd-new').value = '';
+  document.getElementById('pwd-new2').value = '';
+  document.getElementById('pwd-err').textContent = '';
+  document.getElementById('pwd-cancel').style.display = forced ? 'none' : '';
+  document.getElementById('pwd-modal').classList.add('show');
+}
+async function doChangePwd(oldP, newP, newP2){
+  oldP = oldP!==undefined ? oldP : document.getElementById('pwd-old').value;
+  newP = newP!==undefined ? newP : document.getElementById('pwd-new').value;
+  newP2 = newP2!==undefined ? newP2 : document.getElementById('pwd-new2').value;
+  const err = document.getElementById('pwd-err');
+  if(newP !== newP2){ err.textContent = '两次输入的新密码不一致'; return; }
+  const res = await Api.changePassword(oldP, newP);
+  if(!res.ok){ err.textContent = res.msg; return; }
+  document.getElementById('pwd-modal').classList.remove('show');
+  if(pwdForced){ pwdForced = false; enterApp(); }
+  else alert('密码已修改，下次登录请使用新密码。');
+}
+document.getElementById('btn-chpwd').addEventListener('click', ()=>openPwdModal(false));
+document.getElementById('pwd-cancel').addEventListener('click', ()=>document.getElementById('pwd-modal').classList.remove('show'));
+document.getElementById('pwd-ok').addEventListener('click', ()=>doChangePwd());
+
+/* ================= 教务：账号管理 ================= */
+function renderAccounts(){
+  const el = document.getElementById('accounts-list');
+  if(!el) return;
+  const users = Api.listUsers();
+  el.innerHTML = users.map(u=>{
+    const stuCnt = pool.students.filter(s=>s.ownerId===u.id).length;
+    const isSelf = currentUser && u.id===currentUser.id;
+    return '<div class="acct-row">' +
+      '<div class="grow"><b>' + esc(u.name) + '</b> ' +
+      '<span class="tag ' + (u.role==='admin'?'amber':'mint') + '">' + (u.role==='admin'?'教务':'助教') + '</span>' +
+      (u.disabled ? ' <span class="tag red">已停用</span>' : '') +
+      (u.mustChangePwd ? ' <span class="tag sample">待改密</span>' : '') +
+      (isSelf ? ' <span class="tag sample">当前登录</span>' : '') +
+      '<div class="hint" style="margin-top:2px">账号 ' + esc(u.username) + ' · 学生 ' + stuCnt + ' 人 · 创建于 ' + esc(u.createdAt||'-') + '</div></div>' +
+      (u.role==='ta'
+        ? '<button class="btn ghost sm" onclick="resetUserPwd(\'' + u.id + '\')">重置密码</button>' +
+          '<button class="btn ' + (u.disabled?'mint':'danger') + ' sm" onclick="toggleUser(\'' + u.id + '\')">' + (u.disabled?'启用':'停用') + '</button>'
+        : '') +
+      '</div>';
+  }).join('') || '<p class="hint">暂无账号</p>';
+}
+function resetUserPwd(id){
+  const u = Api.listUsers().find(x=>x.id===id);
+  if(!u) return;
+  askConfirm('重置密码', '将重置「' + u.name + '」的登录密码，其下次登录需使用新密码并被要求修改。确定吗？', async ()=>{
+    const np = 'ta' + Math.random().toString(36).slice(2,8);
+    const res = await Api.resetPassword(id, np);
+    if(res.ok) alert('密码已重置为：' + np + '\n请转告该助教，首次登录需修改密码。');
+    renderAll();
+  });
+}
+function toggleUser(id){
+  const u = Api.listUsers().find(x=>x.id===id);
+  if(!u) return;
+  askConfirm(u.disabled ? '启用账号' : '停用账号',
+    u.disabled ? '确定重新启用「' + u.name + '」吗？' : '停用后「' + u.name + '」将无法登录，其名下学生与作业数据完整保留。确定吗？',
+    ()=>{
+      const res = Api.toggleUser(id);
+      if(!res.ok){ alert(res.msg); return; }
+      renderScopeOptions(); updateScopeHint(); renderAll();
+    });
+}
+document.getElementById('btn-create-ta').addEventListener('click', async ()=>{
+  const name = document.getElementById('ac-name').value.trim();
+  const username = document.getElementById('ac-username').value.trim();
+  const pwd = document.getElementById('ac-password').value;
+  const res = await Api.createUser(name, username, pwd, 'ta');
+  if(!res.ok){ alert(res.msg); return; }
+  document.getElementById('ac-name').value = '';
+  document.getElementById('ac-username').value = '';
+  document.getElementById('ac-password').value = '';
+  renderScopeOptions(); renderAll();
+  alert('已创建助教账号「' + name + '」，首次登录需修改初始密码。');
+});
+
+/* ================= 教务：转移学生归属 ================= */
+let transferIds = null;
+function openTransfer(ids){
+  if(!isAdminView()) return;
+  transferIds = ids;
+  const sel = document.getElementById('tf-target');
+  const cur = stuOwnerId(ids[0]);
+  const opts = Api.listUsers().filter(u=>u.role==='ta' && !u.disabled && u.id!==cur);
+  if(!opts.length){ alert('暂无可转移的目标助教'); return; }
+  sel.innerHTML = opts.map(u=>'<option value="' + u.id + '">' + esc(u.name) + '（' + esc(u.username) + '）</option>').join('');
+  document.getElementById('transfer-modal').classList.add('show');
+}
+document.getElementById('tf-cancel').addEventListener('click', ()=>document.getElementById('transfer-modal').classList.remove('show'));
+document.getElementById('tf-ok').addEventListener('click', ()=>{
+  const target = document.getElementById('tf-target').value;
+  document.getElementById('transfer-modal').classList.remove('show');
+  askConfirm('确认转移归属', '该学生的全部作业记录、未交记录将一并转移给「' + ownerName(target) + '」，确定吗？', ()=>{
+    const res = Api.transferStudent(transferIds, target);
+    if(!res.ok){ alert(res.msg); return; }
+    renderAll();
+  });
+});
+
+/* ================= 教务：数据看板 =================
+   基于 pool 全量（上帝视角），与 topbar「数据范围」独立；仅教务可见。
+   口径：录入/正确率类指标受时间范围筛选影响；逾期未交、沉睡学生为当前状态指标，不受影响。 */
+let dashRange = 30;   // 7 | 30 | 90 | 0（全部），默认近 30 天
+let dashOwner = 'all';
+function dashRangeStart(){ return dashRange === 0 ? null : offsetDay(-(dashRange - 1)); }
+
+/* 看板聚合数据（渲染与测试共用，避免 NaN/除零：所有均值在空数组时给 null） */
+function computeDash(){
+  const t = todayStr();
+  const tas = Api.listUsers().filter(u=>u.role==='ta');
+  const recsOwner = pool.records.filter(r=>dashOwner==='all' || r.ownerId===dashOwner);
+  const start = dashRangeStart();
+  const recs = start ? recsOwner.filter(r=>r.date >= start) : recsOwner;
+  const missed = pool.missed.filter(m=>dashOwner==='all' || m.ownerId===dashOwner);
+  const students = pool.students.filter(s=>dashOwner==='all' || s.ownerId===dashOwner);
+  const avgAcc = recs.length ? Math.round(recs.reduce((s,r)=>s+acc(r),0)/recs.length) : null;
+  const openMiss = missed.filter(m=>!m.resolved);
+  const overdue = openMiss.filter(m=>m.date < t);
+
+  // 近 30 天录入趋势：始终画 30 天，受助教筛选影响
+  const trend = [];
+  for(let i=29; i>=0; i--){
+    const d = offsetDay(-i);
+    const dr = recsOwner.filter(r=>r.date===d);
+    trend.push({ date:d, cnt:dr.length,
+      avg: dr.length ? Math.round(dr.reduce((s,r)=>s+acc(r),0)/dr.length) : null });
+  }
+
+  // 助教维度对比（按范围内录入次数降序；≥7 天未录入标「沉默」）
+  const taRows = tas.map(u=>{
+    const rs = recs.filter(r=>r.ownerId===u.id);
+    const ms = missed.filter(m=>m.ownerId===u.id);
+    const allRs = pool.records.filter(r=>r.ownerId===u.id);
+    const lastDate = allRs.length ? allRs.reduce((a,b)=>a.date>b.date?a:b).date : null;
+    return { user:u, stuCnt: pool.students.filter(s=>s.ownerId===u.id && !s.archived).length,
+      recCnt: rs.length,
+      avg: rs.length ? Math.round(rs.reduce((s,r)=>s+acc(r),0)/rs.length) : null,
+      missCnt: ms.filter(m=>!m.resolved).length,
+      overdueCnt: ms.filter(m=>!m.resolved && m.date<t).length,
+      lastDate: lastDate,
+      silent: !lastDate || lastDate <= offsetDay(-7) };
+  }).sort((a,b)=>b.recCnt-a.recCnt);
+
+  // 学科维度：一级类目 + 具体科目（均按记录数降序）
+  const catMap = {}, subMapD = {};
+  recs.forEach(r=>{
+    const sub = r.subject || '未指定';
+    const head = sub.split(' / ')[0];
+    const cat = SUBJECT_TREE[head] ? head : '其他';
+    (catMap[cat] = catMap[cat] || []).push(r);
+    (subMapD[sub] = subMapD[sub] || []).push(r);
+  });
+  const cats = Object.keys(catMap).map(k=>({ name:k, cnt:catMap[k].length,
+    avg: Math.round(catMap[k].reduce((s,r)=>s+acc(r),0)/catMap[k].length),
+    stuCnt: new Set(catMap[k].map(r=>r.studentId)).size })).sort((a,b)=>b.cnt-a.cnt);
+  const subs = Object.keys(subMapD).map(k=>({ key:k, name:shortSubject(k), cnt:subMapD[k].length,
+    avg: Math.round(subMapD[k].reduce((s,r)=>s+acc(r),0)/subMapD[k].length),
+    stuCnt: new Set(subMapD[k].map(r=>r.studentId)).size })).sort((a,b)=>b.cnt-a.cnt);
+
+  // 预警一：低分学生（范围内平均正确率 <60%，按 ownerId+姓名 组合同名合并）
+  const lowMap = {};
+  recs.forEach(r=>{
+    const st = pool.students.find(x=>x.id===r.studentId);
+    const key = (r.ownerId||'') + '|' + (st ? st.name.trim() : r.studentId);
+    (lowMap[key] = lowMap[key] || {name: st ? st.name : '（已删除学生）', ownerId: r.ownerId, recs: []}).recs.push(r);
+  });
+  const lowStus = Object.values(lowMap).map(g=>{
+    const subA = {};
+    g.recs.forEach(r=>{ const k = r.subject || '未指定'; (subA[k] = subA[k] || []).push(r); });
+    return { name: g.name, ownerId: g.ownerId,
+      avg: Math.round(g.recs.reduce((s,r)=>s+acc(r),0)/g.recs.length),
+      lowSubs: Object.keys(subA)
+        .map(k=>({ name: shortSubject(k), avg: Math.round(subA[k].reduce((s,r)=>s+acc(r),0)/subA[k].length) }))
+        .filter(x=>x.avg<60).sort((a,b)=>a.avg-b.avg) };
+  }).filter(g=>g.avg<60).sort((a,b)=>a.avg-b.avg);
+
+  // 预警二：逾期未交（当前状态指标，不受时间范围影响），按逾期天数降序
+  const overdueList = overdue.map(m=>{
+    const st = pool.students.find(x=>x.id===m.studentId);  // 看板基于 pool，与 topbar 数据范围独立
+    return {
+      id: m.id, name: st ? st.name : '（已删除学生）', ownerId: m.ownerId, subject: m.subject || '', date: m.date,
+      days: Math.max(1, Math.round((new Date(t) - new Date(m.date)) / 86400000))
+    };
+  }).sort((a,b)=>b.days-a.days);
+
+  // 预警三：沉睡学生（≥14 天无任何作业记录的现有学生，当前状态指标）
+  const sleepers = students.filter(s=>!s.archived).map(s=>{
+    const rs = pool.records.filter(r=>r.studentId===s.id);
+    const last = rs.length ? rs.reduce((a,b)=>a.date>b.date?a:b).date : null;
+    return { name: s.name, ownerId: s.ownerId, last: last,
+      days: last ? Math.round((new Date(t) - new Date(last)) / 86400000) : null };
+  }).filter(x=>x.days===null || x.days>=14)
+    .sort((a,b)=>(b.days===null?999999:b.days)-(a.days===null?999999:a.days));
+
+  return { recCnt: recs.length, avgAcc: avgAcc,
+    todayRecs: recsOwner.filter(r=>r.date===t).length,
+    activeStu: students.filter(s=>!s.archived).length,
+    archivedStu: students.filter(s=>s.archived).length,
+    missCnt: openMiss.length, overdueCnt: overdue.length,
+    taWithRecs: tas.filter(u=>recs.some(r=>r.ownerId===u.id)).length, taTotal: tas.length,
+    trend: trend, taRows: taRows, cats: cats, subs: subs,
+    lowStus: lowStus, overdueList: overdueList, sleepers: sleepers };
+}
+
+function renderDashboard(){
+  const boxes = ['dash-overview','dash-trend','dash-tas','dash-cats','dash-subs','dash-alert-low','dash-alert-miss','dash-alert-sleep'];
+  // 助教守卫：入口不渲染，直接切到 pane-dashboard 也不产出内容
+  if(!isAdminView()){
+    boxes.forEach(id=>{ const el = document.getElementById(id); if(el) el.innerHTML = ''; });
+    return;
+  }
+  const d = computeDash();
+  // 筛选条：助教下拉 + 时间范围按钮态
+  const sel = document.getElementById('dash-owner');
+  const tas = Api.listUsers().filter(u=>u.role==='ta');
+  sel.innerHTML = '<option value="all">全部助教</option>' +
+    tas.map(u=>'<option value="' + u.id + '">' + esc(u.name) + (u.disabled ? '（已停用）' : '') + '</option>').join('');
+  sel.value = dashOwner;
+  document.querySelectorAll('#dash-range .role-opt').forEach(b=>b.classList.toggle('active', parseInt(b.dataset.range,10)===dashRange));
+
+  // 1. 全局概览卡
+  document.getElementById('dash-overview').innerHTML =
+    '<div class="quick"><div class="num">' + d.activeStu + '</div><div class="lbl">现有学生（含历史 ' + d.archivedStu + '）</div></div>' +
+    '<div class="quick"><div class="num">' + d.recCnt + '</div><div class="lbl">范围内录入次数</div></div>' +
+    '<div class="quick"><div class="num">' + (d.avgAcc===null?'—':d.avgAcc+'%') + '</div><div class="lbl">范围内平均正确率</div></div>' +
+    '<div class="quick"><div class="num" style="color:' + (d.overdueCnt?'var(--red)':'var(--mint-d)') + '">' + d.missCnt + '</div><div class="lbl">未交次数（逾期 ' + d.overdueCnt + '）</div></div>' +
+    '<div class="quick"><div class="num">' + d.taWithRecs + '/' + d.taTotal + '</div><div class="lbl">有录入助教/助教总数</div></div>' +
+    '<div class="quick"><div class="num">' + d.todayRecs + '</div><div class="lbl">今日已录入</div></div>';
+
+  // 2. 近 30 天录入趋势柱（纯 div；柱高=次数，柱色=当天平均正确率）
+  const maxCnt = d.trend.reduce((m,x)=>Math.max(m,x.cnt),0);
+  document.getElementById('dash-trend').innerHTML = maxCnt === 0
+    ? '<p class="hint">近 30 天暂无录入。</p>'
+    : d.trend.map(x=>{
+        const color = x.cnt===0 ? '#EAE3D2' : (x.avg>=85?'#5FB89A':(x.avg>=60?'#E8A94C':'#DE6B6B'));
+        const h = Math.max(2, Math.round(x.cnt/maxCnt*80));
+        const isFirst = x.date.slice(8)==='01', isToday = x.date===todayStr();
+        return '<div class="dash-bar-col" title="' + x.date + ' · ' + x.cnt + ' 次' + (x.avg===null?'':' · 平均 ' + x.avg + '%') + '">' +
+          '<div class="dash-bar" style="height:' + h + 'px;background:' + color + '"></div>' +
+          ((isFirst||isToday) ? '<div class="dash-bar-lbl">' + (isToday?'今天':x.date.slice(5)) + '</div>' : '') +
+          '</div>';
+      }).join('');
+
+  // 3. 助教维度对比（点击行下钻）
+  const maxTa = d.taRows.reduce((m,x)=>Math.max(m,x.recCnt),0);
+  document.getElementById('dash-tas').innerHTML = d.taRows.length ? d.taRows.map(x=>
+    '<div class="dash-ta-row' + (dashOwner===x.user.id?' active':'') + '" onclick="dashDrillTa(\'' + x.user.id + '\')" title="点击下钻到该助教">' +
+    '<div class="grow"><b>' + esc(x.user.name) + '</b>' +
+    (x.user.disabled ? ' <span class="tag red">已停用</span>' : '') +
+    (x.silent ? ' <span class="tag amber">沉默</span>' : '') +
+    '<div class="hint" style="margin-top:2px">学生 ' + x.stuCnt + ' 人 · 最近录入 ' + (x.lastDate || '从未') + '</div></div>' +
+    '<div class="dash-ta-bar"><div class="dash-ta-fill" style="width:' + (maxTa ? Math.round(x.recCnt/maxTa*100) : 0) + '%"></div></div>' +
+    '<span class="dash-ta-num">录入 ' + x.recCnt + ' 次</span>' +
+    (x.avg===null
+      ? '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">未录入</span>'
+      : '<span class="acc-badge ' + accClass(x.avg) + '">' + x.avg + '%</span>') +
+    '<span class="dash-ta-num">未交 ' + x.missCnt + (x.overdueCnt ? '（逾期 <b style="color:var(--red)">' + x.overdueCnt + '</b>）' : '') + '</span>' +
+    '</div>').join('') : '<p class="hint">暂无助教账号。</p>';
+
+  // 4. 学科维度：一级类目行 + 具体科目条形（复用 subj-row，含 60% 关注线）
+  document.getElementById('dash-cats').innerHTML = d.cats.length ? d.cats.map(c=>
+    '<div class="dash-cat-row"><span class="cat-name">' + esc(c.name) + '</span>' +
+    '<span>记录 <b>' + c.cnt + '</b> 次</span>' +
+    '<span>平均正确率 <b style="color:' + (c.avg>=85?'var(--mint-d)':(c.avg>=60?'#B9802A':'var(--red)')) + '">' + c.avg + '%</b></span>' +
+    '<span>涉及学生 <b>' + c.stuCnt + '</b> 人</span></div>').join('')
+    : '<p class="hint">范围内暂无作业记录。</p>';
+  document.getElementById('dash-subs').innerHTML = d.subs.map(x=>{
+    const color = x.avg>=85 ? '#5FB89A' : (x.avg>=60 ? '#E8A94C' : '#DE6B6B');
+    return '<div class="subj-row">' +
+      '<div class="subj-name' + (x.avg<60?' low':'') + '" title="' + esc(x.key) + '">' + esc(x.name) + '</div>' +
+      '<div class="subj-bar"><div class="subj-fill" style="width:' + x.avg + '%;background:' + color + '"></div>' +
+      '<span class="subj-pct">' + x.avg + '%</span></div>' +
+      '<div class="subj-cnt" style="flex-basis:96px">' + x.cnt + ' 次 · ' + x.stuCnt + ' 人</div>' +
+      '</div>';
+  }).join('');
+
+  // 5. 预警名单（低分/沉睡跳「现有学生」并填搜索框；逾期跳「今日概览」）
+  document.getElementById('dash-alert-low').innerHTML = d.lowStus.length ? d.lowStus.map(g=>
+    '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(g.name) + '\')">' +
+    '<b>' + esc(g.name) + '</b> <span class="tag red">' + g.avg + '%</span>' +
+    '<div class="meta">归属 ' + esc(ownerName(g.ownerId)) +
+    (g.lowSubs.length ? ' · 低分科目：' + g.lowSubs.map(s=>esc(s.name) + ' ' + s.avg + '%').join('、') : '') + '</div>' +
+    '</button>').join('') : '<p class="hint">范围内没有低分学生。</p>';
+  document.getElementById('dash-alert-miss').innerHTML = d.overdueList.length ? d.overdueList.map(x=>
+    '<button class="dash-alert-item" onclick="switchTab(\'today\')">' +
+    '<b>' + esc(x.name) + '</b> <span class="tag red">逾期 ' + x.days + ' 天</span>' +
+    '<div class="meta">归属 ' + esc(ownerName(x.ownerId)) + (x.subject ? ' · ' + esc(shortSubject(x.subject)) : '') + ' · ' + x.date + '</div>' +
+    '</button>').join('') : '<p class="hint">没有逾期未交的作业。</p>';
+  document.getElementById('dash-alert-sleep').innerHTML = d.sleepers.length ? d.sleepers.map(x=>
+    '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(x.name) + '\')">' +
+    '<b>' + esc(x.name) + '</b> <span class="tag amber">' + (x.days===null ? '从未有记录' : x.days + ' 天无记录') + '</span>' +
+    '<div class="meta">归属 ' + esc(ownerName(x.ownerId)) + '</div>' +
+    '</button>').join('') : '<p class="hint">没有沉睡学生。</p>';
+}
+/* 预警跳转：跳到「现有学生」并把姓名填入搜索框（复用现有搜索机制定位学生卡） */
+function dashGotoStudent(name){
+  stuQuery = name;
+  const inp = document.getElementById('stu-search');
+  if(inp) inp.value = name;
+  switchTab('stats');
+}
+/* 助教行下钻：再点同一行返回全部助教 */
+function dashDrillTa(id){
+  dashOwner = (dashOwner === id) ? 'all' : id;
+  renderDashboard();
+}
+document.querySelectorAll('#dash-range .role-opt').forEach(b=>b.addEventListener('click', ()=>{
+  dashRange = parseInt(b.dataset.range, 10);
+  renderDashboard();
+}));
+document.getElementById('dash-owner').addEventListener('change', function(){
+  dashOwner = this.value;
+  renderDashboard();
+});
+
+/* ================= 初始化 ================= */
+function renderAll(){
+  refreshView();
+  renderBanners();
+  renderToday();
+  renderStats();
+  renderAlumni();
+  if(isAdminView()) renderAccounts();
+  renderDashboard();  // 内部含教务守卫，助教端自动清空看板内容
+}
+document.getElementById('today-str').textContent =
+  todayStr() + ' · ' + ['周日','周一','周二','周三','周四','周五','周六'][new Date().getDay()];
+
+window.__ready = (async function init(){
+  await Api._ensureSeed();  // 首次运行播种账号与示例数据
+  load();
+  const u = Api.currentSession();
+  if(u){
+    currentUser = u;
+    enterApp();
+    if(u.mustChangePwd) openPwdModal(true);
+  } else {
+    showLogin();
+  }
+})();
+
+/* 测试钩子：供 node DOM 桩冒烟测试访问内部状态（不影响 UI） */
+window.__wb = {
+  Api,
+  doLogin, doChangePwd, doLogout, enterApp, showLogin,
+  saveQuickEntry, saveSlot, removeMissed, markMissedToday, buildExport,
+  viewState, refreshView, canWriteOwner, writeOwnerId,
+  renderDashboard, computeDash, dashDrillTa, dashGotoStudent,
+  get currentUser(){ return currentUser; },
+  get pool(){ return pool; },
+  get state(){ return state; },
+  get dashRange(){ return dashRange; },
+  get dashOwner(){ return dashOwner; },
+  setScope(s){ scope = s; refreshView(); },
+  setDashRange(v){ dashRange = v; renderDashboard(); },
+  setDashOwner(v){ dashOwner = v; renderDashboard(); },
+  setQuickEntry(v){ quickEntry = v; },
+  setSlotEdit(v){ slotEdit = v; }
+};
+</script>
+</body>
+</html>
