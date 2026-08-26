@@ -1217,11 +1217,17 @@ const Api = {
       });
       if(changed) this._saveUsers();
     }
-    if(!load()){ pool = {students:[], records:[], missed:[]}; }
+    if(!load()){ pool = {students:[], records:[], missed:[], planRequests:[]}; }
     if(fresh && !pool.students.length && !pool.records.length && !pool.missed.length){
       const tas = this._users.filter(u=>u.role==='ta');
       tas.forEach(t=>seedSamplesFor(t.id));
       if(tas.length) save();
+    }
+    // 演示期：注入审批流示例数据（示例学生仍在且未注入过；「清空示例数据」后不会再次注入）
+    if(!pool.planReqSampled && pool.students.some(s=>s.sample)){
+      this._users.filter(u=>u.role==='ta').forEach(t=>seedPlanRequestSamples(t.id));
+      pool.planReqSampled = true;
+      save();
     }
   }
 };
@@ -1246,6 +1252,37 @@ function seedSamplesFor(ownerId){
     {id:uid(), studentId:s4.id, date:offsetDay(-3), resolved:false, sample:true, ownerId:ownerId},
     {id:uid(), studentId:s2.id, date:offsetDay(-6), resolved:true, sample:true, ownerId:ownerId}
   );
+}
+
+/* 审批流示例数据：为指定助教的示例学生补应完成次数，并生成 待审批/已通过/已驳回 各 1 条申请（带 sample 标记，随「清空示例数据」一并清除） */
+function seedPlanRequestSamples(ownerId){
+  pool.planRequests = pool.planRequests || [];
+  const stus = pool.students.filter(s=>s.sample && s.ownerId===ownerId);
+  if(!stus.length) return;
+  const admin = Api.listUsers().find(u=>u.role==='admin');
+  const pick = name => stus.find(s=>s.name===name);
+  const sA = pick('周子墨'), sB = pick('苏晚晴'), sC = pick('陈星宇');
+  if(sA){  // 待审批：周子墨 竞赛 / AMC10 8 → 10
+    sA.subjPlans = sA.subjPlans || {};
+    sA.subjPlans['竞赛 / AMC10'] = 8;
+    pool.planRequests.push({id:uid(), studentId:sA.id, ownerId:ownerId, subject:'竞赛 / AMC10',
+      oldPlan:8, newPlan:10, reason:'竞赛班加课，需要增加 2 次作业', status:'pending',
+      requestedBy:ownerId, requestedAt:offsetDay(-1), reviewedBy:null, reviewedAt:null, sample:true});
+  }
+  if(sB){  // 已通过：苏晚晴 语培 / 托福 12 → 15
+    sB.subjPlans = sB.subjPlans || {};
+    sB.subjPlans['语培 / 托福'] = 15;
+    pool.planRequests.push({id:uid(), studentId:sB.id, ownerId:ownerId, subject:'语培 / 托福',
+      oldPlan:12, newPlan:15, reason:'冲分班课程延长', status:'approved',
+      requestedBy:ownerId, requestedAt:offsetDay(-3), reviewedBy:admin?admin.id:null, reviewedAt:offsetDay(-2), sample:true});
+  }
+  if(sC){  // 已驳回：陈星宇 学科 / AP / 物理1 8 → 20
+    sC.subjPlans = sC.subjPlans || {};
+    sC.subjPlans['学科 / AP / 物理1'] = 8;
+    pool.planRequests.push({id:uid(), studentId:sC.id, ownerId:ownerId, subject:'学科 / AP / 物理1',
+      oldPlan:8, newPlan:20, reason:'想把整学期作业一次录完', status:'rejected',
+      requestedBy:ownerId, requestedAt:offsetDay(-4), reviewedBy:admin?admin.id:null, reviewedAt:offsetDay(-3), sample:true});
+  }
 }
 
 /* ================= 工具 ================= */
@@ -2634,6 +2671,7 @@ function clearSamplesOfView(){
   const sampleStuIds = state.students.filter(s=>s.sample).map(s=>s.id);
   pool.records = pool.records.filter(r=>!(ownerInView(r.ownerId) && (r.sample || sampleStuIds.includes(r.studentId))));
   pool.missed = pool.missed.filter(m=>!(ownerInView(m.ownerId) && (m.sample || sampleStuIds.includes(m.studentId))));
+  pool.planRequests = (pool.planRequests || []).filter(r=>!(ownerInView(r.ownerId) && (r.sample || sampleStuIds.includes(r.studentId))));
   pool.students = pool.students.filter(s=>!(ownerInView(s.ownerId) && s.sample));
 }
 function clearSamples(){
@@ -2649,6 +2687,7 @@ function loadSampleData(){
     try{ localStorage.setItem('wb_ha_v2_backup', JSON.stringify(pool)); }catch(e){}
     clearSamplesOfView();
     seedSamplesFor(writeOwnerId());
+    seedPlanRequestSamples(writeOwnerId());
     save(); renderAll();
     alert('已载入最新示例数据（含同名合并演示）！旧数据已自动备份到本机浏览器。');
   });

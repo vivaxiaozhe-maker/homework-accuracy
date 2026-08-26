@@ -91,6 +91,15 @@ function ok(cond, name){
   ok(ta1 && ta2 && ta1.role==='ta' && ta2.role==='ta', 'ta1/ta2 为助教角色');
   ok(wb.pool.students.length === 10, '两位助教各有 5 名示例学生（共 10）');
 
+  /* ---- 审批流示例数据播种 ---- */
+  const seedReqs = wb.pool.planRequests || [];
+  ok(seedReqs.filter(r=>r.status==='pending').length === 2, '示例数据含 2 条待审批申请（每位助教 1 条）');
+  ok(seedReqs.filter(r=>r.status==='approved').length === 2 && seedReqs.filter(r=>r.status==='rejected').length === 2,
+    '示例数据含已通过/已驳回各 2 条');
+  ok(seedReqs.every(r=>r.sample===true && r.ownerId && r.requestedBy), '示例申请带 sample 标记与归属信息');
+  await Api._ensureSeed();
+  ok(wb.pool.planRequests.length === seedReqs.length, '重复初始化不会重复注入示例申请');
+
   /* ---- 教务直接登录（演示不强制改密）+ 角色校验 ---- */
   let bad = await Api.login('admin', 'wrong-password', 'admin');
   ok(!bad.ok, '错误密码登录被拒');
@@ -250,6 +259,8 @@ function ok(cond, name){
   ok(dashIds.every(id=>documentStub.getElementById(id).innerHTML === ''), '助教角色下 renderDashboard 不产出内容');
 
   /* ---- 计划次数二次修改审批流 ---- */
+  // 清掉播种的示例申请，从 0 开始验证流程
+  wb.pool.planRequests.length = 0;
   // 当前登录 ta1；取一名 ta1 的现有学生
   const planStu = wb.pool.students.find(s=>s.ownerId===ta1.id && !s.archived);
   const planSubj = '学科 / AP / 微积分BC';
