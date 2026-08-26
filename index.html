@@ -507,6 +507,20 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
   .user-area{width:100%;margin-left:0}
   .dash-alerts{grid-template-columns:1fr}
   .dash-ta-bar{flex-basis:100%}
+  /* 顶部收紧：隐藏学习插画，标题与日期同一行，压缩行距 */
+  .topbar{gap:8px;margin-bottom:12px}
+  .topbar .illus{display:none}
+  .topbar h1{display:inline-block;font-size:18px}
+  .topbar .date-pill{margin:0 0 0 8px;padding:4px 12px;font-size:12px}
+  .scope-hint{font-size:11px}
+  /* 学生卡头部：头像+姓名一行占满，徽章在 grow 内自然换行；趋势折线固定 120x40 与「新增科目」按钮落到下一行，禁止拉伸 */
+  .stu-head .grow{flex:1 1 calc(100% - 52px);min-width:0}
+  .stu-head > svg{flex:0 0 120px;width:120px;height:40px}
+  .stu-nums{gap:12px 16px}
+  /* 看板趋势图最右「今天」标签防贴边溢出 */
+  .dash-bar-col:last-child .dash-bar-lbl{transform:translateX(-55%)}
+  /* 账号管理行内按钮不压缩，允许整行换行 */
+  .acct-row .btn{flex-shrink:0}
 }
 </style>
 </head>
