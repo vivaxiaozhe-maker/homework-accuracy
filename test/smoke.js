@@ -89,7 +89,13 @@ function ok(cond, name){
   const ta2 = users.find(u=>u.username==='ta2');
   ok(admin && admin.role==='admin' && admin.mustChangePwd === false, 'admin 为教务且演示期不强制首登改密');
   ok(ta1 && ta2 && ta1.role==='ta' && ta2.role==='ta', 'ta1/ta2 为助教角色');
-  ok(wb.pool.students.length === 10, '两位助教各有 5 名示例学生（共 10）');
+  ok(wb.pool.students.length === 14, '两位助教各有 7 名示例学生（5 现有 + 2 历史，共 14）');
+  const alumni = wb.pool.students.filter(s=>s.archived && s.sample);
+  ok(alumni.length===4 && alumni.every(s=>s.school && s.gradYear && s.ownerId),
+    '每位助教播种 2 名历史示例学生（archived+sample，含学校/届别/归属）');
+  ok(wb.pool.records.filter(r=>alumni.some(a=>a.id===r.studentId)).every(r=>r.ownerId && r.sample===true)
+    && wb.pool.missed.filter(m=>alumni.some(a=>a.id===m.studentId)).every(m=>m.ownerId && m.resolved===true),
+    '历史示例学生的记录/未交带 ownerId 与 sample 标记');
 
   /* ---- 审批流示例数据播种 ---- */
   const seedReqs = wb.pool.planRequests || [];
@@ -99,6 +105,7 @@ function ok(cond, name){
   ok(seedReqs.every(r=>r.sample===true && r.ownerId && r.requestedBy), '示例申请带 sample 标记与归属信息');
   await Api._ensureSeed();
   ok(wb.pool.planRequests.length === seedReqs.length, '重复初始化不会重复注入示例申请');
+  ok(wb.pool.students.length === 14, '重复初始化不会重复注入历史示例学生（alumniSampled 生效）');
 
   /* ---- 教务直接登录（演示不强制改密）+ 角色校验 ---- */
   let bad = await Api.login('admin', 'wrong-password', 'admin');
@@ -107,7 +114,7 @@ function ok(cond, name){
   ok(!(await Api.login('ta1', 'ta123456', 'admin')).ok, '角色不符被拒（助教账号以教务角色登录）');
   await wb.doLogin('admin', 'admin123', 'admin');
   ok(wb.currentUser && wb.currentUser.username === 'admin', 'admin 初始密码直接登录成功（不强制改密）');
-  ok(wb.state.students.length === 10, '教务登录后直接进入主界面，见全部数据（10 名学生）');
+  ok(wb.state.students.length === 14, '教务登录后直接进入主界面，见全部数据（14 名学生）');
   await wb.doChangePwd('bad-old', 'admin456', 'admin456');
   ok((await Api.login('admin', 'admin123', 'admin')).ok, '改密时原密码错误被拒，旧密码仍有效');
   await wb.doChangePwd('admin123', 'admin456', 'admin456');
@@ -122,22 +129,22 @@ function ok(cond, name){
 
   /* ---- 教务数据范围切换 ---- */
   wb.setScope(ta1.id);
-  ok(wb.state.students.length === 5 && wb.state.students.every(s=>s.ownerId===ta1.id), '教务切换数据范围到 ta1 后只见 ta1 的学生');
+  ok(wb.state.students.length === 7 && wb.state.students.every(s=>s.ownerId===ta1.id), '教务切换数据范围到 ta1 后只见 ta1 的学生');
   ok(wb.state.records.every(r=>r.ownerId===ta1.id) && wb.state.missed.every(x=>x.ownerId===ta1.id), '范围切换后记录/未交同步过滤');
   wb.setScope('all');
-  ok(wb.state.students.length === 10, '切回全部数据可见 10 名学生');
+  ok(wb.state.students.length === 14, '切回全部数据可见 14 名学生');
 
   /* ---- 助教数据隔离 ---- */
   wb.doLogout();
   await wb.doLogin('ta1', 'ta123456', 'ta');
   ok(wb.currentUser.username === 'ta1', 'ta1 登录成功');
-  ok(wb.state.students.length === 5 && wb.state.students.every(s=>s.ownerId===ta1.id), 'ta1 只见自己的学生');
+  ok(wb.state.students.length === 7 && wb.state.students.every(s=>s.ownerId===ta1.id), 'ta1 只见自己的学生');
   ok(wb.state.records.length > 0 && wb.state.records.every(r=>r.ownerId===ta1.id), 'ta1 的记录全部归属自己');
   ok(!wb.state.students.some(s=>s.ownerId===ta2.id) && !wb.state.records.some(r=>r.ownerId===ta2.id), 'ta1 视图中不含 ta2 的数据');
 
   /* ---- 助教导出只含自己数据 ---- */
   const exp = wb.buildExport();
-  ok(exp.students.length === 5 && exp.students.every(s=>s.ownerId===ta1.id)
+  ok(exp.students.length === 7 && exp.students.every(s=>s.ownerId===ta1.id)
     && exp.records.every(r=>r.ownerId===ta1.id) && exp.missed.every(x=>x.ownerId===ta1.id),
     '助教导出数据只含自己的 ownerId');
 
@@ -180,7 +187,7 @@ function ok(cond, name){
   wb.doLogout();
   const disabledLogin = await Api.login('ta2', 'ta123456', 'ta');
   ok(!disabledLogin.ok, '停用后 ta2 登录被拒');
-  ok(wb.pool.students.filter(s=>s.ownerId===ta2.id).length === 5, '停用后 ta2 数据完整保留');
+  ok(wb.pool.students.filter(s=>s.ownerId===ta2.id).length === 7, '停用后 ta2 数据完整保留');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -194,7 +201,7 @@ function ok(cond, name){
     '转移后该生未交记录 ownerId 同步变更');
   wb.doLogout();
   await wb.doLogin('ta1', 'ta123456', 'ta');
-  ok(wb.state.students.length === 4 && !wb.state.students.some(s=>s.id===mvStu.id), '转移后 ta1 视图不再含该学生');
+  ok(wb.state.students.length === 6 && !wb.state.students.some(s=>s.id===mvStu.id), '转移后 ta1 视图不再含该学生');
 
   /* ---- 数据看板（教务） ---- */
   const offDay = n => { const d = new Date(); d.setDate(d.getDate()+n);
@@ -360,6 +367,61 @@ function ok(cond, name){
   await wb.doLogin('ta1', 'ta123456', 'ta');
   ok(documentStub.getElementById('badge-accounts').style.display==='none'
     && documentStub.getElementById('badge-accounts-tab').style.display==='none', '助教端不显示审批徽章');
+
+  /* ---- 学生明细助教维度筛选（教务） ---- */
+  const grpCnt = list => new Set(list.map(s=>(s.ownerId||'')+'|'+s.name.trim())).size;
+  const cardCnt = html => (html.match(/stu-card/g)||[]).length;
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  const chipHtml = documentStub.getElementById('stu-ta-filter').innerHTML;
+  ok(chipHtml.indexOf('全部学生')!==-1 && chipHtml.indexOf('王助教')!==-1 && chipHtml.indexOf('李助教')!==-1
+    && chipHtml.indexOf('已停用')!==-1, '教务端学生明细含助教筛选 chips（全部学生 + 各助教，停用标注）');
+  // 「全部学生」：按助教分组 + 学生卡齐全
+  const listAll = documentStub.getElementById('stu-list').innerHTML;
+  const allActive = wb.pool.students.filter(s=>!s.archived);
+  ok(listAll.indexOf('ta-group-head')!==-1 && listAll.indexOf('王助教')!==-1 && listAll.indexOf('李助教')!==-1,
+    '「全部学生」视图按助教分组展示（含分组标题）');
+  ok(cardCnt(listAll) === grpCnt(allActive), '「全部学生」视图学生卡齐全');
+  // 选中 ta1：只含 ta1 学生卡，无分组标题，不含 ta2 学生
+  wb.setStuTaFilter(ta1.id);
+  const listTa1 = documentStub.getElementById('stu-list').innerHTML;
+  const ta1Active = wb.pool.students.filter(s=>s.ownerId===ta1.id && !s.archived);
+  ok(listTa1.indexOf('ta-group-head')===-1 && cardCnt(listTa1)===grpCnt(ta1Active)
+    && listTa1.indexOf('看板低分测试')!==-1 && listTa1.indexOf('看板沉睡测试')===-1,
+    '选中某助教后明细只含该助教的学生卡（无分组标题）');
+  // 姓名搜索与助教筛选叠加
+  wb.setStuQuery('林');
+  const listSearch = documentStub.getElementById('stu-list').innerHTML;
+  ok(cardCnt(listSearch)===1 && listSearch.indexOf('林小满')!==-1, '姓名搜索与助教筛选叠加生效');
+  wb.setStuQuery('');
+  wb.setStuTaFilter('all');
+  // 历史学生页渲染（含示例历史学生，无 NaN/undefined）
+  const alHtml = documentStub.getElementById('alumni-list').innerHTML;
+  ok(alHtml.indexOf('NaN')===-1 && alHtml.indexOf('undefined')===-1
+    && alHtml.indexOf('李浩然')!==-1 && alHtml.indexOf('赵雨桐')!==-1,
+    '历史学生页渲染正常（含示例历史学生，无 NaN/undefined）');
+  // 助教端：chips 行不渲染
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  ok(documentStub.getElementById('stu-ta-filter').innerHTML === '', '助教端不渲染助教筛选 chips 行');
+
+  /* ---- 清空示例数据覆盖历史学生 ---- */
+  wb.clearSamplesOfView();  // ta1 视角
+  ok(!wb.pool.students.some(s=>s.ownerId===ta1.id && s.sample), '清空示例数据后 ta1 的示例学生（含历史学生）全部清除');
+  ok(wb.pool.students.some(s=>s.ownerId===ta2.id && s.sample && s.archived), '清空示例数据不影响其他助教的历史示例学生');
+
+  /* ---- 教务「全部数据」视角重载示例：按助教分发 ---- */
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  Api.toggleUser(ta2.id);  // 恢复此前停用的 ta2
+  wb.setScope('all');
+  wb.doLoadSampleData();
+  const ta3u = Api.listUsers().find(u=>u.username==='ta3');
+  ok([ta1.id, ta2.id, ta3u.id].every(id=>wb.pool.students.filter(s=>s.sample && s.ownerId===id).length === 7),
+    '全部视角重载示例：每位助教各分发 7 名示例学生（含历史学生）');
+  ok(!wb.pool.students.some(s=>s.sample && s.ownerId===admin.id), '示例学生不再归属教务账号');
+  ok(wb.pool.planRequests.filter(r=>r.sample && r.status==='pending').length === 3,
+    '重载后每位助教恢复 1 条待审批示例申请');
 
   console.log('\n断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   process.exit(fail ? 1 : 0);

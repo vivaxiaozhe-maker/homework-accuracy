@@ -497,6 +497,12 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
 .nav-btn .nav-badge{margin-left:auto}
 #bottombar .tab-btn{position:relative}
 .tab-btn .nav-badge{position:absolute;top:3px;right:calc(50% - 22px)}
+/* 学生明细：助教维度筛选 chips（仅教务可见，移动端横向滚动；四周留出内边距避免选中态 outline 被滚动容器裁切） */
+.ta-chips{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding:2px 2px 8px}
+.ta-chips .sub-chip{flex-shrink:0}
+.ta-chips .chip-cnt{font-size:11px;color:var(--ink2)}
+.ta-group-head{display:flex;align-items:baseline;gap:8px;margin:16px 0 10px;font-size:14px;font-weight:700;color:var(--mint-d)}
+.ta-group-head .cnt{font-size:12px;font-weight:400;color:var(--ink2)}
 @media (max-width:768px){
   .user-area{width:100%;margin-left:0}
   .dash-alerts{grid-template-columns:1fr}
@@ -657,6 +663,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
             新增学生
           </button>
         </h2>
+        <div id="stu-ta-filter"></div>
         <div id="stu-list"></div>
       </div>
     </section>
@@ -1229,6 +1236,12 @@ const Api = {
       pool.planReqSampled = true;
       save();
     }
+    // 演示期：注入历史学生示例数据（同样一次性注入，清空示例后不重复注入）
+    if(!pool.alumniSampled && pool.students.some(s=>s.sample)){
+      this._users.filter(u=>u.role==='ta').forEach(t=>seedAlumniSamples(t.id));
+      pool.alumniSampled = true;
+      save();
+    }
   }
 };
 
@@ -1283,6 +1296,25 @@ function seedPlanRequestSamples(ownerId){
       oldPlan:8, newPlan:20, reason:'想把整学期作业一次录完', status:'rejected',
       requestedBy:ownerId, requestedAt:offsetDay(-4), reviewedBy:admin?admin.id:null, reviewedAt:offsetDay(-3), sample:true});
   }
+}
+
+/* 历史学生示例数据：为指定助教播种 2 名已毕业/结课学生（archived + sample），
+   作业记录日期在 35~60 天前（避开近 30 天趋势图），各带 1 条已处理未交 */
+function seedAlumniSamples(ownerId){
+  const a1 = {id:uid(), name:'李浩然', school:'深圳外国语学校', gradYear:'2025', archived:true, sample:true, ownerId:ownerId};
+  const a2 = {id:uid(), name:'赵雨桐', school:'杭州外国语学校', gradYear:'2024', archived:true, sample:true, ownerId:ownerId};
+  pool.students.push(a1, a2);
+  pool.records.push(
+    {id:uid(), studentId:a1.id, date:offsetDay(-36), total:20, correct:17, wrongs:[4,9,15], subject:'学科 / IB / 数学', images:[], sample:true, ownerId:ownerId},
+    {id:uid(), studentId:a1.id, date:offsetDay(-45), total:20, correct:16, wrongs:[2,7,11,18], subject:'学科 / IB / 数学', images:[], sample:true, ownerId:ownerId},
+    {id:uid(), studentId:a1.id, date:offsetDay(-52), total:15, correct:14, wrongs:[6], subject:'语培 / 托福', images:[], sample:true, ownerId:ownerId},
+    {id:uid(), studentId:a2.id, date:offsetDay(-38), total:18, correct:15, wrongs:[3,8,13], subject:'学科 / AP / 微积分AB', images:[], sample:true, ownerId:ownerId},
+    {id:uid(), studentId:a2.id, date:offsetDay(-60), total:15, correct:13, wrongs:[5,12], subject:'竞赛 / AMC12', images:[], sample:true, ownerId:ownerId}
+  );
+  pool.missed.push(
+    {id:uid(), studentId:a1.id, date:offsetDay(-40), resolved:true, subject:'语培 / 托福', sample:true, ownerId:ownerId},
+    {id:uid(), studentId:a2.id, date:offsetDay(-55), resolved:true, subject:'学科 / AP / 微积分AB', sample:true, ownerId:ownerId}
+  );
 }
 
 /* ================= 工具 ================= */
@@ -1492,6 +1524,8 @@ const SUBJECT_TREE = {
 };
 /* ================= 学生统计 ================= */
 let stuQuery = '';
+let stuTaFilter = 'all';  // 学生明细助教维度筛选（仅教务可见）：'all' 或助教 id
+function setStuTaFilter(v){ stuTaFilter = v; renderStats(); }
 document.getElementById('stu-search').addEventListener('input', function(){
   stuQuery = this.value.trim();
   renderStats();
@@ -1514,6 +1548,21 @@ function renderStats(){
   const wrap = document.getElementById('bar-chart');
   // 按姓名搜索过滤
   const filtered = stuQuery ? groups.filter(g=>g.name.indexOf(stuQuery) !== -1) : groups;
+
+  // 助教维度筛选 chips（仅教务可见；助教端不渲染该行）。只作用于学生明细列表，不影响上方图表
+  const chipBox = document.getElementById('stu-ta-filter');
+  if(chipBox){
+    if(!isAdminView()){
+      chipBox.innerHTML = '';
+    } else {
+      const chipTas = Api.listUsers().filter(u=>u.role==='ta');
+      chipBox.innerHTML = '<div class="ta-chips">' +
+        '<span class="sub-chip' + (stuTaFilter==='all'?' active':'') + '" onclick="setStuTaFilter(\'all\')">全部学生</span>' +
+        chipTas.map(u=>'<span class="sub-chip' + (stuTaFilter===u.id?' active':'') + '" onclick="setStuTaFilter(\'' + u.id + '\')">' +
+          esc(u.name) + (u.disabled ? ' <span class="chip-cnt">已停用</span>' : '') + '</span>').join('') +
+        '</div>';
+    }
+  }
 
   // 柱状图：每个科目 → 范围内所有学生的平均正确率
   const chartRecs = state.records.filter(r=>filtered.some(g=>g.ids.includes(r.studentId)));
@@ -1568,11 +1617,17 @@ function renderStats(){
     list.innerHTML = '<p class="hint">暂无在服务学生，点右上角「新增学生」录入。</p>';
     return;
   }
+  // 教务的助教维度筛选与姓名搜索叠加生效
+  const detail = (isAdminView() && stuTaFilter!=='all') ? filtered.filter(g=>g.ownerId===stuTaFilter) : filtered;
   if(!filtered.length){
     list.innerHTML = '<p class="hint">没有匹配「' + esc(stuQuery) + '」的学生，换个关键词试试。</p>';
     return;
   }
-  list.innerHTML = filtered.map(g=>{
+  if(!detail.length){
+    list.innerHTML = '<p class="hint">该助教名下暂无匹配的学生。</p>';
+    return;
+  }
+  const renderStuCard = g=>{
     const recs = state.records.filter(r=>g.ids.includes(r.studentId)).sort((a,b)=>a.date<b.date?-1:1);
     const avg = recs.length ? Math.round(recs.reduce((x,r)=>x+acc(r),0)/recs.length) : null;
     const misses = state.missed.filter(m=>g.ids.includes(m.studentId));
@@ -1666,7 +1721,27 @@ function renderStats(){
       (quickEntry && quickEntry.gid===s.id ? qePanelHtml() : '') +
       missHtml +
       '</div>';
-  }).join('');
+  };
+  // 教务且选中「全部学生」：按助教分组展示（分组顺序沿用 Api.listUsers() 中助教顺序）；
+  // 选中某位助教：只显示该助教的学生卡（无分组标题）
+  if(isAdminView() && stuTaFilter==='all'){
+    const tas = Api.listUsers().filter(u=>u.role==='ta');
+    let html = '';
+    tas.forEach(u=>{
+      const gs = detail.filter(g=>g.ownerId===u.id);
+      if(!gs.length) return;
+      html += '<div class="ta-group-head">' + esc(u.name) + (u.disabled?'（已停用）':'') +
+        '<span class="cnt">' + gs.length + ' 个学生</span></div>' + gs.map(renderStuCard).join('');
+    });
+    const others = detail.filter(g=>!tas.some(u=>u.id===g.ownerId));
+    if(others.length){
+      html += '<div class="ta-group-head">其他（教务直接录入）<span class="cnt">' + others.length + ' 个学生</span></div>' +
+        others.map(renderStuCard).join('');
+    }
+    list.innerHTML = html;
+  } else {
+    list.innerHTML = detail.map(renderStuCard).join('');
+  }
 }
 /* ================= 卡内科目 Tab 快速录入 ================= */
 let quickEntry = null;  // {gid: 学生代表id, subject: 科目路径}
@@ -2681,16 +2756,31 @@ function clearSamples(){
   });
 }
 document.getElementById('btn-clear-sample').addEventListener('click', clearSamples);
+/* 教务在「全部数据」视角重载示例：按助教分发（每位助教一套）；指定助教/助教视角则只载入当前范围 */
+function doLoadSampleData(){
+  // 备份当前数据，防止误覆盖
+  try{ localStorage.setItem('wb_ha_v2_backup', JSON.stringify(pool)); }catch(e){}
+  clearSamplesOfView();
+  let owners;
+  if(isAdminView() && scope==='all'){
+    owners = Api.listUsers().filter(u=>u.role==='ta' && !u.disabled).map(u=>u.id);
+    if(!owners.length) owners = [writeOwnerId()];
+  } else {
+    owners = [writeOwnerId()];
+  }
+  owners.forEach(oid=>{ seedSamplesFor(oid); seedPlanRequestSamples(oid); seedAlumniSamples(oid); });
+  save(); renderAll();
+}
 function loadSampleData(){
-  askConfirm('重新载入示例数据', '将在当前数据范围重新生成示例数据（该范围原有示例数据会先清除），你自己录入的数据不受影响。确定继续吗？', ()=>{
-    // 备份当前数据，防止误覆盖
-    try{ localStorage.setItem('wb_ha_v2_backup', JSON.stringify(pool)); }catch(e){}
-    clearSamplesOfView();
-    seedSamplesFor(writeOwnerId());
-    seedPlanRequestSamples(writeOwnerId());
-    save(); renderAll();
-    alert('已载入最新示例数据（含同名合并演示）！旧数据已自动备份到本机浏览器。');
-  });
+  const adminAll = isAdminView() && scope==='all';
+  askConfirm('重新载入示例数据',
+    adminAll
+      ? '将为每位助教各生成一套示例数据（含作业记录、审批申请、历史学生），你自己录入的数据不受影响。确定继续吗？'
+      : '将在当前数据范围重新生成示例数据（该范围原有示例数据会先清除），你自己录入的数据不受影响。确定继续吗？',
+    ()=>{
+      doLoadSampleData();
+      alert('已载入最新示例数据（含同名合并演示）！旧数据已自动备份到本机浏览器。');
+    });
 }
 document.getElementById('btn-load-sample').addEventListener('click', loadSampleData);
 document.getElementById('btn-clear-all').addEventListener('click', ()=>{
@@ -3195,6 +3285,10 @@ window.__wb = {
   viewState, refreshView, canWriteOwner, writeOwnerId,
   renderDashboard, computeDash, dashDrillTa, dashGotoStudent,
   savePlanCount, submitPlanRequest, cancelPlanRequest, reviewPlanRequest, renderPlanRequests, renderPendingBadges,
+  setStuTaFilter, renderStats, renderAlumni, clearSamplesOfView, doLoadSampleData,
+  get stuTaFilter(){ return stuTaFilter; },
+  get stuQuery(){ return stuQuery; },
+  setStuQuery(v){ stuQuery = v; renderStats(); },
   get currentUser(){ return currentUser; },
   get pool(){ return pool; },
   get state(){ return state; },
