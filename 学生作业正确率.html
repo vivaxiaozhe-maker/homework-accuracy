@@ -489,6 +489,14 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
 .dash-alert-item:hover{border-color:var(--mint);background:var(--mint-xl)}
 .dash-alert-item .meta{color:var(--ink2);font-size:12px;margin-top:2px}
 .subj-name.low{color:var(--red)}
+/* 待审批红点徽章（仅教务可见，0 时不显示） */
+.nav-badge{
+  display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;
+  padding:0 5px;border-radius:999px;background:var(--red);color:#fff;font-size:11px;font-weight:700;
+}
+.nav-btn .nav-badge{margin-left:auto}
+#bottombar .tab-btn{position:relative}
+.tab-btn .nav-badge{position:absolute;top:3px;right:calc(50% - 22px)}
 @media (max-width:768px){
   .user-area{width:100%;margin-left:0}
   .dash-alerts{grid-template-columns:1fr}
@@ -523,6 +531,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
     <button class="nav-btn" data-tab="accounts" id="nav-accounts" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg>
       账号管理
+      <span class="nav-badge" id="badge-accounts" style="display:none"></span>
     </button>
     <button class="nav-btn" data-tab="data">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
@@ -699,6 +708,14 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
 
     <!-- 账号管理（仅教务可见） -->
     <section id="pane-accounts" class="tab-pane">
+      <div class="card" id="planreq-card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#B9802A" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>计划修改审批 <span class="tag red" id="planreq-badge-card" style="display:none"></span></h2>
+        <div id="planreq-pending"></div>
+        <details style="margin-top:10px">
+          <summary class="hint" style="cursor:pointer;min-height:32px">最近已处理（最多 10 条）</summary>
+          <div id="planreq-done" style="margin-top:8px"></div>
+        </details>
+      </div>
       <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg>账号列表</h2>
         <div id="accounts-list"></div>
@@ -742,6 +759,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
       <button class="tab-btn" data-tab="accounts" id="tab-accounts" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg>
         账号
+        <span class="nav-badge" id="badge-accounts-tab" style="display:none"></span>
       </button>
     </div>
   </nav>
@@ -865,6 +883,22 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
   </div>
 </div>
 
+<!-- 申请修改应完成次数弹窗（助教二次修改） -->
+<div class="modal-mask" id="pr-modal">
+  <div class="modal">
+    <h3>申请修改应完成次数</h3>
+    <p>学生 <b id="pr-stu"></b> · 科目 <b id="pr-subj"></b> · <b id="pr-change"></b><br>修改应完成次数需教务审核，通过后才会生效。</p>
+    <div class="field" style="margin-bottom:16px">
+      <label>修改理由（选填）</label>
+      <input id="pr-reason" placeholder="如：课程加量、学生进度超前">
+    </div>
+    <div class="row">
+      <button class="btn ghost sm" id="pr-cancel">取消</button>
+      <button class="btn mint sm" id="pr-ok">提交申请</button>
+    </div>
+  </div>
+</div>
+
 <script>
 'use strict';
 /* ================= 数据层 v2（账号体系，localStorage 模拟后端） =================
@@ -879,11 +913,14 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
    POST /api/users/:id/reset      重置密码
    POST /api/users/:id/toggle     停用/启用
    POST /api/students/:id/owner   转移归属
+   POST /api/plan-requests            助教发起计划次数修改申请
+   POST /api/plan-requests/:id/cancel 撤回申请（仅申请本人）
+   POST /api/plan-requests/:id/review 教务审批（通过/驳回）
    旧版 key wb_homework_accuracy_v1 检测到即忽略（不迁移、不删除）。 */
 const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
-let pool = { students: [], records: [], missed: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id）
+let pool = { students: [], records: [], missed: [], planRequests: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
 let scope = 'all';        // 教务数据范围：'all' 或某位助教 id（助教恒为自己）
@@ -900,7 +937,14 @@ function save(){ localStorage.setItem(LS_DATA, JSON.stringify(pool)); }
 function load(){
   try{
     const raw = localStorage.getItem(LS_DATA);
-    if(raw){ const s = JSON.parse(raw); if(s && Array.isArray(s.students)){ pool = s; return true; } }
+    if(raw){
+      const s = JSON.parse(raw);
+      if(s && Array.isArray(s.students)){
+        pool = s;
+        if(!Array.isArray(pool.planRequests)) pool.planRequests = [];  // 旧数据兼容补空
+        return true;
+      }
+    }
   }catch(e){}
   return false;
 }
@@ -1096,6 +1140,56 @@ const Api = {
     pool.missed.forEach(m=>{ if(ids.includes(m.studentId)) m.ownerId = newOwnerId; });
     save(); refreshView();
     return {ok:true, count:n};
+  },
+  /* ---- 计划次数修改审批 ---- */
+  // 某学生某科目的待审批申请（同学生同科目同时最多一条 pending）
+  pendingPlanRequest(studentId, subject){
+    return (pool.planRequests || []).find(r=>r.studentId===studentId && r.subject===subject && r.status==='pending') || null;
+  },
+  // POST /api/plan-requests（助教发起二次修改申请；内部校验归属/首次/重复/无变化）
+  createPlanRequest(req){
+    const st = pool.students.find(x=>x.id===req.studentId);
+    if(!st) return {ok:false, msg:'学生不存在'};
+    if(st.archived) return {ok:false, msg:'历史学生不可修改计划'};
+    if(!canWriteOwner(st.ownerId)) return {ok:false, msg:'没有权限操作该数据'};
+    const oldPlan = (st.subjPlans && st.subjPlans[req.subject] !== undefined) ? st.subjPlans[req.subject] : null;
+    if(oldPlan === null) return {ok:false, msg:'首次设置无需申请，直接保存即可'};
+    if(req.newPlan === oldPlan) return {ok:false, msg:'次数未变化'};
+    if(this.pendingPlanRequest(st.id, req.subject)) return {ok:false, msg:'该科目已有待审核的修改申请，请先撤回'};
+    const r = { id: uid(), studentId: st.id, ownerId: st.ownerId, subject: req.subject,
+      oldPlan: oldPlan, newPlan: req.newPlan, reason: req.reason || '',
+      status: 'pending', requestedBy: currentUser ? currentUser.id : null, requestedAt: todayStr(),
+      reviewedBy: null, reviewedAt: null };
+    pool.planRequests.push(r);
+    save(); refreshView();
+    return {ok:true, request:r};
+  },
+  // POST /api/plan-requests/:id/cancel（仅申请本人（或教务）且 status=pending）
+  cancelPlanRequest(id){
+    const r = (pool.planRequests || []).find(x=>x.id===id);
+    if(!r) return {ok:false, msg:'申请不存在'};
+    if(r.status !== 'pending') return {ok:false, msg:'该申请已处理，不能撤回'};
+    if(!currentUser || (currentUser.role!=='admin' && r.requestedBy!==currentUser.id)) return {ok:false, msg:'只能撤回自己的申请'};
+    r.status = 'cancelled';
+    save(); refreshView();
+    return {ok:true};
+  },
+  // POST /api/plan-requests/:id/review（仅教务；approve 时写入 subjPlans 生效）
+  reviewPlanRequest(id, approve, note){
+    if(!currentUser || currentUser.role!=='admin') return {ok:false, msg:'仅教务可审批'};
+    const r = (pool.planRequests || []).find(x=>x.id===id);
+    if(!r) return {ok:false, msg:'申请不存在'};
+    if(r.status !== 'pending') return {ok:false, msg:'该申请已处理'};
+    r.status = approve ? 'approved' : 'rejected';
+    r.reviewedBy = currentUser.id;
+    r.reviewedAt = todayStr();
+    if(note) r.note = note;
+    if(approve){
+      const st = pool.students.find(x=>x.id===r.studentId);
+      if(st){ st.subjPlans = st.subjPlans || {}; st.subjPlans[r.subject] = r.newPlan; }
+    }
+    save(); refreshView();
+    return {ok:true, request:r};
   },
   /* 首次运行播种：教务 admin/admin123 + 示例助教 ta1/ta2（ta123456）及各自示例数据。
      演示期账号均不强制改密（mustChangePwd 仅用于教务新建/重置的账号）。 */
@@ -1576,6 +1670,9 @@ function qePanelHtml(){
       '<button class="btn mint sm" onclick="saveMockScore()">保存模考分数</button>';
   }
   const plan = (st && st.subjPlans && st.subjPlans[quickEntry.subject]) || '';
+  // 计划次数修改的申请状态：pending 显示「审核中（N→M）+ 撤回」；最近一次被驳回显示提示（有新申请/通过后消失）
+  const pendReq = st ? Api.pendingPlanRequest(st.id, quickEntry.subject) : null;
+  const lastReq = st ? (pool.planRequests || []).filter(r=>r.studentId===st.id && r.subject===quickEntry.subject && (r.status==='approved' || r.status==='rejected')).slice(-1)[0] : null;
   return '<div class="qe-panel">' +
     '<div class="qe-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span>「' + esc(shortSubject(quickEntry.subject)) + '」作业打卡</span>' +
     '<button class="btn mint sm" onclick="genReport()" title="生成该生该科目的作业打卡报告 PDF（含打卡情况、老师评语、模考信息）">⬇ 生成报告</button></div>' +
@@ -1585,7 +1682,13 @@ function qePanelHtml(){
       : '<span style="font-size:14px;font-weight:600">应完成作业次数</span>' +
         '<input id="qe-plan" type="number" min="0" inputmode="numeric" placeholder="如 10" value="' + esc(plan) + '">' +
         '<button class="btn mint sm" onclick="savePlanCount()">保存</button>' +
-        (plan ? '<span class="plan-hint">已定 ' + plan + ' 次，点击格子录入或查看当次作业</span>' : '<span class="plan-hint">填写次数并保存后，自动生成打卡格子</span>')) +
+        (plan ? '<span class="plan-hint">已定 ' + plan + ' 次，点击格子录入或查看当次作业</span>' : '<span class="plan-hint">填写次数并保存后，自动生成打卡格子</span>') +
+        (pendReq
+          ? ' <span class="tag amber">修改审核中（' + pendReq.oldPlan + ' → ' + pendReq.newPlan + '）</span>' +
+            '<button class="btn ghost sm" onclick="cancelPlanRequest(\'' + pendReq.id + '\')">撤回申请</button>'
+          : (!isAdminView() && lastReq && lastReq.status==='rejected'
+              ? ' <span class="tag red">上次修改申请已被驳回</span>'
+              : ''))) +
     '</div>' +
     '<div class="ci-title">打卡情况' + (plan ? '（应完成 ' + plan + ' 次，已完成 ' + countSubjectRecs(quickEntry.gid, quickEntry.subject) + ' 次）' : '') + '</div>' +
     '<div class="ci-grid">' + checkinGridHtml() + '</div>' +
@@ -1646,18 +1749,72 @@ function subjectRecsSorted(gid, subject){
   return state.records.filter(r=>r.studentId===gid && r.subject===subject)
     .sort((a,b)=>a.date<b.date?-1:1);
 }
-/* 保存应完成作业次数：写入 student.subjPlans[subject]，总次数显示在科目名旁 */
+/* 保存应完成作业次数：助教首次设置直存；二次修改走教务审批（申请弹窗）；教务直改免审批（有 pending 则确认后自动驳回） */
 function savePlanCount(){
   if(!quickEntry) return;
   const v = parseInt(document.getElementById('qe-plan').value, 10);
   if(isNaN(v) || v<0){ alert('请填写有效的次数（0 或正整数）'); return; }
   const st = state.students.find(x=>x.id===quickEntry.gid);
-  if(st){
+  if(!st || !canWriteOwner(st.ownerId)){ alert('没有权限操作该数据'); return; }
+  const subject = quickEntry.subject;
+  const oldPlan = (st.subjPlans && st.subjPlans[subject] !== undefined) ? st.subjPlans[subject] : null;
+  const applyPlan = ()=>{
     st.subjPlans = st.subjPlans || {};
-    st.subjPlans[quickEntry.subject] = v;
+    st.subjPlans[subject] = v;
     save();
+    renderAll();
+  };
+  if(isAdminView()){
+    // 教务直改免审批；若该生该科目存在 pending 申请，确认后自动驳回
+    const pend = Api.pendingPlanRequest(st.id, subject);
+    if(pend){
+      askConfirm('直接修改计划次数', '该学生该科目有 1 条待审批的修改申请（' + pend.oldPlan + ' → ' + pend.newPlan + ' 次），直接保存将自动驳回该申请。确定吗？', ()=>{
+        Api.reviewPlanRequest(pend.id, false, '教务直接修改，自动驳回');
+        applyPlan();
+      });
+      return;
+    }
+    applyPlan();
+    return;
   }
+  if(oldPlan === null){ applyPlan(); return; }  // 首次设置：直接保存生效
+  if(v === oldPlan){ alert('次数未变化，无需修改'); return; }
+  const pend = Api.pendingPlanRequest(st.id, subject);
+  if(pend){ alert('该科目已有待审核的修改申请（' + pend.oldPlan + ' → ' + pend.newPlan + ' 次），请先撤回或等待教务审批。'); return; }
+  openPlanRequest(st, subject, oldPlan, v);  // 二次修改：走审批申请
+}
+/* ================= 计划修改申请弹窗（助教） ================= */
+let planReqCtx = null;  // {gid, subject, oldPlan, newPlan}
+function openPlanRequest(st, subject, oldPlan, newPlan){
+  planReqCtx = {gid: st.id, subject: subject, oldPlan: oldPlan, newPlan: newPlan};
+  document.getElementById('pr-stu').textContent = st.name;
+  document.getElementById('pr-subj').textContent = shortSubject(subject);
+  document.getElementById('pr-change').textContent = oldPlan + ' 次 → ' + newPlan + ' 次';
+  document.getElementById('pr-reason').value = '';
+  document.getElementById('pr-modal').classList.add('show');
+}
+function submitPlanRequest(){
+  if(!planReqCtx) return;
+  const reason = document.getElementById('pr-reason').value.trim();
+  const res = Api.createPlanRequest({studentId: planReqCtx.gid, subject: planReqCtx.subject, newPlan: planReqCtx.newPlan, reason: reason});
+  if(!res.ok){ alert(res.msg); return; }
+  planReqCtx = null;
+  document.getElementById('pr-modal').classList.remove('show');
   renderAll();
+  alert('已提交修改申请，教务审核通过后生效。');
+}
+document.getElementById('pr-cancel').addEventListener('click', ()=>{
+  planReqCtx = null;
+  document.getElementById('pr-modal').classList.remove('show');
+});
+document.getElementById('pr-ok').addEventListener('click', submitPlanRequest);
+/* 助教撤回待审核申请 */
+function cancelPlanRequest(id){
+  askConfirm('撤回申请', '确定撤回这条计划修改申请吗？撤回后可重新提交。', ()=>{
+    const res = Api.cancelPlanRequest(id);
+    if(!res.ok){ alert(res.msg); return; }
+    renderAll();
+  });
 }
 /* 打卡区「今日未交」：按同表单页选择的日期登记未交（默认今天，支持补登历史日期），生成对应打卡格子 */
 function markMissedToday(){
@@ -2617,6 +2774,7 @@ document.getElementById('pwd-ok').addEventListener('click', ()=>doChangePwd());
 
 /* ================= 教务：账号管理 ================= */
 function renderAccounts(){
+  renderPlanRequests();
   const el = document.getElementById('accounts-list');
   if(!el) return;
   const users = Api.listUsers();
@@ -2636,6 +2794,59 @@ function renderAccounts(){
         : '') +
       '</div>';
   }).join('') || '<p class="hint">暂无账号</p>';
+}
+/* 教务「计划修改审批」区块：待审批列表 + 最近 10 条已处理 */
+function renderPlanRequests(){
+  const pendEl = document.getElementById('planreq-pending');
+  if(!pendEl) return;
+  const reqs = pool.planRequests || [];
+  const pending = reqs.filter(r=>r.status==='pending');
+  const users = Api.listUsers();
+  const stuNameOf = sid => { const s = pool.students.find(x=>x.id===sid); return s ? s.name : '（已删除学生）'; };
+  const reqUserOf = uid2 => { const u = users.find(x=>x.id===uid2); return u ? u.name : '未知'; };
+  pendEl.innerHTML = pending.length ? pending.map(r=>
+    '<div class="acct-row">' +
+    '<div class="grow"><b>' + esc(stuNameOf(r.studentId)) + '</b> <span class="tag mint">' + esc(shortSubject(r.subject)) + '</span>' +
+    ' <b>' + r.oldPlan + ' → ' + r.newPlan + '</b> 次' +
+    '<div class="hint" style="margin-top:2px">申请助教：' + esc(reqUserOf(r.requestedBy)) + ' · ' + esc(r.requestedAt) + ' · 理由：' + (r.reason ? esc(r.reason) : '—') + '</div></div>' +
+    '<button class="btn mint sm" onclick="reviewPlanRequest(\'' + r.id + '\',true)">通过</button>' +
+    '<button class="btn danger sm" onclick="reviewPlanRequest(\'' + r.id + '\',false)">驳回</button>' +
+    '</div>').join('') : '<p class="hint">暂无待审批的修改申请。</p>';
+  const done = reqs.filter(r=>r.status==='approved' || r.status==='rejected')
+    .sort((a,b)=>(a.reviewedAt||'') < (b.reviewedAt||'') ? 1 : -1).slice(0,10);
+  document.getElementById('planreq-done').innerHTML = done.length ? done.map(r=>
+    '<div class="acct-row">' +
+    '<div class="grow"><b>' + esc(stuNameOf(r.studentId)) + '</b> <span class="tag mint">' + esc(shortSubject(r.subject)) + '</span>' +
+    ' ' + r.oldPlan + ' → ' + r.newPlan + ' 次 ' +
+    '<span class="tag ' + (r.status==='approved' ? 'mint' : 'red') + '">' + (r.status==='approved' ? '已通过' : '已驳回') + '</span>' +
+    '<div class="hint" style="margin-top:2px">申请 ' + esc(r.requestedAt) + ' · 审批 ' + esc(r.reviewedAt || '-') + '</div></div>' +
+    '</div>').join('') : '<p class="hint">暂无已处理记录。</p>';
+  const cb = document.getElementById('planreq-badge-card');
+  cb.style.display = pending.length ? '' : 'none';
+  cb.textContent = pending.length + ' 条待审批';
+}
+/* 教务审批：通过直接生效；驳回需确认 */
+function reviewPlanRequest(id, approve){
+  if(approve){
+    const res = Api.reviewPlanRequest(id, true);
+    if(!res.ok){ alert(res.msg); return; }
+    renderAll();
+  } else {
+    askConfirm('驳回申请', '确定驳回这条计划修改申请吗？学生的应完成次数将保持不变。', ()=>{
+      const res = Api.reviewPlanRequest(id, false);
+      if(!res.ok){ alert(res.msg); return; }
+      renderAll();
+    });
+  }
+}
+/* 侧栏/底部 Tab「账号管理」待审批红点徽章（仅教务可见，0 不显示） */
+function renderPendingBadges(){
+  const n = (isAdminView() && pool.planRequests) ? pool.planRequests.filter(r=>r.status==='pending').length : 0;
+  ['badge-accounts','badge-accounts-tab'].forEach(id=>{
+    const el = document.getElementById(id);
+    el.style.display = n > 0 ? '' : 'none';
+    el.textContent = String(n);
+  });
 }
 function resetUserPwd(id){
   const u = Api.listUsers().find(x=>x.id===id);
@@ -2919,6 +3130,7 @@ function renderAll(){
   renderAlumni();
   if(isAdminView()) renderAccounts();
   renderDashboard();  // 内部含教务守卫，助教端自动清空看板内容
+  renderPendingBadges();  // 账号管理待审批红点（仅教务显示）
 }
 document.getElementById('today-str').textContent =
   todayStr() + ' · ' + ['周日','周一','周二','周三','周四','周五','周六'][new Date().getDay()];
@@ -2943,6 +3155,7 @@ window.__wb = {
   saveQuickEntry, saveSlot, removeMissed, markMissedToday, buildExport,
   viewState, refreshView, canWriteOwner, writeOwnerId,
   renderDashboard, computeDash, dashDrillTa, dashGotoStudent,
+  savePlanCount, submitPlanRequest, cancelPlanRequest, reviewPlanRequest, renderPlanRequests, renderPendingBadges,
   get currentUser(){ return currentUser; },
   get pool(){ return pool; },
   get state(){ return state; },

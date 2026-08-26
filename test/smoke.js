@@ -249,6 +249,107 @@ function ok(cond, name){
   ok(documentStub.getElementById('tab-data').style.display !== 'none', '助教端底部 Tab 保留「数据管理」');
   ok(dashIds.every(id=>documentStub.getElementById(id).innerHTML === ''), '助教角色下 renderDashboard 不产出内容');
 
+  /* ---- 计划次数二次修改审批流 ---- */
+  // 当前登录 ta1；取一名 ta1 的现有学生
+  const planStu = wb.pool.students.find(s=>s.ownerId===ta1.id && !s.archived);
+  const planSubj = '学科 / AP / 微积分BC';
+  wb.setQuickEntry({gid: planStu.id, subject: planSubj});
+  // 首次设置：直接生效，不产生申请
+  setVal('qe-plan', '10');
+  wb.savePlanCount();
+  ok(planStu.subjPlans && planStu.subjPlans[planSubj]===10 && wb.pool.planRequests.length===0,
+    '首次设置应完成次数直接生效，不产生申请');
+  // 二次修改：生成 pending，当前次数不变
+  setVal('qe-plan', '12');
+  wb.savePlanCount();
+  setVal('pr-reason', '课程加量');
+  wb.submitPlanRequest();
+  const req1 = wb.pool.planRequests[wb.pool.planRequests.length-1];
+  ok(wb.pool.planRequests.length===1 && req1.status==='pending' && req1.oldPlan===10 && req1.newPlan===12
+    && req1.reason==='课程加量' && req1.ownerId===ta1.id && req1.requestedBy===ta1.id,
+    '二次修改生成 pending 申请（含 oldPlan/newPlan/reason）');
+  ok(planStu.subjPlans[planSubj]===10, '申请待审批期间当前次数不变');
+  // 新值=旧值拦截
+  let alertsB = alerts.length;
+  setVal('qe-plan', '10');
+  wb.savePlanCount();
+  ok(wb.pool.planRequests.length===1 && alerts.length>alertsB, '新值=旧值被拦截，不产生申请');
+  // 重复申请拦截
+  alertsB = alerts.length;
+  setVal('qe-plan', '15');
+  wb.savePlanCount();
+  ok(wb.pool.planRequests.length===1 && alerts.length>alertsB, '已有 pending 时重复申请被拦截');
+  // 撤回后可重新申请
+  ok(Api.cancelPlanRequest(req1.id).ok && req1.status==='cancelled', '助教撤回申请成功');
+  ok(!Api.cancelPlanRequest(req1.id).ok, '已撤回的申请不能重复撤回');
+  setVal('qe-plan', '15');
+  wb.savePlanCount();
+  setVal('pr-reason', '');
+  wb.submitPlanRequest();
+  const req2 = wb.pool.planRequests[wb.pool.planRequests.length-1];
+  ok(wb.pool.planRequests.length===2 && req2.status==='pending' && req2.newPlan===15, '撤回后可重新发起申请');
+  // 越权：助教给他人学生申请
+  const ta2StuP = wb.pool.students.find(s=>s.ownerId===ta2.id);
+  ta2StuP.subjPlans = {'测试科目': 5};
+  ok(!Api.createPlanRequest({studentId: ta2StuP.id, subject:'测试科目', newPlan: 8}).ok,
+    '助教给他人学生提交申请被越权拦截');
+  // 教务驳回：次数不变
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  wb.reviewPlanRequest(req2.id, false);
+  documentStub.getElementById('cf-ok').onclick();  // 确认驳回
+  ok(req2.status==='rejected' && planStu.subjPlans[planSubj]===10, '教务驳回后申请 rejected 且次数不变');
+  // 教务通过：次数生效
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  setVal('qe-plan', '18');
+  wb.savePlanCount();
+  setVal('pr-reason', '');
+  wb.submitPlanRequest();
+  const req3 = wb.pool.planRequests[wb.pool.planRequests.length-1];
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  ok(Api.reviewPlanRequest(req3.id, true).ok && req3.status==='approved'
+    && req3.reviewedBy===admin.id && planStu.subjPlans[planSubj]===18, '教务通过后应完成次数生效');
+  ok(!Api.reviewPlanRequest(req3.id, true).ok, '已审批的申请不能重复审批');
+  // 教务直改：免审批生效，pending 自动驳回
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  setVal('qe-plan', '20');
+  wb.savePlanCount();
+  setVal('pr-reason', '');
+  wb.submitPlanRequest();
+  const req4 = wb.pool.planRequests[wb.pool.planRequests.length-1];
+  ok(req4.status==='pending' && req4.oldPlan===18, '助教再次发起申请（18 → 20）');
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  wb.setQuickEntry({gid: planStu.id, subject: planSubj});
+  setVal('qe-plan', '25');
+  wb.savePlanCount();  // 教务直改 → 确认弹窗
+  documentStub.getElementById('cf-ok').onclick();  // 确认直改
+  ok(planStu.subjPlans[planSubj]===25, '教务直改免审批直接生效');
+  ok(req4.status==='rejected' && req4.reviewedBy===admin.id, '教务直改时 pending 申请被自动驳回');
+  // 审批区块渲染无 NaN/undefined，已处理区含通过/驳回
+  const prPendHtml = documentStub.getElementById('planreq-pending').innerHTML;
+  const prDoneHtml = documentStub.getElementById('planreq-done').innerHTML;
+  ok(prPendHtml.indexOf('NaN')===-1 && prPendHtml.indexOf('undefined')===-1
+    && prDoneHtml.indexOf('NaN')===-1 && prDoneHtml.indexOf('undefined')===-1
+    && prDoneHtml.indexOf('已通过')!==-1 && prDoneHtml.indexOf('已驳回')!==-1,
+    '审批区块渲染无 NaN/undefined，已处理区含通过/驳回记录');
+  // 徽章数量随 pending 变化
+  ok(documentStub.getElementById('badge-accounts').style.display==='none', '无待审批时徽章隐藏');
+  const req5 = Api.createPlanRequest({studentId: planStu.id, subject: planSubj, newPlan: 30}).request;
+  wb.renderPendingBadges();
+  ok(documentStub.getElementById('badge-accounts').textContent==='1'
+    && documentStub.getElementById('badge-accounts').style.display!=='none', '有 1 条待审批时徽章显示数量');
+  Api.reviewPlanRequest(req5.id, true);
+  wb.renderPendingBadges();
+  ok(documentStub.getElementById('badge-accounts').style.display==='none', '审批完成后徽章消失');
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  ok(documentStub.getElementById('badge-accounts').style.display==='none'
+    && documentStub.getElementById('badge-accounts-tab').style.display==='none', '助教端不显示审批徽章');
+
   console.log('\n断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('测试异常：', e); process.exit(1); });
