@@ -45,6 +45,8 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
 .topbar{display:flex;align-items:center;gap:16px;margin-bottom:18px;flex-wrap:wrap}
 .topbar .illus{width:120px;flex-shrink:0}
 .topbar h1{font-size:22px}
+/* 顶部温暖短句：账号名下方一行，右对齐淡色小字 */
+.motto{flex-basis:100%;text-align:right;font-size:12px;color:var(--ink2);line-height:1.6;margin-top:-4px;min-height:19px}
 .topbar .date-pill{
   background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;
   font-size:13px;color:var(--ink2);display:inline-flex;align-items:center;gap:6px;margin-top:6px;
@@ -590,6 +592,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
         <button class="btn ghost sm" id="btn-chpwd">修改密码</button>
         <button class="btn ghost sm" id="btn-logout">退出</button>
       </div>
+      <div class="motto" id="motto"></div>
     </div>
 
     <div id="sample-banner" class="sample-banner" style="display:none"></div>
@@ -916,7 +919,8 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
     <div class="login-demo">
       演示账号（请先选择对应角色再登录）：<br>
       教务 <b>admin / admin123</b><br>
-      助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）
+      助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
+      销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
   </div>
 </div>
@@ -3199,6 +3203,38 @@ function enterApp(){
   refreshView();
   renderAll();
   switchTab(role==='sales' ? 'stats' : 'today');
+  renderMotto();
+}
+
+/* ================= 顶部温暖短句（每 10 次页面刷新换一句，给员工一点情绪价值） ================= */
+const MOTTO_LIST = [
+  '慢慢来，一切都来得及。',
+  '今天也辛苦了，记得照顾好自己。',
+  '别急，事情总会一件一件做完的。',
+  '你已经做得很好了。',
+  '累了就歇一会儿，喝口热茶。',
+  '不必事事完美，尽力就好。',
+  '照顾好学生之前，先照顾好自己。',
+  '日子缓缓，自有答案。',
+  '每一步都算数，哪怕走得慢一点。',
+  '窗外的天气不错，记得抬头看看。',
+  '放轻松，你比自己想象的更可靠。',
+  '忙里偷闲不是偷懒，是充电。',
+  '今天解决不了的事，明天再看也许就有办法了。',
+  '被学生需要，本身就是一件温暖的事。',
+  '下班后的时间，也属于你自己。',
+  '不慌不忙，把每一件小事做好。'
+];
+/* 计数存 localStorage：每次进入主界面 count+1，每满 10 次换下一句 */
+function renderMotto(){
+  const el = document.getElementById('motto');
+  if(!el) return;
+  let st = {count: 0};
+  try{ st = JSON.parse(localStorage.getItem('wb_ha_v2_motto')) || st; }catch(e){}
+  st.count = (st.count || 0) + 1;
+  const idx = Math.floor((st.count - 1) / 10) % MOTTO_LIST.length;
+  try{ localStorage.setItem('wb_ha_v2_motto', JSON.stringify(st)); }catch(e){}
+  el.textContent = MOTTO_LIST[idx];
 }
 /* 登录界面角色选择：助教 / 教务（默认助教） */
 let loginRole = 'ta';
@@ -3756,7 +3792,7 @@ window.__wb = {
   renderDashboard, computeDash, dashDrillTa, dashGotoStudent, dashToggleAlert,
   savePlanCount, submitPlanRequest, cancelPlanRequest, reviewPlanRequest, renderPlanRequests, renderPendingBadges,
   setStuTaFilter, toggleTaGroup, renderStats, renderAlumni, clearSamplesOfView,
-  qePanelHtml, reportHtml, renderToday, saveSubjectAdvice, gotoPlanEntry, doLoadSampleData,
+  qePanelHtml, reportHtml, renderToday, saveSubjectAdvice, gotoPlanEntry, doLoadSampleData, renderMotto,
   renderDoneZone, doneZoneToggle, resolveMissed,
   logAction, visibleAuditLogs, renderAudit, auditLoadMore,
   setAuditQuery(v){ auditQuery = v; auditShown = 50; renderAudit(); },

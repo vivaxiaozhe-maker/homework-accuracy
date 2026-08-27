@@ -524,6 +524,15 @@ function ok(cond, name){
   ok(wb.pool.planRequests.filter(r=>r.sample && r.status==='pending').length === 3,
     '重载后每位助教恢复 1 条待审批示例申请');
 
+  /* ---- 登录页销售演示账号 + 顶部温暖短句 ---- */
+  ok(html.indexOf('sales1 / sales123456') !== -1, '登录页演示账号区展示销售账号密码');
+  const mottoEl = documentStub.getElementById('motto');
+  ok(mottoEl.textContent.length > 0, '顶部温暖短句已渲染（账号名下方）');
+  ok(vm.runInContext('MOTTO_LIST.includes(' + JSON.stringify(mottoEl.textContent) + ')', ctx), '短句来自预置句子库');
+  const mottoBefore = mottoEl.textContent;
+  for(let i=0; i<10; i++) wb.renderMotto();
+  ok(mottoEl.textContent !== mottoBefore, '每 10 次刷新轮换一句');
+
   /* ---- 批次二：看板预警上移 + 折叠 + 沉睡 7 天口径 ---- */
   ok(html.indexOf('预警名单') < html.indexOf('录入趋势（近 30 天）'), '看板板块顺序：预警名单在录入趋势之前');
   ok(html.indexOf('沉睡学生（≥7 天无记录）') !== -1, '沉睡学生口径标题已改 ≥7 天');
