@@ -599,10 +599,13 @@ function ok(cond, name){
   ok(documentStub.getElementById('sample-banner').style.display === 'none', '销售端不显示示例数据横幅');
   ok(documentStub.getElementById('stats-chart-card').style.display === 'none'
     && documentStub.getElementById('btn-open-add-stu').style.display === 'none', '销售端隐藏图表卡与「新增学生」按钮');
-  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('stu-card') === -1
-    && documentStub.getElementById('stu-list').innerHTML.indexOf('输入学生姓名或学校进行查询') !== -1
-    && documentStub.getElementById('alumni-list').innerHTML.indexOf('stu-card') === -1,
-    '销售端无关键字时两个页签均不渲染学生卡');
+  const salesDefaultStu = documentStub.getElementById('stu-list').innerHTML;
+  const salesDefaultAl = documentStub.getElementById('alumni-list').innerHTML;
+  ok(salesDefaultStu.indexOf('以下为示例学生（演示用）') !== -1 && salesDefaultStu.indexOf('林小满') !== -1
+    && salesDefaultAl.indexOf('以下为示例历史学生（演示用）') !== -1 && salesDefaultAl.indexOf('李浩然') !== -1,
+    '销售端无关键字时展示示例学生卡（现有+历史）');
+  ok(salesDefaultStu.indexOf('onclick') === -1 && salesDefaultAl.indexOf('onclick') === -1,
+    '销售端示例卡只读（无 onclick 操作入口）');
   ok(wb.state.students.length === wb.pool.students.length, '销售 viewState 可见全量（mock 期）');
   wb.setStuQuery('林');
   const salesHtml = documentStub.getElementById('stu-list').innerHTML;

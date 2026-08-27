@@ -1763,7 +1763,11 @@ function renderStats(){
     document.getElementById('bar-chart').innerHTML = '<p class="hint">输入学生姓名或学校进行查询</p>';
     const listS = document.getElementById('stu-list');
     if(!stuQuery){
-      listS.innerHTML = '<p class="hint">输入学生姓名或学校进行查询</p>';
+      // 无关键字：只展示示例学生（演示用），真实学生仍需搜索——防批量泄露
+      const demo = groups.filter(g=>g.sample);
+      listS.innerHTML = demo.length
+        ? '<p class="hint" style="margin-bottom:10px">以下为示例学生（演示用）；查询真实学生请输入姓名或学校：</p>' + demo.map(g=>salesStuCard(g, false)).join('')
+        : '<p class="hint">输入学生姓名或学校进行查询</p>';
       return;
     }
     const matchedS = groups.filter(g=>g.name.indexOf(stuQuery)!==-1 || (g.school||'').indexOf(stuQuery)!==-1);
@@ -2969,9 +2973,15 @@ function renderAlumni(){
   });
   // 姓名/学校搜索过滤
   const filtered = alumniQuery ? groups.filter(g=>g.name.indexOf(alumniQuery)!==-1 || (g.school||'').indexOf(alumniQuery)!==-1) : groups;
-  // 销售视角：无关键字不渲染任何学生卡
+  // 销售视角：无关键字只展示示例历史学生（演示用），真实学生仍需搜索
   if(isSalesView()){
-    if(!alumniQuery){ list.innerHTML = '<p class="hint">输入学生姓名或学校进行查询</p>'; return; }
+    if(!alumniQuery){
+      const demo = groups.filter(g=>g.sample);
+      list.innerHTML = demo.length
+        ? '<p class="hint" style="margin-bottom:10px">以下为示例历史学生（演示用）；查询真实学生请输入姓名或学校：</p>' + demo.map(g=>salesStuCard(g, true)).join('')
+        : '<p class="hint">输入学生姓名或学校进行查询</p>';
+      return;
+    }
     list.innerHTML = filtered.length
       ? filtered.map(g=>salesStuCard(g, true)).join('')
       : '<p class="hint">没有匹配「' + esc(alumniQuery) + '」的历史学生。</p>';
