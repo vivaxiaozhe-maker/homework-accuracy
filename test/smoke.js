@@ -109,6 +109,19 @@ function ok(cond, name){
   ok(wb.pool.planRequests.length === seedReqs.length, '重复初始化不会重复注入示例申请');
   ok(wb.pool.students.length === 14, '重复初始化不会重复注入历史示例学生（alumniSampled 生效）');
 
+  /* ---- 操作记录示例数据播种 ---- */
+  const seedLogs = (wb.pool.auditLogs || []).filter(l=>l.sample);
+  ok(seedLogs.length >= 14, '示例操作记录已播种（两位助教各 5+ 条 + 教务 4 条）');
+  ok(seedLogs.every(l=>l.sample===true && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(l.ts)),
+    '示例日志带 sample 标记且 ts 精确到秒');
+  ok(seedLogs.some(l=>l.targetType==='record') && seedLogs.some(l=>l.targetType==='plan')
+    && seedLogs.some(l=>l.targetType==='account') && seedLogs.some(l=>l.targetType==='auth'),
+    '示例日志覆盖 作业/计划/账号/登录 多类型');
+  ok(seedLogs.filter(l=>l.userName==='教务管理员').some(l=>l.action==='审批通过' || l.action==='审批驳回'),
+    '示例日志含教务审批记录');
+  await Api._ensureSeed();
+  ok((wb.pool.auditLogs || []).filter(l=>l.sample).length === seedLogs.length, '重复初始化不会重复注入示例日志');
+
   /* ---- 教务直接登录（演示不强制改密）+ 角色校验 ---- */
   let bad = await Api.login('admin', 'wrong-password', 'admin');
   ok(!bad.ok, '错误密码登录被拒');
@@ -346,13 +359,14 @@ function ok(cond, name){
   documentStub.getElementById('cf-ok').onclick();  // 确认直改
   ok(planStu.subjPlans[planSubj]===25, '教务直改免审批直接生效');
   ok(req4.status==='rejected' && req4.reviewedBy===admin.id, '教务直改时 pending 申请被自动驳回');
-  // 审批区块渲染无 NaN/undefined，已处理区含通过/驳回
+  // 审批区块渲染无 NaN/undefined；已处理记录并入统一「已处理事项」回溯区
   const prPendHtml = documentStub.getElementById('planreq-pending').innerHTML;
-  const prDoneHtml = documentStub.getElementById('planreq-done').innerHTML;
+  ok(html.indexOf('planreq-done') === -1 && html.indexOf('最近已处理') === -1, '审批区不再有独立的「最近已处理」折叠区');
+  const dzHtml0 = documentStub.getElementById('done-list').innerHTML;
   ok(prPendHtml.indexOf('NaN')===-1 && prPendHtml.indexOf('undefined')===-1
-    && prDoneHtml.indexOf('NaN')===-1 && prDoneHtml.indexOf('undefined')===-1
-    && prDoneHtml.indexOf('已通过')!==-1 && prDoneHtml.indexOf('已驳回')!==-1,
-    '审批区块渲染无 NaN/undefined，已处理区含通过/驳回记录');
+    && dzHtml0.indexOf('NaN')===-1 && dzHtml0.indexOf('undefined')===-1
+    && dzHtml0.indexOf('已通过')!==-1 && dzHtml0.indexOf('已驳回')!==-1,
+    '统一已处理区渲染无 NaN/undefined，含已通过/已驳回记录');
   // 徽章数量随 pending 变化
   ok(documentStub.getElementById('badge-today').style.display==='none', '无待审批时徽章隐藏');
   const req5 = Api.createPlanRequest({studentId: planStu.id, subject: planSubj, newPlan: 30}).request;
@@ -601,6 +615,133 @@ function ok(cond, name){
   ok(html.indexOf('<option value="sales">销售</option>') !== -1, '创建账号表单含销售角色选项');
   const madeSales = await Api.createUser('钱顾问', 'sales2', 'abc123456', 'sales');
   ok(madeSales.ok && madeSales.user.role === 'sales', '教务创建销售账号成功（角色正确）');
+
+  /* ---- 已处理事项回溯：软删除 + 统一已处理区 ---- */
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  const ta1Stu2 = wb.pool.students.find(s=>s.ownerId===ta1.id && !s.archived && s.sample);
+  // 标记已补交（走 resolveMissed → saveSlot 补录路径）
+  wb.pool.missed.push({id:'mk-miss-1', studentId:ta1Stu2.id, date:offDay(-1), subject:'学科 / AP / 微积分BC', resolved:false, ownerId:ta1.id});
+  wb.refreshView();
+  wb.resolveMissed('mk-miss-1');
+  setVal('sl-date', ''); setVal('sl-total', '10'); setVal('sl-correct', '9'); setVal('sl-wrongs', '3');
+  const missCnt0 = wb.pool.missed.length;
+  wb.saveSlot();
+  const m1 = wb.pool.missed.find(x=>x.id==='mk-miss-1');
+  ok(m1.resolved===true && m1.resolution==='made-up' && m1.resolvedAt===offDay(0) && wb.pool.missed.length===missCnt0,
+    '标记已补交：resolved/resolvedAt/resolution 字段正确，记录仍在 pool');
+  // 删除未交：软删除
+  wb.pool.missed.push({id:'mk-miss-2', studentId:ta1Stu2.id, date:offDay(-2), subject:'学科 / AP / 微积分BC', resolved:false, ownerId:ta1.id});
+  wb.refreshView();
+  const missCnt1 = wb.pool.missed.length;
+  wb.removeMissed('mk-miss-2');
+  documentStub.getElementById('cf-ok').onclick();  // 二次确认
+  const m2 = wb.pool.missed.find(x=>x.id==='mk-miss-2');
+  ok(m2 && m2.resolved===true && m2.resolution==='deleted' && m2.resolvedAt===offDay(0) && wb.pool.missed.length===missCnt1,
+    '删除未交改为软删除：pool 条数不变，留痕 resolution=deleted');
+  ok(!wb.state.missed.some(x=>x.id==='mk-miss-2' && !x.resolved), '软删除后不再出现在未处理列表');
+  // 助教视角已处理区：含自己的已处理未交 + 自己的申请结果，不含他人
+  const dzTa = documentStub.getElementById('done-list').innerHTML;
+  ok(dzTa.indexOf('已补交')!==-1 && dzTa.indexOf('已删除')!==-1, '助教已处理区含已补交/已删除条目');
+  ok(dzTa.indexOf('已通过')!==-1 && dzTa.indexOf('已驳回')!==-1, '助教已处理区含自己的申请结果');
+  ok(dzTa.indexOf('归属')===-1 && dzTa.indexOf('李助教')===-1, '助教已处理区不含他人数据与归属标注');
+  ok(documentStub.getElementById('done-zone').style.display !== 'none', '有已处理数据时折叠区渲染');
+  // 教务视角：全部 + 未交条目带归属助教名
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  const dzAdmin = documentStub.getElementById('done-list').innerHTML;
+  ok(dzAdmin.indexOf('归属')!==-1 && dzAdmin.indexOf('王助教')!==-1, '教务已处理区未交条目带归属助教名');
+  ok(dzAdmin.indexOf('李助教')!==-1, '教务已处理区含全部助教的申请结果');
+  // 近 30 天窗口过滤
+  wb.pool.missed.push({id:'mk-miss-old', studentId:ta1Stu2.id, date:offDay(-50), subject:'语培 / 托福', resolved:true, resolution:'deleted', resolvedAt:offDay(-40), ownerId:ta1.id});
+  wb.refreshView(); wb.renderDoneZone();
+  ok(documentStub.getElementById('done-list').innerHTML.indexOf(offDay(-40)) === -1, '近 30 天窗口过滤生效（40 天前已处理记录不出现）');
+  // 折叠：默认前 10 条 + 展开全部
+  for(let i=0;i<12;i++){
+    wb.pool.missed.push({id:'mk-d-'+i, studentId:ta1Stu2.id, date:offDay(-3), subject:'语培 / 托福', resolved:true, resolution:'deleted', resolvedAt:offDay(-1), ownerId:ta1.id});
+  }
+  wb.refreshView(); wb.renderDoneZone();
+  const expectedDone = documentStub.getElementById('done-zone-title').textContent;
+  const dzList = documentStub.getElementById('done-list').innerHTML;
+  ok((dzList.match(/todo-item/g)||[]).length === 10 && dzList.indexOf('展开全部') !== -1,
+    '已处理区默认前 10 条并折叠（' + expectedDone + '）');
+  wb.doneZoneToggle();
+  const dzAll = documentStub.getElementById('done-list').innerHTML;
+  const totalDone = wb.pool.missed.filter(x=>x.resolved && x.resolvedAt && x.resolvedAt >= offDay(-29)).length +
+    wb.pool.planRequests.filter(r=>(r.status==='approved'||r.status==='rejected') && r.reviewedAt && r.reviewedAt >= offDay(-29)).length;
+  ok((dzAll.match(/todo-item/g)||[]).length === totalDone && dzAll.indexOf('收起') !== -1,
+    '展开全部后显示全部 ' + totalDone + ' 条');
+  ok(expectedDone.indexOf('· ' + totalDone + ' 条') !== -1, '折叠区标题含总条数');
+
+  /* ---- 操作记录（审计日志） ---- */
+  const logs0 = wb.pool.auditLogs || [];
+  ok(Array.isArray(logs0) && logs0.length > 0, '写操作产生审计日志');
+  const lastLog = logs0[logs0.length-1];
+  ok(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(lastLog.ts) && lastLog.userId && lastLog.userName
+    && lastLog.action && lastLog.targetType && lastLog.targetDesc !== undefined,
+    '日志字段齐全（ts 精确到秒、操作人、动作、类型、对象）');
+  ['录入作业','删除未交','审批通过','创建账号','登录成功','转移归属'].forEach(a=>{
+    ok(logs0.some(l=>l.action===a), '打点抽查：' + a);
+  });
+  // 页签显隐：教务底部 Tab「记录」替换「账号」
+  wb.switchTab('audit');
+  ok(documentStub.getElementById('nav-audit').style.display !== 'none'
+    && documentStub.getElementById('tab-audit').style.display !== 'none'
+    && documentStub.getElementById('tab-accounts').style.display === 'none', '教务：操作记录入口可见，底部 Tab「记录」替换「账号」');
+  ok(documentStub.getElementById('audit-list').innerHTML.indexOf('audit-row') !== -1
+    && documentStub.getElementById('audit-count').textContent.indexOf('共 ') !== -1, '操作记录页渲染列表与结果统计');
+  // 搜索：学生姓名
+  const rowsOf = ()=> documentStub.getElementById('audit-list').innerHTML.split('<div class="audit-row">').slice(1);
+  wb.setAuditQuery('林小满');
+  const rowsQ1 = rowsOf();
+  ok(rowsQ1.length > 0 && rowsQ1.every(r=>r.indexOf('林小满') !== -1), '搜索过滤生效（学生姓名）');
+  // 搜索：操作人
+  wb.setAuditQuery('王助教');
+  const rowsQ2 = rowsOf();
+  ok(rowsQ2.length > 0 && rowsQ2.every(r=>r.indexOf('王助教') !== -1), '搜索过滤生效（操作人）');
+  // 类型筛选
+  wb.setAuditQuery(''); wb.setAuditType('auth');
+  const rowsAuth = rowsOf();
+  ok(rowsAuth.length > 0 && rowsAuth.every(r=>r.indexOf('登录成功') !== -1 || r.indexOf('修改密码') !== -1), '类型筛选生效（登录类）');
+  wb.setAuditType('');
+  // 时间范围：注入 40 天前的旧日志
+  wb.pool.auditLogs.push({id:'old-log', ts: offDay(-40) + ' 08:00:00', userId: admin.id, userName: '教务管理员',
+    role: 'admin', action: '陈旧操作', targetType: 'data', targetDesc: '老对象', detail: '', ownerId: admin.id});
+  wb.setAuditRange(0);
+  ok(documentStub.getElementById('audit-list').innerHTML.indexOf('陈旧操作') !== -1, '时间范围=全部时包含 40 天前日志');
+  wb.setAuditRange(1);
+  ok(documentStub.getElementById('audit-list').innerHTML.indexOf('陈旧操作') === -1, '时间范围=今天时过滤 40 天前日志');
+  // 分页：默认 50 条 + 加载更多
+  for(let i=0;i<60;i++) wb.logAction('分页压测', 'data', '压测', '第 ' + i + ' 条');
+  wb.setAuditRange(0);
+  const rowCnt = ()=> (documentStub.getElementById('audit-list').innerHTML.match(/audit-row/g)||[]).length;
+  ok(rowCnt() === 50, '默认显示 50 条');
+  ok(documentStub.getElementById('audit-more').innerHTML.indexOf('加载更多') !== -1, '超过 50 条显示「加载更多」');
+  wb.auditLoadMore();
+  const cntAll = parseInt(documentStub.getElementById('audit-count').textContent.replace(/[^0-9]/g,''), 10);
+  ok(rowCnt() === Math.min(100, cntAll) && cntAll > 100, '加载更多后显示 100 条');
+  // 助教口径
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  const vlogs = wb.visibleAuditLogs();
+  ok(vlogs.length > 0 && vlogs.every(l=>l.userId===ta1.id || l.ownerId===ta1.id), '助教口径：只见自己的操作或自己名下学生相关日志');
+  ok(wb.pool.auditLogs.some(l=>l.ownerId===ta2.id && l.userId!==ta1.id && vlogs.indexOf(l)===-1), '不见其他助教的日志');
+  ok(documentStub.getElementById('nav-audit').style.display !== 'none'
+    && documentStub.getElementById('tab-audit').style.display !== 'none', '助教端操作记录入口可见（底部第 5 个 Tab）');
+  const taAu = documentStub.getElementById('audit-list').innerHTML;
+  ok(taAu.indexOf('audit-row') !== -1 && taAu.indexOf('李助教') === -1, '助教操作记录列表不含其他助教的日志');
+  // 5000 条 FIFO 裁剪
+  for(let i=0;i<5100;i++) wb.pool.auditLogs.push({id:'x'+i, ts: offDay(0) + ' 00:00:01', userId: ta1.id,
+    userName: '王助教', role: 'ta', action: '压测', targetType: 'data', targetDesc: '', detail: '', ownerId: ta1.id});
+  wb.logAction('触发裁剪', 'data', '', '');
+  ok(wb.pool.auditLogs.length === 5000, '超过 5000 条时 FIFO 裁剪生效');
+  // 销售拦截
+  wb.doLogout();
+  await wb.doLogin('sales1', 'sales123456', 'sales');
+  ok(documentStub.getElementById('nav-audit').style.display === 'none'
+    && documentStub.getElementById('tab-audit').style.display === 'none', '销售端无操作记录入口');
+  ok(wb.switchTab('audit') === 'stats', '销售 switchTab(\'audit\') 被守卫拦截');
+  ok(wb.visibleAuditLogs().length === 0 && documentStub.getElementById('audit-list').innerHTML === '', '销售可见日志为空且页面不产出内容');
 
   console.log('\n断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   process.exit(fail ? 1 : 0);

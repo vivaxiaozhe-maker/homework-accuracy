@@ -497,6 +497,13 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
 .ta-chips .chip-cnt{font-size:11px;color:var(--ink2)}
 .ta-group-head{display:flex;align-items:baseline;gap:8px;margin:16px 0 10px;font-size:14px;font-weight:700;color:var(--mint-d)}
 .ta-group-head .cnt{font-size:12px;font-weight:400;color:var(--ink2)}
+/* 操作记录（审计日志） */
+.audit-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 4px;border-bottom:1px dashed var(--line);font-size:13px}
+.audit-row:last-child{border-bottom:none}
+.audit-ts{color:var(--ink2);flex:0 0 88px;font-variant-numeric:tabular-nums}
+.audit-user{font-weight:600}
+.audit-user .role-badge{margin-left:4px}
+.audit-detail{width:100%;color:var(--ink2);font-size:12px;line-height:1.5}
 @media (max-width:768px){
   .user-area{width:100%;margin-left:0}
   .dash-alerts{grid-template-columns:1fr}
@@ -550,6 +557,10 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
       数据管理
     </button>
+    <button class="nav-btn" data-tab="audit" id="nav-audit" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
+      操作记录
+    </button>
     <div class="side-foot">账号体系 · 演示环境<br>数据暂存本机浏览器</div>
   </aside>
 
@@ -592,13 +603,17 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
         <div id="planreq-zone" style="display:none">
           <h3>计划修改审批 <span class="tag red" id="planreq-badge-card" style="display:none"></span></h3>
           <div id="planreq-pending"></div>
-          <details style="margin-top:10px">
-            <summary class="hint" style="cursor:pointer;min-height:32px">最近已处理（最多 10 条）</summary>
-            <div id="planreq-done" style="margin-top:8px"></div>
-          </details>
           <div class="divider"></div>
         </div>
         <div id="today-list"></div>
+        <!-- 已处理事项统一回溯区（近 30 天；助教看自己名下，教务看全部；默认折叠） -->
+        <div id="done-zone" style="display:none">
+          <div class="divider"></div>
+          <details>
+            <summary class="hint" style="cursor:pointer;min-height:32px" id="done-zone-title">已处理事项（近 30 天）</summary>
+            <div id="done-list" style="margin-top:8px"></div>
+          </details>
+        </div>
       </div>
       <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>快速一览</h2>
@@ -757,6 +772,39 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
         <div style="margin-top:12px"><button class="btn mint" id="btn-create-ta">创建账号</button></div>
       </div>
     </section>
+
+    <!-- 操作记录（助教/教务可见；销售无入口） -->
+    <section id="pane-audit" class="tab-pane">
+      <div class="card" style="padding:14px 20px">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="audit-search" placeholder="按学生姓名、操作人或详情内容搜索">
+        </div>
+        <div class="dash-filter" style="margin-top:10px">
+          <select id="audit-type">
+            <option value="">全部类型</option>
+            <option value="record">作业记录</option>
+            <option value="missed">未交</option>
+            <option value="student">学生</option>
+            <option value="plan">计划审批</option>
+            <option value="account">账号</option>
+            <option value="auth">登录</option>
+            <option value="data">数据</option>
+          </select>
+          <select id="audit-range">
+            <option value="1">今天</option>
+            <option value="7">近 7 天</option>
+            <option value="30" selected>近 30 天</option>
+            <option value="0">全部</option>
+          </select>
+        </div>
+      </div>
+      <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>操作记录<span style="flex:1"></span><span class="hint" id="audit-count" style="margin-top:0"></span></h2>
+        <div id="audit-list"></div>
+        <div id="audit-more" style="margin-top:10px"></div>
+      </div>
+    </section>
   </main>
 
   <!-- 手机底部 Tab -->
@@ -786,6 +834,10 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
       <button class="tab-btn" data-tab="accounts" id="tab-accounts" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg>
         账号
+      </button>
+      <button class="tab-btn" data-tab="audit" id="tab-audit" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
+        记录
       </button>
     </div>
   </nav>
@@ -947,7 +999,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
 const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
-let pool = { students: [], records: [], missed: [], planRequests: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请）
+let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
 
@@ -968,6 +1020,7 @@ function load(){
       if(s && Array.isArray(s.students)){
         pool = s;
         if(!Array.isArray(pool.planRequests)) pool.planRequests = [];  // 旧数据兼容补空
+        if(!Array.isArray(pool.auditLogs)) pool.auditLogs = [];        // 旧数据兼容补空
         return true;
       }
     }
@@ -1065,6 +1118,35 @@ function canWriteOwner(ownerId){
 }
 function isAdminView(){ return !!(currentUser && currentUser.role==='admin'); }
 function isSalesView(){ return !!(currentUser && currentUser.role==='sales'); }
+
+/* ---- 操作记录（审计日志）：mock 期 localStorage 保留最近 5000 条（FIFO 裁剪）；后端阶段进 SQLite 无上限 ---- */
+function nowTs(){
+  const d = new Date();
+  return fmtDate(d) + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0') + ':' + String(d.getSeconds()).padStart(2,'0');
+}
+// 学生相关日志的对象描述：「姓名 · 科目短名」
+function auditStuDesc(sid, subject){
+  const s = pool.students.find(x=>x.id===sid);
+  return (s ? s.name : '（已删除学生）') + (subject ? ' · ' + shortSubject(subject) : '');
+}
+/* 写操作打点。opts: {user} 指定操作人（登录时 currentUser 尚未赋值）；{ownerId} 记录数据归属快照（助教口径过滤用） */
+function logAction(action, targetType, targetDesc, detail, opts){
+  const u = (opts && opts.user) || currentUser;
+  if(!u) return;
+  pool.auditLogs = pool.auditLogs || [];
+  pool.auditLogs.push({
+    id: uid(),
+    ts: nowTs(),               // YYYY-MM-DD HH:mm:ss（本地时间，精确到秒）
+    userId: u.id, userName: u.name, role: u.role,
+    action: action,
+    targetType: targetType,    // record/missed/student/plan/account/auth/data
+    targetDesc: targetDesc || '',
+    detail: detail || '',
+    ownerId: (opts && opts.ownerId) || u.id
+  });
+  if(pool.auditLogs.length > 5000) pool.auditLogs = pool.auditLogs.slice(-5000);
+  save();
+}
 function ownerName(ownerId){
   const u = Api.listUsers().find(x=>x.id===ownerId);
   return u ? u.name : '未分配';
@@ -1090,6 +1172,7 @@ const Api = {
     if(u.disabled) return {ok:false, msg:'该账号已被停用，请联系教务'};
     if(hashPwd(u.salt, password) !== u.passHash) return {ok:false, msg:'密码错误'};
     sessionStorage.setItem(SS_SESSION, JSON.stringify({uid:u.id, ts:Date.now()}));
+    logAction('登录成功', 'auth', u.name + '（' + u.username + '）', '', {user: u});
     return {ok:true, user:u};
   },
   // POST /api/logout
@@ -1114,6 +1197,7 @@ const Api = {
     u.passHash = await hashPwd(u.salt, newPwd);
     u.mustChangePwd = false;
     this._saveUsers();
+    logAction('修改密码', 'auth', u.name + '（' + u.username + '）', '');
     return {ok:true};
   },
   // GET /api/state?owner=…（视图过滤由前端 viewState 完成；后端阶段助教由服务端强制过滤）
@@ -1132,6 +1216,7 @@ const Api = {
     const u = {id:uid(), username, name, role, salt, passHash:await hashPwd(salt, password),
       disabled:false, createdAt:todayStr(), mustChangePwd:true};
     this._users.push(u); this._saveUsers();
+    logAction('创建账号', 'account', name + '（' + username + '）', '角色：' + (role==='sales' ? '销售' : '助教'));
     return {ok:true, user:u};
   },
   // POST /api/users/:id/reset（重置为指定初始密码，下次登录强制改密）
@@ -1142,6 +1227,7 @@ const Api = {
     u.passHash = await hashPwd(u.salt, newPwd);
     u.mustChangePwd = true;
     this._saveUsers();
+    logAction('重置密码', 'account', u.name + '（' + u.username + '）', '');
     return {ok:true};
   },
   // POST /api/users/:id/toggle（停用拒登但数据保留；不能停自己，不能停最后一个教务）
@@ -1153,8 +1239,10 @@ const Api = {
       const admins = this._users.filter(x=>x.role==='admin' && !x.disabled);
       if(admins.length<=1) return {ok:false, msg:'至少保留一个可用的教务账号'};
     }
+    const act = u.disabled ? '启用账号' : '停用账号';
     u.disabled = !u.disabled;
     this._saveUsers();
+    logAction(act, 'account', u.name + '（' + u.username + '）', '');
     return {ok:true, user:u};
   },
   // POST /api/students/:id/owner（学生 + 其作业记录 + 未交记录一并改 ownerId）
@@ -1162,9 +1250,11 @@ const Api = {
     const t = this._loadUsers().find(x=>x.id===newOwnerId);
     if(!t || t.role!=='ta') return {ok:false, msg:'目标助教不存在'};
     let n = 0;
-    pool.students.forEach(s=>{ if(ids.includes(s.id)){ s.ownerId = newOwnerId; n++; } });
+    const names = [];
+    pool.students.forEach(s=>{ if(ids.includes(s.id)){ s.ownerId = newOwnerId; n++; names.push(s.name); } });
     pool.records.forEach(r=>{ if(ids.includes(r.studentId)) r.ownerId = newOwnerId; });
     pool.missed.forEach(m=>{ if(ids.includes(m.studentId)) m.ownerId = newOwnerId; });
+    logAction('转移归属', 'student', names.join('、'), '转移给 ' + t.name, {ownerId: newOwnerId});
     save(); refreshView();
     return {ok:true, count:n};
   },
@@ -1188,6 +1278,8 @@ const Api = {
       status: 'pending', requestedBy: currentUser ? currentUser.id : null, requestedAt: todayStr(),
       reviewedBy: null, reviewedAt: null };
     pool.planRequests.push(r);
+    logAction('申请修改计划次数', 'plan', auditStuDesc(st.id, req.subject),
+      oldPlan + ' → ' + req.newPlan + ' 次' + (req.reason ? '，理由：' + req.reason : ''), {ownerId: st.ownerId});
     save(); refreshView();
     return {ok:true, request:r};
   },
@@ -1198,6 +1290,7 @@ const Api = {
     if(r.status !== 'pending') return {ok:false, msg:'该申请已处理，不能撤回'};
     if(!currentUser || (currentUser.role!=='admin' && r.requestedBy!==currentUser.id)) return {ok:false, msg:'只能撤回自己的申请'};
     r.status = 'cancelled';
+    logAction('撤回修改申请', 'plan', auditStuDesc(r.studentId, r.subject), r.oldPlan + ' → ' + r.newPlan + ' 次', {ownerId: r.ownerId});
     save(); refreshView();
     return {ok:true};
   },
@@ -1221,9 +1314,11 @@ const Api = {
       }
     }
     save(); refreshView();
+    logAction(approve ? '审批通过' : '审批驳回', 'plan', auditStuDesc(r.studentId, r.subject),
+      r.oldPlan + ' → ' + r.newPlan + ' 次' + (note ? '，' + note : ''), {ownerId: r.ownerId});
     return {ok:true, request:r};
   },
-  /* 首次运行播种：教务 admin/admin123 + 示例助教 ta1/ta2（ta123456）及各自示例数据。
+  /* 首次运行播种：教务 admin/admin123 + 示例助教 ta1/ta2（ta123456）+ 销售 sales1（sales123456）及各自示例数据。
      演示期账号均不强制改密（mustChangePwd 仅用于教务新建/重置的账号）。 */
   async _ensureSeed(){
     const users = this._loadUsers();
@@ -1255,7 +1350,7 @@ const Api = {
       }
       if(changed) this._saveUsers();
     }
-    if(!load()){ pool = {students:[], records:[], missed:[], planRequests:[]}; }
+    if(!load()){ pool = {students:[], records:[], missed:[], planRequests:[], auditLogs:[]}; }
     if(fresh && !pool.students.length && !pool.records.length && !pool.missed.length){
       const tas = this._users.filter(u=>u.role==='ta');
       tas.forEach(t=>seedSamplesFor(t.id));
@@ -1271,6 +1366,12 @@ const Api = {
     if(!pool.alumniSampled && pool.students.some(s=>s.sample)){
       this._users.filter(u=>u.role==='ta').forEach(t=>seedAlumniSamples(t.id));
       pool.alumniSampled = true;
+      save();
+    }
+    // 演示期：注入操作记录示例数据（同样一次性，清空示例后不重复注入）
+    if(!pool.auditSampled && pool.students.some(s=>s.sample)){
+      seedAuditSamples();
+      pool.auditSampled = true;
       save();
     }
   }
@@ -1331,6 +1432,38 @@ function seedPlanRequestSamples(ownerId){
 
 /* 历史学生示例数据：为指定助教播种 2 名已毕业/结课学生（archived + sample），
    作业记录日期在 35~60 天前（避开近 30 天趋势图），各带 1 条已处理未交 */
+/* 操作记录示例数据：播种一批带 sample 标记的演示日志（随「清空示例数据」一并清除）。
+   ownerId 传助教 id 时只播种该助教的条目；不传则播种全部助教 + 教务的条目。 */
+function seedAuditSamples(ownerId){
+  pool.auditLogs = pool.auditLogs || [];
+  const users = Api.listUsers();
+  const admin = users.find(u=>u.role==='admin');
+  const tas = ownerId ? users.filter(u=>u.id===ownerId) : users.filter(u=>u.role==='ta');
+  const at = (d, t)=> offsetDay(d) + ' ' + t;  // ts 格式同 nowTs()：YYYY-MM-DD HH:mm:ss
+  const mk = (u, d, t, action, type, desc, detail, owner)=>({id:uid(), ts:at(d,t),
+    userId:u.id, userName:u.name, role:u.role, action:action, targetType:type,
+    targetDesc:desc||'', detail:detail||'', ownerId:(owner===undefined ? u.id : owner), sample:true});
+  tas.forEach(ta=>{
+    const stus = pool.students.filter(s=>s.sample && s.ownerId===ta.id);
+    if(!stus.length) return;
+    const has = n => stus.some(s=>s.name===n);
+    if(has('林小满')) pool.auditLogs.push(mk(ta,-1,'09:12:00','录入作业','record','林小满 · AP·微积分BC','总 20 对 18，正确率 90%'));
+    if(has('周子墨')){
+      pool.auditLogs.push(mk(ta,-3,'18:02:00','登记未交','missed','周子墨 · AMC10','未交日期 ' + offsetDay(-3)));
+      pool.auditLogs.push(mk(ta,-1,'10:30:00','提交计划修改申请','plan','周子墨 · AMC10','8 → 10 次；理由：竞赛班加课，需要增加 2 次作业'));
+    }
+    if(has('苏晚晴')) pool.auditLogs.push(mk(ta,-2,'14:20:00','保存评语','student','苏晚晴 · 托福','最近口语进步明显，继续保持'));
+    if(has('陈星宇')) pool.auditLogs.push(mk(ta,-6,'14:00:00','新增学生','student','陈星宇',''));
+    pool.auditLogs.push(mk(ta,0,'08:55:12','登录系统','auth','','登录成功'));
+  });
+  if(!ownerId && admin && tas.length){
+    pool.auditLogs.push(mk(admin,-6,'11:20:00','创建账号','account','李助教（ta2）','角色：助教', admin.id));
+    pool.auditLogs.push(mk(admin,-2,'16:40:00','审批通过','plan','苏晚晴 · 托福','12 → 15 次（申请助教：' + tas[0].name + '）', tas[0].id));
+    if(tas[1]) pool.auditLogs.push(mk(admin,-3,'15:05:00','审批驳回','plan','陈星宇 · AP·物理1','8 → 20 次（申请助教：' + tas[1].name + '）', tas[1].id));
+    pool.auditLogs.push(mk(admin,0,'08:30:00','登录系统','auth','','登录成功', admin.id));
+  }
+}
+
 function seedAlumniSamples(ownerId){
   const a1 = {id:uid(), name:'李浩然', school:'深圳外国语学校', gradYear:'2025', archived:true, sample:true, ownerId:ownerId};
   const a2 = {id:uid(), name:'赵雨桐', school:'杭州外国语学校', gradYear:'2024', archived:true, sample:true, ownerId:ownerId};
@@ -1377,15 +1510,16 @@ function archivedStudents(){ return state.students.filter(s=>s.archived); }
 function switchTab(name){
   // 角色页签守卫：教务=全部 6 个；助教=今日/现有/历史/数据；销售=仅现有/历史
   const role = currentUser ? currentUser.role : null;
-  const allowed = role==='admin' ? ['today','dashboard','stats','alumni','accounts','data']
+  const allowed = role==='admin' ? ['today','dashboard','stats','alumni','accounts','data','audit']
     : role==='sales' ? ['stats','alumni']
-    : ['today','stats','alumni','data'];
+    : ['today','stats','alumni','data','audit'];
   if(allowed.indexOf(name) === -1) name = role==='sales' ? 'stats' : 'today';
   document.querySelectorAll('.nav-btn,.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active', p.id==='pane-'+name));
   if(name==='stats') renderStats();
   if(name==='alumni') renderAlumni();
   if(name==='accounts') renderAccounts();
+  if(name==='audit') renderAudit();
   window.scrollTo({top:0, behavior:'smooth'});
   return name;
 }
@@ -1557,8 +1691,12 @@ function resolveMissed(id){
 function removeMissed(id){
   const m = pool.missed.find(x=>x.id===id);
   if(!m || !canWriteOwner(m.ownerId)){ alert('没有权限操作该数据'); return; }
-  askConfirm('删除未交记录', '确定删除这条未交记录吗？此操作不可恢复。', ()=>{
-    pool.missed = pool.missed.filter(x=>x.id!==id); save(); renderAll();
+  askConfirm('删除未交记录', '确定删除这条未交记录吗？删除后可在「已处理事项」中回溯。', ()=>{
+    m.resolved = true;          // 软删除：留痕，不从数组移除
+    m.resolution = 'deleted';
+    m.resolvedAt = todayStr();
+    logAction('删除未交', 'missed', auditStuDesc(m.studentId, m.subject), '原未交日期 ' + m.date, {ownerId: m.ownerId});
+    save(); renderAll();
   });
 }
 function gotoCorrect(studentId){
@@ -1994,6 +2132,8 @@ function saveQuickEntry(){
   if(!st || !canWriteOwner(st.ownerId)){ alert('没有权限操作该数据'); return; }
   pool.records.push({id:uid(), studentId:quickEntry.gid, date:date, total:total, correct:correct,
     wrongs:wrongs, subject:quickEntry.subject, images:[], pdfs:[], ownerId:st.ownerId});
+  logAction('录入作业', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject),
+    '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: st.ownerId});
   quickEntry = null;
   save();
   renderAll();
@@ -2021,6 +2161,7 @@ function savePlanCount(){
     st.subjPlans[subject] = v;
     st.subjPlanSetAt = st.subjPlanSetAt || {};
     st.subjPlanSetAt[subject] = todayStr();  // 记录设定日期，供「计划停滞提醒」使用
+    logAction(isAdminView() ? '教务直改计划次数' : '设定应完成次数', 'plan', auditStuDesc(st.id, subject), '设定为 ' + v + ' 次', {ownerId: st.ownerId});
     save();
     renderAll();
   };
@@ -2091,6 +2232,7 @@ function markMissedToday(){
   const dup = state.missed.some(m=>m.studentId===gid && m.date===date && (m.subject||'')===subject && !m.resolved);
   if(dup){ alert('该学生在该日期已有此科目的未交记录'); return; }
   pool.missed.push({id:uid(), studentId:gid, date:date, subject:subject, resolved:false, ownerId:st.ownerId});
+  logAction('登记未交', 'missed', auditStuDesc(gid, subject), '日期 ' + date, {ownerId: st.ownerId});
   save();
   renderAll();
 }
@@ -2263,10 +2405,17 @@ function saveSlot(){
   if(r){
     if(!canWriteOwner(r.ownerId)){ alert('没有权限操作该数据'); return; }
     r.date = date; r.total = total; r.correct = correct; r.wrongs = wrongs;
+    logAction('修改作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
+      '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: r.ownerId});
   } else {
     pool.records.push({id:uid(), studentId:slotEdit.gid, date:date, total:total, correct:correct,
       wrongs:wrongs, subject:slotEdit.subject, images:[], pdfs:[], ownerId:st0.ownerId});
-    if(miss) miss.resolved = true;  // 补录成功：该次未交视为已补交，不再占用打卡格子
+    logAction(miss ? '补录作业' : '录入作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
+      '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: st0.ownerId});
+    if(miss){
+      miss.resolved = true; miss.resolution = 'made-up'; miss.resolvedAt = todayStr();  // 补录成功：该次未交视为已补交（留痕），不再占用打卡格子
+      logAction('补交未交', 'missed', auditStuDesc(miss.studentId, miss.subject), '原未交日期 ' + miss.date, {ownerId: miss.ownerId});
+    }
   }
   slotEdit = null;
   save();
@@ -2282,6 +2431,8 @@ function deleteSlot(){
   if(!canWriteOwner(r.ownerId)){ alert('没有权限操作该数据'); return; }
     askConfirm('删除作业记录', '确定删除第 ' + slotEdit.idx + ' 次作业记录（' + r.date + '）？此操作不可恢复。', ()=>{
       pool.records = pool.records.filter(x=>x.id!==r.id);
+      logAction('删除作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
+        '日期 ' + r.date + '，总 ' + r.total + ' 对 ' + r.correct, {ownerId: r.ownerId});
       slotEdit = null;
       save();
       renderAll();
@@ -2439,6 +2590,7 @@ function saveSubjectComment(){
   if(st){
     st.subjComments = st.subjComments || {};
     st.subjComments[quickEntry.subject] = text.trim();
+    logAction('保存评语', 'record', auditStuDesc(st.id, quickEntry.subject), text.trim() ? text.trim().slice(0,50) : '（清空评语）', {ownerId: st.ownerId});
     save();
   }
   const tip = document.getElementById('qe-comment-tip');
@@ -2453,6 +2605,7 @@ function saveSubjectAdvice(){
   if(st){
     st.subjAdvice = st.subjAdvice || {};
     st.subjAdvice[quickEntry.subject] = text.trim();
+    logAction('保存学习计划与建议', 'record', auditStuDesc(st.id, quickEntry.subject), text.trim() ? text.trim().slice(0,50) : '（清空）', {ownerId: st.ownerId});
     save();
   }
   const tip = document.getElementById('qe-advice-tip');
@@ -2481,6 +2634,8 @@ function bookMockExam(){
   if(!d){ alert('请选择模考日期'); return; }
   const slot = getMockSlot(getMockStu(), quickEntry.subject);
   slot.date = d;
+  const mst = getMockStu();
+  logAction('预约模考', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '预约日期 ' + d, {ownerId: mst ? mst.ownerId : undefined});
   mockEdit = null;
   save();
   renderAll();
@@ -2491,6 +2646,7 @@ function cancelMockExam(){
   if(st && st.mock && st.mock[quickEntry.subject]){
     delete st.mock[quickEntry.subject].date;
     if(!Object.keys(st.mock[quickEntry.subject]).length) delete st.mock[quickEntry.subject];
+    logAction('取消模考预约', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '', {ownerId: st.ownerId});
   }
   mockEdit = null;
   save();
@@ -2502,6 +2658,8 @@ function saveMockScore(){
   if(isNaN(v) || v<0 || v>100){ alert('请填写 0-100 之间的模考分数'); return; }
   const slot = getMockSlot(getMockStu(), quickEntry.subject);
   slot.score = v;
+  const mst = getMockStu();
+  logAction('保存模考分数', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '结课模考 ' + v + ' 分', {ownerId: mst ? mst.ownerId : undefined});
   mockEdit = null;
   save();
   renderAll();
@@ -2512,6 +2670,7 @@ function clearMockScore(){
   if(st && st.mock && st.mock[quickEntry.subject]){
     delete st.mock[quickEntry.subject].score;
     if(!Object.keys(st.mock[quickEntry.subject]).length) delete st.mock[quickEntry.subject];
+    logAction('清除模考分数', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '', {ownerId: st.ownerId});
   }
   mockEdit = null;
   save();
@@ -2597,6 +2756,7 @@ function confirmAddSubject(gid){
     }
   });
   addSubjGid = null;
+  if(added) logAction('添加科目', 'student', repStu.name, subj, {ownerId: repStu.ownerId});
   save();
   renderAll();
   if(!added) alert('该科目已在列表中，无需重复添加。');
@@ -2668,6 +2828,7 @@ function saveRenameSubject(){
     slotEdit.subject = newName;
   }
   renaming = null;
+  logAction('重命名科目', 'student', repStu.name, oldName + ' → ' + newName, {ownerId: repStu.ownerId});
   save();
   renderAll();
 }
@@ -2698,6 +2859,7 @@ function deleteSubject(){
     if(slotEdit && ids.includes(slotEdit.gid) && slotEdit.subject===oldName) slotEdit = null;
     if(mockEdit && ids.includes(mockEdit.gid) && mockEdit.subject===oldName) mockEdit = null;
     renaming = null;
+    logAction('删除科目', 'student', repStu.name, oldName + '（含 ' + nRecs + ' 条作业记录）', {ownerId: repStu.ownerId});
     save();
     renderAll();
   });
@@ -2750,10 +2912,13 @@ document.getElementById('ns-ok').addEventListener('click', ()=>{
     const clash = activeStudents().some(s=>!editStuIds.includes(s.id) && s.name.trim()===name);
     if(clash){ alert('已有另一位同名学生「' + name + '」，不能改成相同姓名。'); return; }
     pool.students.forEach(s=>{ if(editStuIds.includes(s.id)){ s.name = name; s.school = school; s.gradYear = gradYear; } });
+    const firstStu = pool.students.find(x=>editStuIds.includes(x.id));
+    logAction('修改学生信息', 'student', name, (school || '无学校') + (gradYear ? ' · ' + gradYear + ' 届' : ''), {ownerId: firstStu ? firstStu.ownerId : undefined});
   } else {
     if(!canWriteOwner(writeOwnerId())){ alert('没有权限操作该数据'); return; }  // 销售等只读角色不可新增
     if(activeStudents().some(s=>s.name.trim()===name)){ alert('「' + name + '」已在现有学生中，同名不能重复录入。'); return; }
     pool.students.push({id:uid(), name, school, gradYear, ownerId:writeOwnerId()});
+    logAction('新增学生', 'student', name, (school || '无学校') + (gradYear ? ' · ' + gradYear + ' 届' : ''));
   }
   save();
   document.getElementById('stu-modal').classList.remove('show');
@@ -2766,6 +2931,8 @@ function archiveGroup(ids){
   if(denied){ alert('没有权限操作该数据'); return; }
   askConfirm('转为历史学生', '该学生将从「现有学生」移到「历史学生」，录入下拉中不再出现；科目、作业记录、打卡、评语、模考等数据完整保留，可在历史板块查看（恢复为现有学生后可继续编辑）。确定吗？', ()=>{
     pool.students.forEach(s=>{ if(ids.includes(s.id)) s.archived = true; });
+    const st0 = pool.students.find(x=>x.id===ids[0]);
+    logAction('归档学生', 'student', st0 ? st0.name : '', '转为历史学生', {ownerId: st0 ? st0.ownerId : undefined});
     save(); renderAll();
   });
 }
@@ -2773,6 +2940,8 @@ function restoreGroup(ids){
   const denied = ids.some(id=>{ const s = pool.students.find(x=>x.id===id); return !s || !canWriteOwner(s.ownerId); });
   if(denied){ alert('没有权限操作该数据'); return; }
   pool.students.forEach(s=>{ if(ids.includes(s.id)) s.archived = false; });
+  const st0 = pool.students.find(x=>x.id===ids[0]);
+  logAction('恢复学生', 'student', st0 ? st0.name : '', '恢复为现有学生', {ownerId: st0 ? st0.ownerId : undefined});
   save(); renderAll();
 }
 
@@ -2889,8 +3058,12 @@ function renderAlumni(){
       '</div>';
   }).join('');
 }
-/* 导出内容 = 当前视图数据（助教只导出自己名下；教务按当前数据范围） */
-function buildExport(){ return JSON.parse(JSON.stringify(state)); }
+/* 导出内容 = 当前视图数据（助教只导出自己名下；教务全量）+ 当前可见的操作记录 */
+function buildExport(){
+  const out = JSON.parse(JSON.stringify(state));
+  out.auditLogs = JSON.parse(JSON.stringify(visibleAuditLogs()));
+  return out;
+}
 document.getElementById('btn-export').addEventListener('click', ()=>{
   const blob = new Blob([JSON.stringify(buildExport(), null, 2)], {type:'application/json'});
   const a = document.createElement('a');
@@ -2920,6 +3093,7 @@ document.getElementById('f-import').addEventListener('change', function(e){
         ['students','records','missed'].forEach(k=>{
           data[k].forEach(it=>{ it.ownerId = targetOwner || it.ownerId || currentUser.id; pool[k].push(it); });
         });
+        logAction('导入恢复', 'data', '', '导入 ' + data.students.length + ' 名学生、' + data.records.length + ' 条作业记录');
         save(); renderAll();
         alert('导入完成！');
       });
@@ -2934,12 +3108,14 @@ function clearSamplesOfView(){
   pool.records = pool.records.filter(r=>!(ownerInView(r.ownerId) && (r.sample || sampleStuIds.includes(r.studentId))));
   pool.missed = pool.missed.filter(m=>!(ownerInView(m.ownerId) && (m.sample || sampleStuIds.includes(m.studentId))));
   pool.planRequests = (pool.planRequests || []).filter(r=>!(ownerInView(r.ownerId) && (r.sample || sampleStuIds.includes(r.studentId))));
+  pool.auditLogs = (pool.auditLogs || []).filter(l=>!(l.sample && ownerInView(l.ownerId || l.userId)));
   pool.students = pool.students.filter(s=>!(ownerInView(s.ownerId) && s.sample));
 }
 function clearSamples(){
   if(!isAdminView()){ alert('仅教务可清理数据'); return; }
   askConfirm('清空示例数据', '将删除当前数据范围内所有标记为「示例」的学生、作业记录和未交记录，你自己录入的数据不受影响。确定吗？', ()=>{
     clearSamplesOfView();
+    logAction('清空示例数据', 'data', '', '');
     save(); renderAll();
   });
 }
@@ -2957,6 +3133,8 @@ function doLoadSampleData(){
     owners = [writeOwnerId()];
   }
   owners.forEach(oid=>{ seedSamplesFor(oid); seedPlanRequestSamples(oid); seedAlumniSamples(oid); });
+  if(isAdminView()){ seedAuditSamples(); } else { seedAuditSamples(writeOwnerId()); }
+  logAction('重载示例数据', 'data', '', '为 ' + owners.length + ' 个账号生成示例数据');
   save(); renderAll();
 }
 function loadSampleData(){
@@ -2978,6 +3156,7 @@ document.getElementById('btn-clear-all').addEventListener('click', ()=>{
     pool.students = pool.students.filter(s=>!ownerInView(s.ownerId));
     pool.records = pool.records.filter(r=>!ownerInView(r.ownerId));
     pool.missed = pool.missed.filter(m=>!ownerInView(m.ownerId));
+    logAction('清空全部数据', 'data', '', '');
     save(); renderAll();
   });
 });
@@ -2994,15 +3173,15 @@ function enterApp(){
   const rb = document.getElementById('user-role');
   rb.textContent = currentUser.role==='admin' ? '教务' : (currentUser.role==='sales' ? '销售' : '助教');
   rb.classList.toggle('admin', currentUser.role==='admin');
-  // 页签显隐：教务=全部（底部 Tab 用看板替换低频的「数据管理」）；助教=今日/现有/历史/数据；销售=仅现有/历史
+  // 页签显隐：教务=全部（底部 Tab 用看板替换低频的「数据管理」与「账号」，腾位给「记录」）；助教=今日/现有/历史/数据/记录；销售=仅现有/历史
   const role = currentUser.role;
-  const navVis = role==='admin' ? ['today','dashboard','stats','alumni','accounts','data']
+  const navVis = role==='admin' ? ['today','dashboard','stats','alumni','accounts','data','audit']
     : role==='sales' ? ['stats','alumni']
-    : ['today','stats','alumni','data'];
-  const tabVis = role==='admin' ? ['today','dashboard','stats','alumni','accounts']
+    : ['today','stats','alumni','data','audit'];
+  const tabVis = role==='admin' ? ['today','dashboard','stats','alumni','audit']
     : role==='sales' ? ['stats','alumni']
-    : ['today','stats','alumni','data'];
-  ['today','dashboard','stats','alumni','accounts','data'].forEach(t=>{
+    : ['today','stats','alumni','data','audit'];
+  ['today','dashboard','stats','alumni','accounts','data','audit'].forEach(t=>{
     document.getElementById('nav-' + t).style.display = navVis.indexOf(t)>=0 ? '' : 'none';
     document.getElementById('tab-' + t).style.display = tabVis.indexOf(t)>=0 ? '' : 'none';
   });
@@ -3104,7 +3283,7 @@ function renderAccounts(){
       '</div>';
   }).join('') || '<p class="hint">暂无账号</p>';
 }
-/* 教务「计划修改审批」区块：待审批列表 + 最近 10 条已处理 */
+/* 教务「计划修改审批」区块：待审批列表（已处理记录并入「已处理事项」统一回溯区） */
 function renderPlanRequests(){
   const pendEl = document.getElementById('planreq-pending');
   if(!pendEl) return;
@@ -3121,19 +3300,112 @@ function renderPlanRequests(){
     '<button class="btn mint sm" onclick="reviewPlanRequest(\'' + r.id + '\',true)">通过</button>' +
     '<button class="btn danger sm" onclick="reviewPlanRequest(\'' + r.id + '\',false)">驳回</button>' +
     '</div>').join('') : '<p class="hint">暂无待审批的修改申请。</p>';
-  const done = reqs.filter(r=>r.status==='approved' || r.status==='rejected')
-    .sort((a,b)=>(a.reviewedAt||'') < (b.reviewedAt||'') ? 1 : -1).slice(0,10);
-  document.getElementById('planreq-done').innerHTML = done.length ? done.map(r=>
-    '<div class="acct-row">' +
-    '<div class="grow"><b>' + esc(stuNameOf(r.studentId)) + '</b> <span class="tag mint">' + esc(shortSubject(r.subject)) + '</span>' +
-    ' ' + r.oldPlan + ' → ' + r.newPlan + ' 次 ' +
-    '<span class="tag ' + (r.status==='approved' ? 'mint' : 'red') + '">' + (r.status==='approved' ? '已通过' : '已驳回') + '</span>' +
-    '<div class="hint" style="margin-top:2px">申请 ' + esc(r.requestedAt) + ' · 审批 ' + esc(r.reviewedAt || '-') + '</div></div>' +
-    '</div>').join('') : '<p class="hint">暂无已处理记录。</p>';
   const cb = document.getElementById('planreq-badge-card');
   cb.style.display = pending.length ? '' : 'none';
   cb.textContent = pending.length + ' 条待审批';
 }
+/* ================= 已处理事项统一回溯区（今天要处理卡片底部，近 30 天） =================
+   助教：自己名下的已处理未交 + 自己提交的申请结果；教务：全部（未交条目附归属助教名）。
+   30 天窗口按 resolvedAt / reviewedAt 过滤；无数据时不渲染。 */
+let doneZoneExpand = false;
+function renderDoneZone(){
+  const zone = document.getElementById('done-zone');
+  if(!zone) return;
+  if(!currentUser || isSalesView()){ zone.style.display = 'none'; return; }
+  const winStart = offsetDay(-29);
+  const items = [];
+  // 已处理未交（软删除留痕：resolution = made-up 已补交 / deleted 已删除）
+  state.missed.filter(m=>m.resolved && m.resolvedAt && m.resolvedAt >= winStart).forEach(m=>{
+    const st = pool.students.find(x=>x.id===m.studentId);
+    items.push({ kind:'miss', at:m.resolvedAt, resolution:m.resolution || 'made-up',
+      name: st ? st.name : '（已删除学生）', subject: m.subject || '', date: m.date, ownerId: m.ownerId });
+  });
+  // 已处理审批
+  (pool.planRequests || []).filter(r=>(r.status==='approved' || r.status==='rejected') && r.reviewedAt && r.reviewedAt >= winStart)
+    .forEach(r=>{
+      if(!isAdminView() && r.requestedBy !== currentUser.id) return;
+      const st = pool.students.find(x=>x.id===r.studentId);
+      const reqUser = Api.listUsers().find(u=>u.id===r.requestedBy);
+      items.push({ kind:'req', at:r.reviewedAt, status:r.status,
+        name: st ? st.name : '（已删除学生）', subject: r.subject, oldPlan: r.oldPlan, newPlan: r.newPlan,
+        reqBy: reqUser ? reqUser.name : '未知' });
+    });
+  items.sort((a,b)=> a.at===b.at ? 0 : (a.at<b.at ? 1 : -1));  // 按处理时间倒序
+  if(!items.length){ zone.style.display = 'none'; return; }
+  zone.style.display = '';
+  document.getElementById('done-zone-title').textContent = '已处理事项（近 30 天）· ' + items.length + ' 条';
+  const shown = doneZoneExpand ? items : items.slice(0,10);
+  let html = shown.map(it=>{
+    if(it.kind==='miss'){
+      const del = it.resolution==='deleted';
+      return '<div class="todo-item">' +
+        '<div class="grow"><span class="tag ' + (del ? '' : 'mint') + '"' + (del ? ' style="background:#EFE7D2;color:#8A7B52"' : '') + '>' + (del ? '已删除' : '已补交') + '</span>' +
+        '<span class="who">' + esc(it.name) + '</span>' +
+        (it.subject ? '<span class="tag mint">' + esc(shortSubject(it.subject)) + '</span>' : '') +
+        (isAdminView() ? '<span class="tag sample">归属 ' + esc(ownerName(it.ownerId)) + '</span>' : '') +
+        '<div style="font-size:13px;color:var(--ink2)">未交日期 ' + it.date + ' · 处理于 ' + it.at + '</div></div>' +
+        '</div>';
+    }
+    const ap = it.status==='approved';
+    return '<div class="todo-item">' +
+      '<div class="grow"><span class="tag ' + (ap ? 'mint' : 'red') + '">' + (ap ? '已通过' : '已驳回') + '</span>' +
+      '<span class="who">' + esc(it.name) + '</span>' +
+      '<span class="tag mint">' + esc(shortSubject(it.subject)) + '</span>' +
+      '<span style="font-size:13px"> ' + it.oldPlan + ' → ' + it.newPlan + ' 次</span>' +
+      '<div style="font-size:13px;color:var(--ink2)">申请助教 ' + esc(it.reqBy) + ' · 处理于 ' + it.at + '</div></div>' +
+      '</div>';
+  }).join('');
+  if(items.length > 10){
+    html += '<button class="btn ghost sm" style="width:100%" onclick="doneZoneToggle()">' +
+      (doneZoneExpand ? '收起' : '展开全部 ' + items.length + ' 条') + '</button>';
+  }
+  document.getElementById('done-list').innerHTML = html;
+}
+function doneZoneToggle(){ doneZoneExpand = !doneZoneExpand; renderDoneZone(); }
+
+/* ================= 操作记录（审计回溯页签，助教/教务可见） =================
+   角色口径（前端过滤，后端阶段服务端强制）：助教 = 自己的操作 + 涉及自己名下学生的日志；教务 = 全部；销售 = 无入口 */
+let auditQuery = '', auditType = '', auditRange = 30, auditShown = 50;
+document.getElementById('audit-search').addEventListener('input', function(){ auditQuery = this.value.trim(); auditShown = 50; renderAudit(); });
+document.getElementById('audit-type').addEventListener('change', function(){ auditType = this.value; auditShown = 50; renderAudit(); });
+document.getElementById('audit-range').addEventListener('change', function(){ auditRange = parseInt(this.value,10); auditShown = 50; renderAudit(); });
+function visibleAuditLogs(){
+  const logs = pool.auditLogs || [];
+  if(!currentUser || currentUser.role==='sales') return [];
+  if(currentUser.role==='admin') return logs;
+  return logs.filter(l=>l.userId===currentUser.id || (l.ownerId && l.ownerId===currentUser.id));  // 助教
+}
+const AUDIT_TYPE_BADGE = {record:'mint', missed:'red', plan:'amber', student:'sample', account:'sample', auth:'sample', data:'sample'};
+function renderAudit(){
+  const list = document.getElementById('audit-list');
+  if(!list) return;
+  const cntEl = document.getElementById('audit-count');
+  const moreEl = document.getElementById('audit-more');
+  if(!currentUser || currentUser.role==='sales'){ list.innerHTML = ''; cntEl.textContent = ''; moreEl.innerHTML = ''; return; }
+  const start = auditRange ? offsetDay(-(auditRange-1)) : null;  // 1=今天
+  let logs = visibleAuditLogs().slice().reverse();  // 时间倒序
+  if(start) logs = logs.filter(l=>l.ts.slice(0,10) >= start);
+  if(auditType) logs = logs.filter(l=>l.targetType===auditType);
+  if(auditQuery){
+    const q = auditQuery;
+    logs = logs.filter(l=>(l.targetDesc + ' ' + l.detail + ' ' + l.userName + ' ' + l.action).indexOf(q) !== -1);
+  }
+  cntEl.textContent = '共 ' + logs.length + ' 条匹配';
+  const shown = logs.slice(0, auditShown);
+  list.innerHTML = shown.length ? shown.map(l=>
+    '<div class="audit-row">' +
+    '<span class="audit-ts">' + esc(l.ts.slice(5,16)) + '</span>' +
+    '<span class="audit-user">' + esc(l.userName) + '<span class="role-badge' + (l.role==='admin'?' admin':'') + '">' +
+      ({admin:'教务', ta:'助教', sales:'销售'}[l.role] || l.role) + '</span></span>' +
+    '<span class="tag ' + (AUDIT_TYPE_BADGE[l.targetType] || 'sample') + '">' + esc(l.action) + '</span>' +
+    '<span class="audit-target">' + esc(l.targetDesc) + '</span>' +
+    (l.detail ? '<div class="audit-detail">' + esc(l.detail) + '</div>' : '') +
+    '</div>').join('') : '<p class="hint">暂无匹配的操作记录。</p>';
+  moreEl.innerHTML = logs.length > auditShown
+    ? '<button class="btn ghost sm" style="width:100%" onclick="auditLoadMore()">加载更多（已显示 ' + shown.length + '/' + logs.length + ' 条）</button>'
+    : '';
+}
+function auditLoadMore(){ auditShown += 50; renderAudit(); }
 /* 教务审批：通过直接生效；驳回需确认 */
 function reviewPlanRequest(id, approve){
   if(approve){
@@ -3449,12 +3721,14 @@ function renderAll(){
   refreshView();
   renderBanners();
   renderToday();
+  renderDoneZone();  // 已处理事项统一回溯区（内部按角色过滤）
   renderStats();
   renderAlumni();
   // 计划修改审批区挂在「今日概览-今天要处理」卡片顶部，仅教务可见
   document.getElementById('planreq-zone').style.display = isAdminView() ? '' : 'none';
   if(isAdminView()){ renderAccounts(); renderPlanRequests(); }
   renderDashboard();  // 内部含教务守卫，助教端自动清空看板内容
+  renderAudit();      // 内部含角色守卫（销售/未登录不产出）
   renderPendingBadges();  // 待审批红点（仅教务显示）
 }
 document.getElementById('today-str').textContent =
@@ -3483,6 +3757,11 @@ window.__wb = {
   savePlanCount, submitPlanRequest, cancelPlanRequest, reviewPlanRequest, renderPlanRequests, renderPendingBadges,
   setStuTaFilter, toggleTaGroup, renderStats, renderAlumni, clearSamplesOfView,
   qePanelHtml, reportHtml, renderToday, saveSubjectAdvice, gotoPlanEntry, doLoadSampleData,
+  renderDoneZone, doneZoneToggle, resolveMissed,
+  logAction, visibleAuditLogs, renderAudit, auditLoadMore,
+  setAuditQuery(v){ auditQuery = v; auditShown = 50; renderAudit(); },
+  setAuditType(v){ auditType = v; auditShown = 50; renderAudit(); },
+  setAuditRange(v){ auditRange = v; auditShown = 50; renderAudit(); },
   switchTab,
   get stuTaFilter(){ return stuTaFilter; },
   get stuQuery(){ return stuQuery; },
