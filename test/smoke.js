@@ -83,12 +83,14 @@ function ok(cond, name){
 
   /* ---- 播种 ---- */
   const users = Api.listUsers();
-  ok(users.length === 3, '首次运行播种 3 个账号（admin + ta1 + ta2）');
+  ok(users.length === 4, '首次运行播种 4 个账号（admin + ta1 + ta2 + sales1）');
   const admin = users.find(u=>u.username==='admin');
   const ta1 = users.find(u=>u.username==='ta1');
   const ta2 = users.find(u=>u.username==='ta2');
+  const sales1 = users.find(u=>u.username==='sales1');
   ok(admin && admin.role==='admin' && admin.mustChangePwd === false, 'admin 为教务且演示期不强制首登改密');
   ok(ta1 && ta2 && ta1.role==='ta' && ta2.role==='ta', 'ta1/ta2 为助教角色');
+  ok(sales1 && sales1.role==='sales' && sales1.name==='张顾问', '播种销售演示账号 sales1（张顾问）');
   ok(wb.pool.students.length === 14, '两位助教各有 7 名示例学生（5 现有 + 2 历史，共 14）');
   const alumni = wb.pool.students.filter(s=>s.archived && s.sample);
   ok(alumni.length===4 && alumni.every(s=>s.school && s.gradYear && s.ownerId),
@@ -127,12 +129,9 @@ function ok(cond, name){
   const made = await Api.createUser('张三', 'ta3', 'abcdef');
   ok(made.ok && made.user.mustChangePwd === true, '创建助教成功且标记首次登录需改密');
 
-  /* ---- 教务数据范围切换 ---- */
-  wb.setScope(ta1.id);
-  ok(wb.state.students.length === 7 && wb.state.students.every(s=>s.ownerId===ta1.id), '教务切换数据范围到 ta1 后只见 ta1 的学生');
-  ok(wb.state.records.every(r=>r.ownerId===ta1.id) && wb.state.missed.every(x=>x.ownerId===ta1.id), '范围切换后记录/未交同步过滤');
-  wb.setScope('all');
-  ok(wb.state.students.length === 14, '切回全部数据可见 14 名学生');
+  /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
+  ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
+  ok(wb.state.students.length === 14, '教务恒为全部数据视角（14 名学生）');
 
   /* ---- 助教数据隔离 ---- */
   wb.doLogout();
@@ -355,18 +354,18 @@ function ok(cond, name){
     && prDoneHtml.indexOf('已通过')!==-1 && prDoneHtml.indexOf('已驳回')!==-1,
     '审批区块渲染无 NaN/undefined，已处理区含通过/驳回记录');
   // 徽章数量随 pending 变化
-  ok(documentStub.getElementById('badge-accounts').style.display==='none', '无待审批时徽章隐藏');
+  ok(documentStub.getElementById('badge-today').style.display==='none', '无待审批时徽章隐藏');
   const req5 = Api.createPlanRequest({studentId: planStu.id, subject: planSubj, newPlan: 30}).request;
   wb.renderPendingBadges();
-  ok(documentStub.getElementById('badge-accounts').textContent==='1'
-    && documentStub.getElementById('badge-accounts').style.display!=='none', '有 1 条待审批时徽章显示数量');
+  ok(documentStub.getElementById('badge-today').textContent==='1'
+    && documentStub.getElementById('badge-today').style.display!=='none', '有 1 条待审批时徽章显示数量');
   Api.reviewPlanRequest(req5.id, true);
   wb.renderPendingBadges();
-  ok(documentStub.getElementById('badge-accounts').style.display==='none', '审批完成后徽章消失');
+  ok(documentStub.getElementById('badge-today').style.display==='none', '审批完成后徽章消失');
   wb.doLogout();
   await wb.doLogin('ta1', 'ta123456', 'ta');
-  ok(documentStub.getElementById('badge-accounts').style.display==='none'
-    && documentStub.getElementById('badge-accounts-tab').style.display==='none', '助教端不显示审批徽章');
+  ok(documentStub.getElementById('badge-today').style.display==='none'
+    && documentStub.getElementById('badge-today-tab').style.display==='none', '助教端不显示审批徽章');
 
   /* ---- 学生明细助教维度筛选（教务） ---- */
   const grpCnt = list => new Set(list.map(s=>(s.ownerId||'')+'|'+s.name.trim())).size;
@@ -376,19 +375,28 @@ function ok(cond, name){
   const chipHtml = documentStub.getElementById('stu-ta-filter').innerHTML;
   ok(chipHtml.indexOf('全部学生')!==-1 && chipHtml.indexOf('王助教')!==-1 && chipHtml.indexOf('李助教')!==-1
     && chipHtml.indexOf('已停用')!==-1, '教务端学生明细含助教筛选 chips（全部学生 + 各助教，停用标注）');
-  // 「全部学生」：按助教分组 + 学生卡齐全
+  // 「全部学生」：按助教分组，默认折叠（只有组头），点击展开，搜索时自动展开
   const listAll = documentStub.getElementById('stu-list').innerHTML;
   const allActive = wb.pool.students.filter(s=>!s.archived);
   ok(listAll.indexOf('ta-group-head')!==-1 && listAll.indexOf('王助教')!==-1 && listAll.indexOf('李助教')!==-1,
     '「全部学生」视图按助教分组展示（含分组标题）');
-  ok(cardCnt(listAll) === grpCnt(allActive), '「全部学生」视图学生卡齐全');
-  // 选中 ta1：只含 ta1 学生卡，无分组标题，不含 ta2 学生
+  ok(cardCnt(listAll) === 0, '「全部学生」视图分组默认折叠（只有组头，无学生卡）');
+  wb.toggleTaGroup(ta1.id);
+  const listExp = documentStub.getElementById('stu-list').innerHTML;
+  ok(cardCnt(listExp) === grpCnt(allActive.filter(s=>s.ownerId===ta1.id)), '点击组头展开该助教的学生卡');
+  wb.toggleTaGroup(ta1.id);  // 收起还原
+  ok(cardCnt(documentStub.getElementById('stu-list').innerHTML) === 0, '再次点击收起该组');
+  wb.setStuQuery('林');
+  const listAutoExp = documentStub.getElementById('stu-list').innerHTML;
+  ok(cardCnt(listAutoExp) > 0 && listAutoExp.indexOf('林小满') !== -1, '搜索时自动展开含匹配学生的组');
+  wb.setStuQuery('');
+  // 选中 ta1：只含 ta1 学生卡，无分组标题，不含 ta2 学生（单助教视图维持直接展开）
   wb.setStuTaFilter(ta1.id);
   const listTa1 = documentStub.getElementById('stu-list').innerHTML;
   const ta1Active = wb.pool.students.filter(s=>s.ownerId===ta1.id && !s.archived);
   ok(listTa1.indexOf('ta-group-head')===-1 && cardCnt(listTa1)===grpCnt(ta1Active)
     && listTa1.indexOf('看板低分测试')!==-1 && listTa1.indexOf('看板沉睡测试')===-1,
-    '选中某助教后明细只含该助教的学生卡（无分组标题）');
+    '选中某助教后明细只含该助教的学生卡（无分组标题，直接展开）');
   // 姓名搜索与助教筛选叠加
   wb.setStuQuery('林');
   const listSearch = documentStub.getElementById('stu-list').innerHTML;
@@ -405,6 +413,86 @@ function ok(cond, name){
   await wb.doLogin('ta1', 'ta123456', 'ta');
   ok(documentStub.getElementById('stu-ta-filter').innerHTML === '', '助教端不渲染助教筛选 chips 行');
 
+  /* ---- 批次一：改名 / 停滞提醒 / 次数按钮形态 / subjAdvice / 清理区块显隐 ---- */
+  ok(html.indexOf('<title>学情跟踪平台 · 个人工作台</title>') !== -1, '浏览器 title 已改名「学情跟踪平台」');
+  ok(html.indexOf('学生作业正确率') === -1 && (html.match(/学情跟踪平台/g) || []).length >= 5,
+    '品牌区/登录页/topbar/报告落款均已改名，旧名无残留');
+  // 首次设置已写 subjPlanSetAt（plan-flow 段落中首次设置 10 次）
+  const todayS = offDay(0);
+  ok(planStu.subjPlanSetAt && planStu.subjPlanSetAt[planSubj] === todayS, '首次设置应完成次数写入 subjPlanSetAt');
+  // 审批通过时更新 subjPlanSetAt（req5 已通过，先删字段模拟旧数据再验证审批写入）
+  // 直接验证：新建申请并审批通过 → setAt 写入
+  const setAtReq = Api.createPlanRequest({studentId: planStu.id, subject: planSubj, newPlan: 32, reason: ''}).request;
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  delete planStu.subjPlanSetAt[planSubj];  // 模拟旧数据无 setAt
+  Api.reviewPlanRequest(setAtReq.id, true);
+  ok(planStu.subjPlanSetAt[planSubj] === todayS && planStu.subjPlans[planSubj] === 32,
+    '审批通过时写入 subjPlanSetAt 并生效次数');
+  // 停滞提醒（ta1 视角）
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  const stagSubj = '学科 / AP / 化学';
+  planStu.subjPlans[stagSubj] = 5;
+  planStu.subjPlanSetAt[stagSubj] = offDay(-8);
+  wb.refreshView(); wb.renderToday();
+  let todayHtml = documentStub.getElementById('today-list').innerHTML;
+  ok(todayHtml.indexOf('AP·化学') !== -1 && todayHtml.indexOf('已 8 天未更新') !== -1 && todayHtml.indexOf('计划停滞') !== -1,
+    '停滞提醒：设定日 8 天前且无记录 → 出现且含天数');
+  planStu.subjPlanSetAt[stagSubj] = offDay(-6);
+  wb.refreshView(); wb.renderToday();
+  todayHtml = documentStub.getElementById('today-list').innerHTML;
+  ok(todayHtml.indexOf('AP·化学') === -1, '停滞提醒：6 天前 → 不出现');
+  planStu.subjPlanSetAt[stagSubj] = offDay(-8);
+  wb.pool.records.push({id:'stag-rec', studentId:planStu.id, date:offDay(-2), total:10, correct:9, wrongs:[4], subject:stagSubj, images:[], ownerId:ta1.id});
+  wb.refreshView(); wb.renderToday();
+  todayHtml = documentStub.getElementById('today-list').innerHTML;
+  ok(todayHtml.indexOf('AP·化学') === -1, '停滞提醒：有更近记录 → 以记录日为基准，不提醒');
+  // 旧数据无 setAt 且无记录 → 不提醒
+  planStu.subjPlans['学科 / IB / 经济'] = 6;
+  wb.refreshView(); wb.renderToday();
+  todayHtml = documentStub.getElementById('today-list').innerHTML;
+  ok(todayHtml.indexOf('IB·经济') === -1, '旧数据无 subjPlanSetAt 且无记录 → 不提醒');
+  // 次数按钮形态（助教视角）
+  wb.setQuickEntry({gid: planStu.id, subject: planSubj});
+  let rowHtml = wb.qePanelHtml();
+  ok(rowHtml.indexOf('>修改</button>') !== -1 && rowHtml.indexOf('id="qe-plan"') !== -1, '已有次数时 plan-row 按钮为「修改」');
+  const pend32 = Api.createPlanRequest({studentId: planStu.id, subject: planSubj, newPlan: 35, reason: ''});
+  rowHtml = wb.qePanelHtml();
+  ok(pend32.ok && rowHtml.indexOf('已发送教管审批（32 → 35）') !== -1 && rowHtml.indexOf('撤回申请') !== -1,
+    '提交申请后显示「已发送教管审批（N → M）」并保留撤回');
+  Api.cancelPlanRequest(pend32.request.id);
+  wb.setQuickEntry({gid: planStu.id, subject: '语培 / 雅思'});
+  ok(wb.qePanelHtml().indexOf('>保存</button>') !== -1, '未设置次数时 plan-row 按钮为「保存」');
+  // 教务视角 plan-row 只读
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  wb.setQuickEntry({gid: planStu.id, subject: planSubj});
+  const adminRow = wb.qePanelHtml();
+  ok(adminRow.indexOf('id="qe-plan"') === -1 && adminRow.indexOf('savePlanCount') === -1 && adminRow.indexOf('已定 32 次') !== -1,
+    '教务视角 plan-row 只读（无输入框/保存按钮，显示次数文字）');
+  // subjAdvice 保存与报告第四节
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  wb.setQuickEntry({gid: planStu.id, subject: planSubj});
+  documentStub.getElementById('qe-advice').value = '每周三次错题复盘';
+  wb.saveSubjectAdvice();
+  ok(planStu.subjAdvice && planStu.subjAdvice[planSubj] === '每周三次错题复盘', '学习计划与建议按学生×科目保存（subjAdvice）');
+  const rpt = wb.reportHtml(planStu, planSubj);
+  ok(rpt.indexOf('四、学习计划与建议') !== -1 && rpt.indexOf('每周三次错题复盘') !== -1
+    && rpt.indexOf('本报告由「学情跟踪平台」自动生成') !== -1, '报告含第四节「学习计划与建议」与新落款');
+  // 清理区块与横幅按钮显隐
+  ok(documentStub.getElementById('data-clean-zone').style.display === 'none', '助教端「数据管理」清理数据区块隐藏');
+  ok(html.indexOf('id="btn-import"') < html.indexOf('id="data-clean-zone"'), '导出/导入保留在清理区块之外（助教可见）');
+  const bannerTa = documentStub.getElementById('sample-banner').innerHTML;
+  ok(bannerTa.indexOf('示例数据') !== -1 && bannerTa.indexOf('清空示例数据') === -1, '助教端示例横幅保留提示但无清空按钮');
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  ok(documentStub.getElementById('data-clean-zone').style.display !== 'none', '教务端清理数据区块可见');
+  ok(documentStub.getElementById('sample-banner').innerHTML.indexOf('清空示例数据') !== -1, '教务端示例横幅含清空按钮');
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+
   /* ---- 清空示例数据覆盖历史学生 ---- */
   wb.clearSamplesOfView();  // ta1 视角
   ok(!wb.pool.students.some(s=>s.ownerId===ta1.id && s.sample), '清空示例数据后 ta1 的示例学生（含历史学生）全部清除');
@@ -414,7 +502,6 @@ function ok(cond, name){
   wb.doLogout();
   await wb.doLogin('admin', 'admin456', 'admin');
   Api.toggleUser(ta2.id);  // 恢复此前停用的 ta2
-  wb.setScope('all');
   wb.doLoadSampleData();
   const ta3u = Api.listUsers().find(u=>u.username==='ta3');
   ok([ta1.id, ta2.id, ta3u.id].every(id=>wb.pool.students.filter(s=>s.sample && s.ownerId===id).length === 7),
@@ -422,6 +509,98 @@ function ok(cond, name){
   ok(!wb.pool.students.some(s=>s.sample && s.ownerId===admin.id), '示例学生不再归属教务账号');
   ok(wb.pool.planRequests.filter(r=>r.sample && r.status==='pending').length === 3,
     '重载后每位助教恢复 1 条待审批示例申请');
+
+  /* ---- 批次二：看板预警上移 + 折叠 + 沉睡 7 天口径 ---- */
+  ok(html.indexOf('预警名单') < html.indexOf('录入趋势（近 30 天）'), '看板板块顺序：预警名单在录入趋势之前');
+  ok(html.indexOf('沉睡学生（≥7 天无记录）') !== -1, '沉睡学生口径标题已改 ≥7 天');
+  const sleepy = {id:'sleepy-8d', name:'八天沉睡生', ownerId:ta1.id};
+  wb.pool.students.push(sleepy);
+  wb.pool.records.push({id:'sleepy-rec', studentId:sleepy.id, date:offDay(-8), total:10, correct:9, wrongs:[1], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
+  ok(wb.computeDash().sleepers.some(x=>x.name==='八天沉睡生' && x.days===8), '沉睡口径 ≥7 天生效（8 天无记录入选）');
+  for(let i=1;i<=6;i++){
+    const st = {id:'low-'+i, name:'压测低分'+i, ownerId:ta1.id};
+    wb.pool.students.push(st);
+    wb.pool.records.push({id:'low-rec-'+i, studentId:st.id, date:offDay(0), total:10, correct:3, wrongs:[1,2,3,4,5,6,7], subject:'学科 / AP / 化学', images:[], ownerId:ta1.id});
+  }
+  wb.renderDashboard();
+  const lowHtml = documentStub.getElementById('dash-alert-low').innerHTML;
+  ok((lowHtml.match(/dash-alert-item/g)||[]).length === 5 && lowHtml.indexOf('展开全部 7 条') !== -1,
+    '预警名单默认显示前 5 条并折叠（含「展开全部 N 条」）');
+  wb.dashToggleAlert('low');
+  const lowHtml2 = documentStub.getElementById('dash-alert-low').innerHTML;
+  ok((lowHtml2.match(/dash-alert-item/g)||[]).length === 7 && lowHtml2.indexOf('收起') !== -1, '展开全部后显示全部记录');
+  wb.dashToggleAlert('low');  // 还原折叠
+
+  /* ---- 批次二：教务今日概览（审批迁入 + 未交只读 + 徽章） ---- */
+  ok(html.indexOf('id="planreq-zone"') < html.indexOf('id="today-list"'), '审批区块位于「今天要处理」卡片顶部');
+  ok(html.indexOf('planreq-card') === -1, '账号管理页不再含审批区块（恢复纯账号功能）');
+  ok(documentStub.getElementById('planreq-zone').style.display !== 'none'
+    && documentStub.getElementById('planreq-pending').innerHTML.indexOf('通过') !== -1,
+    '教务今日概览显示审批区块（待审批列表含通过按钮）');
+  ok(documentStub.getElementById('badge-today').textContent === '3'
+    && documentStub.getElementById('badge-today').style.display !== 'none', '待审批红点徽章挂在「今日概览」（数量正确）');
+  const todayAdmin = documentStub.getElementById('today-list').innerHTML;
+  ok(todayAdmin.indexOf('次未交') !== -1 && todayAdmin.indexOf('去补录') === -1 && todayAdmin.indexOf('删除') === -1,
+    '教务视角未交卡片只读（无去补录/删除按钮）');
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf('去补录') !== -1, '助教视角未交卡片保留操作按钮');
+  ok(documentStub.getElementById('planreq-zone').style.display === 'none', '助教视角不显示审批区块');
+
+  /* ---- 批次二：历史学生搜索 ---- */
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  wb.setAlumniQuery('杭州');
+  const alS = documentStub.getElementById('alumni-list').innerHTML;
+  ok(alS.indexOf('赵雨桐') !== -1 && alS.indexOf('李浩然') === -1, '历史学生搜索按学校过滤生效');
+  wb.setAlumniQuery('李');
+  const alS2 = documentStub.getElementById('alumni-list').innerHTML;
+  ok(alS2.indexOf('李浩然') !== -1 && alS2.indexOf('赵雨桐') === -1, '历史学生搜索按姓名过滤生效');
+  wb.setAlumniQuery('');
+
+  /* ---- 批次二：销售角色全链路 ---- */
+  ok(!(await Api.login('sales1', 'sales123456', 'ta')).ok, '销售账号以助教角色登录被拒');
+  wb.doLogout();
+  await wb.doLogin('sales1', 'sales123456', 'sales');
+  ok(wb.currentUser && wb.currentUser.role === 'sales', 'sales1 登录成功（角色 sales）');
+  ok(documentStub.getElementById('user-role').textContent === '销售', 'topbar 角色徽章显示「销售」');
+  ok(['today','dashboard','accounts','data'].every(t=>documentStub.getElementById('nav-'+t).style.display === 'none'
+    && documentStub.getElementById('tab-'+t).style.display === 'none')
+    && documentStub.getElementById('nav-stats').style.display !== 'none'
+    && documentStub.getElementById('nav-alumni').style.display !== 'none'
+    && documentStub.getElementById('tab-stats').style.display !== 'none'
+    && documentStub.getElementById('tab-alumni').style.display !== 'none',
+    '销售端仅显示现有/历史两个页签（侧栏+底部 Tab）');
+  ok(wb.switchTab('today') === 'stats' && wb.switchTab('dashboard') === 'stats' && wb.switchTab('alumni') === 'alumni',
+    '销售端 switchTab 守卫拦截隐藏页签');
+  ok(documentStub.getElementById('sample-banner').style.display === 'none', '销售端不显示示例数据横幅');
+  ok(documentStub.getElementById('stats-chart-card').style.display === 'none'
+    && documentStub.getElementById('btn-open-add-stu').style.display === 'none', '销售端隐藏图表卡与「新增学生」按钮');
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('stu-card') === -1
+    && documentStub.getElementById('stu-list').innerHTML.indexOf('输入学生姓名或学校进行查询') !== -1
+    && documentStub.getElementById('alumni-list').innerHTML.indexOf('stu-card') === -1,
+    '销售端无关键字时两个页签均不渲染学生卡');
+  ok(wb.state.students.length === wb.pool.students.length, '销售 viewState 可见全量（mock 期）');
+  wb.setStuQuery('林');
+  const salesHtml = documentStub.getElementById('stu-list').innerHTML;
+  ok(salesHtml.indexOf('林小满') !== -1 && salesHtml.indexOf('归属：') !== -1, '销售输入关键字后出现匹配学生卡（含归属助教）');
+  ok(salesHtml.indexOf('onclick') === -1, '销售学生卡只读（无任何 onclick 操作入口）');
+  wb.setAlumniQuery('赵');
+  const salesAl = documentStub.getElementById('alumni-list').innerHTML;
+  ok(salesAl.indexOf('赵雨桐') !== -1 && salesAl.indexOf('restoreGroup') === -1, '销售历史学生搜索出卡且无恢复按钮');
+  wb.setStuQuery(''); wb.setAlumniQuery('');
+  ok(!wb.canWriteOwner(ta1.id) && !wb.canWriteOwner(null), 'canWriteOwner 对销售恒 false');
+  setVal('qe-total', '10'); setVal('qe-correct', '9'); setVal('qe-wrongs', '1');
+  wb.setQuickEntry({gid: wb.pool.students[0].id, subject: '学科 / AP / 微积分BC'});
+  const salesRecCnt = wb.pool.records.length;
+  wb.saveQuickEntry();
+  ok(wb.pool.records.length === salesRecCnt, '销售尝试录入被拒（数据未变）');
+  // 创建销售账号
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  ok(html.indexOf('<option value="sales">销售</option>') !== -1, '创建账号表单含销售角色选项');
+  const madeSales = await Api.createUser('钱顾问', 'sales2', 'abc123456', 'sales');
+  ok(madeSales.ok && madeSales.user.role === 'sales', '教务创建销售账号成功（角色正确）');
 
   console.log('\n断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   process.exit(fail ? 1 : 0);

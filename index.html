@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>学生作业正确率 · 个人工作台</title>
+<title>学情跟踪平台 · 个人工作台</title>
 <!-- 本工作台为单文件版本（v2 账号体系）：全部 CSS/JS/图标内联，双击即可运行；演示环境账号与数据暂存于浏览器 localStorage/sessionStorage，后端就绪后仅需替换 Api 层 -->
 <style>
 :root{
@@ -445,12 +445,6 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
 }
 .role-badge{background:var(--mint);color:#fff;font-size:11px;padding:2px 8px;border-radius:999px}
 .role-badge.admin{background:var(--amber)}
-.scope-wrap{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);flex-wrap:wrap}
-.scope-wrap select{
-  font-size:14px;padding:8px 10px;border:1.5px solid var(--line);border-radius:10px;
-  background:#FDFCF8;font-family:inherit;color:var(--ink);min-height:40px;
-}
-.scope-hint{width:100%;font-size:12px;color:#B9802A}
 .acct-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 4px;border-bottom:1px dashed var(--line)}
 .acct-row:last-child{border-bottom:none}
 .acct-row .grow{flex:1;min-width:200px}
@@ -512,7 +506,6 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
   .topbar .illus{display:none}
   .topbar h1{display:inline-block;font-size:18px}
   .topbar .date-pill{margin:0 0 0 8px;padding:4px 12px;font-size:12px}
-  .scope-hint{font-size:11px}
   /* 学生卡头部：头像+姓名一行占满，徽章在 grow 内自然换行；趋势折线固定 120x40 与「新增科目」按钮落到下一行，禁止拉伸 */
   .stu-head .grow{flex:1 1 calc(100% - 52px);min-width:0}
   .stu-head > svg{flex:0 0 120px;width:120px;height:40px}
@@ -530,30 +523,30 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
   <aside id="sidebar">
     <div class="brand">
       <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="6" width="40" height="36" rx="6" fill="#E4F3EC"/><path d="M14 30l6-8 5 5 8-11" stroke="#3E9B7F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="14" r="4" fill="#F3DFA9"/></svg>
-      <div><b>学生作业正确率</b><span>个人工作台</span></div>
+      <div><b>学情跟踪平台</b><span>个人工作台</span></div>
     </div>
-    <button class="nav-btn active" data-tab="today">
+    <button class="nav-btn active" data-tab="today" id="nav-today">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
       今日概览
+      <span class="nav-badge" id="badge-today" style="display:none"></span>
     </button>
     <button class="nav-btn" data-tab="dashboard" id="nav-dashboard" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
       数据看板
     </button>
-    <button class="nav-btn" data-tab="stats">
+    <button class="nav-btn" data-tab="stats" id="nav-stats">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>
       现有学生
     </button>
-    <button class="nav-btn" data-tab="alumni">
+    <button class="nav-btn" data-tab="alumni" id="nav-alumni">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>
       历史学生
     </button>
     <button class="nav-btn" data-tab="accounts" id="nav-accounts" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg>
       账号管理
-      <span class="nav-badge" id="badge-accounts" style="display:none"></span>
     </button>
-    <button class="nav-btn" data-tab="data">
+    <button class="nav-btn" data-tab="data" id="nav-data">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
       数据管理
     </button>
@@ -575,17 +568,13 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
         <path d="M140 40l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z" fill="#F3DFA9"/>
       </svg>
       <div>
-        <h1>学生作业正确率</h1>
+        <h1>学情跟踪平台</h1>
         <div class="date-pill">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
           <span id="today-str"></span>
         </div>
       </div>
       <div class="user-area">
-        <span class="scope-wrap" id="scope-wrap" style="display:none">数据范围
-          <select id="scope-select"></select>
-          <span class="scope-hint" id="scope-hint"></span>
-        </span>
         <span class="user-chip"><span id="user-name"></span><span class="role-badge" id="user-role"></span></span>
         <button class="btn ghost sm" id="btn-chpwd">修改密码</button>
         <button class="btn ghost sm" id="btn-logout">退出</button>
@@ -599,6 +588,16 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
     <section id="pane-today" class="tab-pane active">
       <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#DE6B6B" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>今天要处理</h2>
+        <!-- 计划修改审批（仅教务可见；从账号管理页迁入） -->
+        <div id="planreq-zone" style="display:none">
+          <h3>计划修改审批 <span class="tag red" id="planreq-badge-card" style="display:none"></span></h3>
+          <div id="planreq-pending"></div>
+          <details style="margin-top:10px">
+            <summary class="hint" style="cursor:pointer;min-height:32px">最近已处理（最多 10 条）</summary>
+            <div id="planreq-done" style="margin-top:8px"></div>
+          </details>
+          <div class="divider"></div>
+        </div>
         <div id="today-list"></div>
       </div>
       <div class="card">
@@ -625,6 +624,24 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
         <div class="quick-grid" id="dash-overview"></div>
       </div>
       <div class="card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#DE6B6B" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>预警名单</h2>
+        <div class="dash-alerts">
+          <div>
+            <h3>低分学生（平均正确率 &lt;60%）</h3>
+            <div id="dash-alert-low"></div>
+          </div>
+          <div>
+            <h3>逾期未交</h3>
+            <div id="dash-alert-miss"></div>
+          </div>
+          <div>
+            <h3>沉睡学生（≥7 天无记录）</h3>
+            <div id="dash-alert-sleep"></div>
+          </div>
+        </div>
+        <p class="hint">口径说明：录入/正确率类指标受时间范围筛选影响；逾期未交与沉睡学生为当前状态指标，不受时间范围影响。</p>
+      </div>
+      <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>录入趋势（近 30 天）</h2>
         <div class="dash-trend" id="dash-trend"></div>
         <p class="hint">柱高 = 当天录入次数；柱色 = 当天平均正确率（绿 ≥85 / 黄 60-84 / 红 <60 / 灰 无数据）。</p>
@@ -639,24 +656,6 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
         <div id="dash-cats"></div>
         <div class="chart-wrap" id="dash-subs"></div>
       </div>
-      <div class="card">
-        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#DE6B6B" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>预警名单</h2>
-        <div class="dash-alerts">
-          <div>
-            <h3>低分学生（平均正确率 &lt;60%）</h3>
-            <div id="dash-alert-low"></div>
-          </div>
-          <div>
-            <h3>逾期未交</h3>
-            <div id="dash-alert-miss"></div>
-          </div>
-          <div>
-            <h3>沉睡学生（≥14 天无记录）</h3>
-            <div id="dash-alert-sleep"></div>
-          </div>
-        </div>
-        <p class="hint">口径说明：录入/正确率类指标受时间范围筛选影响；逾期未交与沉睡学生为当前状态指标，不受时间范围影响。</p>
-      </div>
     </section>
 
     <!-- 学生统计 -->
@@ -666,7 +665,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
           <input id="stu-search" placeholder="按学生姓名搜索，支持部分匹配，如：林">
         </div>
       </div>
-      <div class="card">
+      <div class="card" id="stats-chart-card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>各科目平均正确率（全体学生）</h2>
         <div class="chart-wrap" id="bar-chart"></div>
       </div>
@@ -684,6 +683,12 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
 
     <!-- 历史学生 -->
     <section id="pane-alumni" class="tab-pane">
+      <div class="card" style="padding:14px 20px">
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="alumni-search" placeholder="按学生姓名或学校搜索，支持部分匹配">
+        </div>
+      </div>
       <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>历史学生（已毕业 / 已结课）</h2>
         <p class="hint" style="margin-bottom:12px">从「现有学生」明细卡中可将学生转为历史学生；档案保留，作业记录不会删除。</p>
@@ -707,6 +712,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
           <input type="file" id="f-import" accept=".json,application/json" style="display:none">
         </div>
         <p class="hint">导入会替换当前全部数据（支持上千条记录），导入前会先让你确认。</p>
+        <div id="data-clean-zone" style="display:none">
         <div class="divider"></div>
         <h3>清理数据</h3>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -724,31 +730,30 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
           </button>
         </div>
         <p class="hint">「清空示例数据」只删除标记为示例的内容，不影响你自己录入的数据。所有清空操作都会二次确认。</p>
+        </div>
       </div>
     </section>
 
     <!-- 账号管理（仅教务可见） -->
     <section id="pane-accounts" class="tab-pane">
-      <div class="card" id="planreq-card">
-        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#B9802A" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>计划修改审批 <span class="tag red" id="planreq-badge-card" style="display:none"></span></h2>
-        <div id="planreq-pending"></div>
-        <details style="margin-top:10px">
-          <summary class="hint" style="cursor:pointer;min-height:32px">最近已处理（最多 10 条）</summary>
-          <div id="planreq-done" style="margin-top:8px"></div>
-        </details>
-      </div>
       <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg>账号列表</h2>
         <div id="accounts-list"></div>
       </div>
       <div class="card">
-        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>创建助教账号</h2>
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>创建账号</h2>
         <div class="form-grid">
           <div class="field"><label>姓名</label><input id="ac-name" placeholder="如：王助教"></div>
           <div class="field"><label>登录账号</label><input id="ac-username" placeholder="登录用账号，需唯一"></div>
+          <div class="field"><label>角色</label>
+            <select id="ac-role">
+              <option value="ta">助教</option>
+              <option value="sales">销售</option>
+            </select>
+          </div>
           <div class="field"><label>初始密码（至少 6 位）</label><input id="ac-password" placeholder="首次登录后需修改"></div>
         </div>
-        <p class="hint">新助教使用初始密码首次登录时会被要求修改密码。停用账号后其无法登录，但名下数据完整保留。</p>
+        <p class="hint">新账号使用初始密码首次登录时会被要求修改密码。停用账号后其无法登录，但名下数据完整保留。</p>
         <div style="margin-top:12px"><button class="btn mint" id="btn-create-ta">创建账号</button></div>
       </div>
     </section>
@@ -757,19 +762,20 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
   <!-- 手机底部 Tab -->
   <nav id="bottombar">
     <div class="tabs">
-      <button class="tab-btn active" data-tab="today">
+      <button class="tab-btn active" data-tab="today" id="tab-today">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
         今日
+        <span class="nav-badge" id="badge-today-tab" style="display:none"></span>
       </button>
       <button class="tab-btn" data-tab="dashboard" id="tab-dashboard" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
         看板
       </button>
-      <button class="tab-btn" data-tab="stats">
+      <button class="tab-btn" data-tab="stats" id="tab-stats">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>
         现有
       </button>
-      <button class="tab-btn" data-tab="alumni">
+      <button class="tab-btn" data-tab="alumni" id="tab-alumni">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>
         历史
       </button>
@@ -780,7 +786,6 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
       <button class="tab-btn" data-tab="accounts" id="tab-accounts" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg>
         账号
-        <span class="nav-badge" id="badge-accounts-tab" style="display:none"></span>
       </button>
     </div>
   </nav>
@@ -835,7 +840,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
   <div class="login-card">
     <div class="brand">
       <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="6" width="40" height="36" rx="6" fill="#E4F3EC"/><path d="M14 30l6-8 5 5 8-11" stroke="#3E9B7F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="14" r="4" fill="#F3DFA9"/></svg>
-      <div><b>学生作业正确率</b><span>内部工作台</span></div>
+      <div><b>学情跟踪平台</b><span>内部工作台</span></div>
     </div>
     <div class="login-tag">内部系统 · 演示环境：数据暂存本机</div>
     <div class="field">
@@ -843,6 +848,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
       <div class="role-seg" id="login-role-seg">
         <button type="button" class="role-opt active" data-role="ta">助教</button>
         <button type="button" class="role-opt" data-role="admin">教务</button>
+        <button type="button" class="role-opt" data-role="sales">销售</button>
       </div>
     </div>
     <div class="field">
@@ -944,7 +950,6 @@ const SS_SESSION = 'wb_ha_v2_session';
 let pool = { students: [], records: [], missed: [], planRequests: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
-let scope = 'all';        // 教务数据范围：'all' 或某位助教 id（助教恒为自己）
 
 function todayStr(){ return fmtDate(new Date()); }
 function fmtDate(d){
@@ -1031,14 +1036,15 @@ function hashPwd(salt, pwd){ return sha256Hex(salt + ':' + pwd); }
 
 /* ---- 视图过滤与权限 ---- */
 // 某条 ownerId 的数据是否在当前可见范围内
+// 教务恒为全部数据视角（无范围切换）；销售 mock 期可见全量（UI 只在有关键字时渲染，后端阶段由 API 强制搜索参数）
 function ownerInView(ownerId){
   if(!currentUser) return false;
   if(currentUser.role === 'ta') return ownerId === currentUser.id;
-  return scope === 'all' ? true : ownerId === scope;
+  return true;  // admin / sales
 }
-// 当前视图：助教=自己的数据；教务=全部或指定助教
+// 当前视图：助教=自己的数据；教务/销售=全量
 function viewState(){
-  if(currentUser && currentUser.role==='admin' && scope==='all') return pool;
+  if(currentUser && (currentUser.role==='admin' || currentUser.role==='sales')) return pool;
   return {
     students: pool.students.filter(s=>ownerInView(s.ownerId)),
     records: pool.records.filter(r=>ownerInView(r.ownerId)),
@@ -1046,19 +1052,19 @@ function viewState(){
   };
 }
 function refreshView(){ state = viewState(); }
-// 新录入数据的归属：助教=自己；教务在指定助教视角=该助教；教务在全部视角=教务自己
+// 新录入数据的归属：助教=自己；教务新建=教务自己（对已有学生写数据时归属该学生的助教，由各写入处取 st.ownerId）
 function writeOwnerId(){
-  if(!currentUser) return null;
-  if(currentUser.role==='ta') return currentUser.id;
-  return scope==='all' ? currentUser.id : scope;
+  return currentUser ? currentUser.id : null;
 }
-// 越权防护：编辑/删除前校验目标数据 ownerId 是否可写（教务全部可写，助教仅自己）
+// 越权防护：编辑/删除前校验目标数据 ownerId 是否可写（教务全部可写，助教仅自己，销售恒不可写）
 function canWriteOwner(ownerId){
   if(!currentUser) return false;
+  if(currentUser.role==='sales') return false;  // 销售只读
   if(currentUser.role==='admin') return true;
   return ownerId === currentUser.id;
 }
 function isAdminView(){ return !!(currentUser && currentUser.role==='admin'); }
+function isSalesView(){ return !!(currentUser && currentUser.role==='sales'); }
 function ownerName(ownerId){
   const u = Api.listUsers().find(x=>x.id===ownerId);
   return u ? u.name : '未分配';
@@ -1207,7 +1213,12 @@ const Api = {
     if(note) r.note = note;
     if(approve){
       const st = pool.students.find(x=>x.id===r.studentId);
-      if(st){ st.subjPlans = st.subjPlans || {}; st.subjPlans[r.subject] = r.newPlan; }
+      if(st){
+        st.subjPlans = st.subjPlans || {};
+        st.subjPlans[r.subject] = r.newPlan;
+        st.subjPlanSetAt = st.subjPlanSetAt || {};
+        st.subjPlanSetAt[r.subject] = todayStr();  // 审批通过日作为新计划的设定日
+      }
     }
     save(); refreshView();
     return {ok:true, request:r};
@@ -1217,15 +1228,16 @@ const Api = {
   async _ensureSeed(){
     const users = this._loadUsers();
     let fresh = false;
+    const mk = (name, username, pwd, role)=>{
+      const salt = makeSalt();
+      return {id:uid(), username, name, role, salt, passHash:hashPwd(salt, pwd),
+        disabled:false, createdAt:todayStr(), mustChangePwd:false};
+    };
     if(!users.length){
-      const mk = (name, username, pwd, role)=>{
-        const salt = makeSalt();
-        return {id:uid(), username, name, role, salt, passHash:hashPwd(salt, pwd),
-          disabled:false, createdAt:todayStr(), mustChangePwd:false};
-      };
       this._users = [ mk('教务管理员','admin','admin123','admin'),
                       mk('王助教','ta1','ta123456','ta'),
-                      mk('李助教','ta2','ta123456','ta') ];
+                      mk('李助教','ta2','ta123456','ta'),
+                      mk('张顾问','sales1','sales123456','sales') ];
       this._saveUsers();
       fresh = true;
     } else {
@@ -1236,6 +1248,11 @@ const Api = {
           u.mustChangePwd = false; changed = true;
         }
       });
+      // 销售角色演示账号一次性回填（已有浏览器补齐）
+      if(!users.some(u=>u.role==='sales')){
+        this._users.push(mk('张顾问','sales1','sales123456','sales'));
+        changed = true;
+      }
       if(changed) this._saveUsers();
     }
     if(!load()){ pool = {students:[], records:[], missed:[], planRequests:[]}; }
@@ -1358,13 +1375,19 @@ function archivedStudents(){ return state.students.filter(s=>s.archived); }
 
 /* ================= 页签切换 ================= */
 function switchTab(name){
-  if((name==='accounts' || name==='dashboard') && !isAdminView()) name = 'today';  // 账号管理/数据看板仅教务可见
+  // 角色页签守卫：教务=全部 6 个；助教=今日/现有/历史/数据；销售=仅现有/历史
+  const role = currentUser ? currentUser.role : null;
+  const allowed = role==='admin' ? ['today','dashboard','stats','alumni','accounts','data']
+    : role==='sales' ? ['stats','alumni']
+    : ['today','stats','alumni','data'];
+  if(allowed.indexOf(name) === -1) name = role==='sales' ? 'stats' : 'today';
   document.querySelectorAll('.nav-btn,.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active', p.id==='pane-'+name));
   if(name==='stats') renderStats();
   if(name==='alumni') renderAlumni();
   if(name==='accounts') renderAccounts();
   window.scrollTo({top:0, behavior:'smooth'});
+  return name;
 }
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click', ()=>switchTab(b.dataset.tab)));
 
@@ -1385,16 +1408,17 @@ document.getElementById('cf-ok').onclick = ()=>{
 /* ================= 横幅 ================= */
 function renderBanners(){
   const sb = document.getElementById('sample-banner');
+  const bt = document.getElementById('backup-tip');
+  if(isSalesView()){ sb.style.display = 'none'; bt.style.display = 'none'; return; }  // 销售端不显示数据横幅
   if(hasSample()){
     sb.style.display = 'flex';
     sb.innerHTML =
       '<svg viewBox="0 0 24 24" fill="none" stroke="#B9802A" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>' +
       '<span>当前包含<b>示例数据</b>（日期按今天自动生成，仅用于演示）</span><span class="spacer"></span>' +
-      '<button class="btn ghost sm" onclick="clearSamples()">清空示例数据</button>';
+      (isAdminView() ? '<button class="btn ghost sm" onclick="clearSamples()">清空示例数据</button>' : '');  // 清理入口仅教务可见
   } else { sb.style.display = 'none'; }
 
   const total = state.records.length + state.missed.length;
-  const bt = document.getElementById('backup-tip');
   if(total >= 30){
     bt.style.display = 'flex';
     bt.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>' +
@@ -1447,8 +1471,9 @@ function renderToday(){
             '<div class="grow"><span class="idx-tag">第' + (i+1) + '次</span>' +
             (overdue ? '<span class="tag red" title="未交日期早于今天，尚未补交">逾期</span>' : '<span class="tag amber" title="今天（或之后）的未交">今日</span>') +
             '<span class="miss-date">' + m.date + '</span></div>' +
-            '<button class="btn mint sm" onclick="resolveMissed(\'' + m.id + '\')" title="跳转到该生该科目的打卡面板补录这次作业；填写并保存后，该条未交才算补交完成">去补录</button>' +
-            '<button class="btn ghost sm" onclick="removeMissed(\'' + m.id + '\')" title="删除该未交记录">删除</button>' +
+            (isAdminView() ? '' :  // 教务视角未交提醒只读，不显示补录/删除按钮
+              '<button class="btn mint sm" onclick="resolveMissed(\'' + m.id + '\')" title="跳转到该生该科目的打卡面板补录这次作业；填写并保存后，该条未交才算补交完成">去补录</button>' +
+              '<button class="btn ghost sm" onclick="removeMissed(\'' + m.id + '\')" title="删除该未交记录">删除</button>') +
             '</div>';
         });
         html += '</div>';
@@ -1464,8 +1489,29 @@ function renderToday(){
       '<span class="tag red">正确率偏低 ' + acc(r) + '%</span>' +
       (r.sample ? '<span class="tag sample">示例</span>' : '') +
       '<div style="font-size:13px;color:var(--ink2)">' + r.date + ' 作业，错题 ' + (r.total-r.correct) + ' 道，建议安排订正</div></div>' +
-      '<button class="btn mint sm" onclick="gotoCorrect(\'' + r.studentId + '\')">录入订正</button>' +
+      (isAdminView() ? '' : '<button class="btn mint sm" onclick="gotoCorrect(\'' + r.studentId + '\')">录入订正</button>') +
       '</div>';
+  });
+
+  // 计划停滞提醒：科目已设定应完成次数，但超过 7 天没有任何新作业记录
+  // 基准日 = max(计划设定日 subjPlanSetAt, 该科目最近一次作业记录日)；旧数据无 setAt 时以最近记录日为基准（无记录则不提醒）
+  state.students.filter(s=>!s.archived && s.subjPlans).forEach(st=>{
+    Object.keys(st.subjPlans).forEach(sub=>{
+      const setAt = st.subjPlanSetAt && st.subjPlanSetAt[sub];
+      const recs = state.records.filter(r=>r.studentId===st.id && r.subject===sub);
+      const lastRec = recs.length ? recs.reduce((a,b)=>a.date>b.date?a:b).date : null;
+      const base = [setAt, lastRec].filter(Boolean).sort().pop();
+      if(!base) return;  // 无设定时间且无记录：不提醒（避免上线当天刷屏）
+      const days = Math.round((new Date(t) - new Date(base)) / 86400000);
+      if(days > 7){
+        html += '<div class="todo-item">' +
+          '<div class="grow"><span class="who">' + esc(st.name) + '</span>' +
+          '<span class="tag amber">计划停滞</span>' +
+          '<div style="font-size:13px;color:var(--ink2)">「' + esc(shortSubject(sub)) + '」已 ' + days + ' 天未更新（应完成 ' + st.subjPlans[sub] + ' 次）</div></div>' +
+          (isAdminView() ? '' : '<button class="btn mint sm" onclick="gotoPlanEntry(\'' + st.id + '\',\'' + esc(sub) + '\')">去录入</button>') +
+          '</div>';
+      }
+    });
   });
 
   if(!html){
@@ -1525,6 +1571,14 @@ function gotoCorrect(studentId){
     }
   }
 }
+/* 停滞提醒「去录入」：跳转到该生该科目的打卡面板（取同名组代表学生） */
+function gotoPlanEntry(studentId, subject){
+  const stu = state.students.find(s=>s.id===studentId);
+  if(!stu || stu.archived) return;
+  const rep = activeStudents().find(s=>s.name.trim()===stu.name.trim() && (s.ownerId||'')===(stu.ownerId||''));
+  switchTab('stats');
+  toggleQuickEntry((rep || stu).id, subject);
+}
 
 /* ================= 科目树（三级联动） ================= */
 const SUBJECT_TREE = {
@@ -1539,7 +1593,9 @@ const SUBJECT_TREE = {
 /* ================= 学生统计 ================= */
 let stuQuery = '';
 let stuTaFilter = 'all';  // 学生明细助教维度筛选（仅教务可见）：'all' 或助教 id
+let stuTaExpanded = {};  // 「全部学生」分组展开状态：ownerId → true 表示已展开（默认折叠）
 function setStuTaFilter(v){ stuTaFilter = v; renderStats(); }
+function toggleTaGroup(oid){ stuTaExpanded[oid] = !stuTaExpanded[oid]; renderStats(); }
 document.getElementById('stu-search').addEventListener('input', function(){
   stuQuery = this.value.trim();
   renderStats();
@@ -1557,6 +1613,23 @@ function renderStats(){
     if(s.school) g.school = s.school;
     if(s.gradYear) g.gradYear = s.gradYear;
   });
+
+  // 销售视角：只读查询模式——默认只显示搜索框，输入关键字后才渲染匹配的只读学生卡
+  if(isSalesView()){
+    const chipBoxS = document.getElementById('stu-ta-filter');
+    if(chipBoxS) chipBoxS.innerHTML = '';
+    document.getElementById('bar-chart').innerHTML = '<p class="hint">输入学生姓名或学校进行查询</p>';
+    const listS = document.getElementById('stu-list');
+    if(!stuQuery){
+      listS.innerHTML = '<p class="hint">输入学生姓名或学校进行查询</p>';
+      return;
+    }
+    const matchedS = groups.filter(g=>g.name.indexOf(stuQuery)!==-1 || (g.school||'').indexOf(stuQuery)!==-1);
+    listS.innerHTML = matchedS.length
+      ? matchedS.map(g=>salesStuCard(g, false)).join('')
+      : '<p class="hint">没有匹配「' + esc(stuQuery) + '」的学生。</p>';
+    return;
+  }
 
   // 柱状图
   const wrap = document.getElementById('bar-chart');
@@ -1736,26 +1809,70 @@ function renderStats(){
       missHtml +
       '</div>';
   };
-  // 教务且选中「全部学生」：按助教分组展示（分组顺序沿用 Api.listUsers() 中助教顺序）；
-  // 选中某位助教：只显示该助教的学生卡（无分组标题）
+  // 教务且选中「全部学生」：按助教分组展示（分组顺序沿用 Api.listUsers() 中助教顺序），
+  // 默认折叠只显示组头，点击组头展开/收起；有搜索词时自动展开含匹配结果的组；
+  // 选中某位助教：只显示该助教的学生卡（无分组标题，直接展开）
   if(isAdminView() && stuTaFilter==='all'){
     const tas = Api.listUsers().filter(u=>u.role==='ta');
+    const renderGroup = (key, label, gs)=>{
+      const open = !!stuQuery || !!stuTaExpanded[key];
+      return '<div class="ta-group-head" style="cursor:pointer" onclick="toggleTaGroup(\'' + key + '\')" title="点击展开/收起">' +
+        '<span class="chev">' + (open ? '▾' : '▸') + '</span>' + label +
+        '<span class="cnt">' + gs.length + ' 个学生</span></div>' +
+        (open ? gs.map(renderStuCard).join('') : '');
+    };
     let html = '';
     tas.forEach(u=>{
       const gs = detail.filter(g=>g.ownerId===u.id);
       if(!gs.length) return;
-      html += '<div class="ta-group-head">' + esc(u.name) + (u.disabled?'（已停用）':'') +
-        '<span class="cnt">' + gs.length + ' 个学生</span></div>' + gs.map(renderStuCard).join('');
+      html += renderGroup(u.id, esc(u.name) + (u.disabled?'（已停用）':''), gs);
     });
     const others = detail.filter(g=>!tas.some(u=>u.id===g.ownerId));
-    if(others.length){
-      html += '<div class="ta-group-head">其他（教务直接录入）<span class="cnt">' + others.length + ' 个学生</span></div>' +
-        others.map(renderStuCard).join('');
-    }
+    if(others.length) html += renderGroup('__other__', '其他（教务直接录入）', others);
     list.innerHTML = html;
   } else {
     list.innerHTML = detail.map(renderStuCard).join('');
   }
+}
+/* 销售视角只读学生卡：姓名/学校/届/归属助教/科目徽章/作业与未交次数/最近趋势；无任何操作入口（无 onclick） */
+function salesStuCard(g, isAlumni){
+  const recs = state.records.filter(r=>g.ids.includes(r.studentId)).sort((a,b)=>a.date<b.date?-1:1);
+  const misses = state.missed.filter(m=>g.ids.includes(m.studentId));
+  let trend = '<span class="hint">暂无记录</span>';
+  if(recs.length){
+    const last = recs.slice(-8);
+    const pts = last.map((r,i)=>{
+      const x = 6 + i*(108/Math.max(1,last.length-1 || 1));
+      const y = 34 - acc(r)*0.28;
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    trend = '<svg width="120" height="40" viewBox="0 0 120 40"><polyline points="' + pts + '" fill="none" stroke="#5FB89A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+  const subMap = {};
+  recs.forEach(r=>{ const k = r.subject || '未指定'; (subMap[k]=subMap[k]||[]).push(r); });
+  const subKeys = Object.keys(subMap);
+  const subHtml = subKeys.length ? '<div class="sub-acc">' + subKeys.map(k=>{
+    const arr = subMap[k];
+    const sa = Math.round(arr.reduce((x,r)=>x+acc(r),0)/arr.length);
+    return '<span class="sub-chip" style="cursor:default">' +
+      '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
+      '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>' +
+      '<span class="sub-cnt">' + arr.length + ' 次</span></span>';
+  }).join('') + '</div>' : '';
+  return '<div class="stu-card">' +
+    '<div class="stu-head"><div class="avatar">' + esc(g.name.slice(0,1)) + '</div>' +
+    '<div class="grow"><b>' + esc(g.name) + '</b>' +
+    (g.school ? ' <span style="font-weight:400;font-size:12px;color:var(--ink2)">' + esc(g.school) + '</span>' : '') +
+    (g.gradYear ? ' <span class="tag mint">' + g.gradYear + ' 届</span>' : '') +
+    (g.sample ? ' <span class="tag sample">示例</span>' : '') +
+    ' <span class="tag amber">归属：' + esc(ownerName(g.ownerId)) + '</span></div>' +
+    trend + '</div>' +
+    '<div class="stu-nums"><span>' + (isAlumni ? '历史作业' : '作业次数') + ' <b>' + recs.length + '</b></span>' +
+    '<span>未交次数 <b style="color:var(--red)">' + misses.length + '</b></span>' +
+    (recs.length ? '<span>最近正确率 <b>' + acc(recs[recs.length-1]) + '%</b></span>' : '') +
+    '</div>' +
+    subHtml +
+    '</div>';
 }
 /* ================= 卡内科目 Tab 快速录入 ================= */
 let quickEntry = null;  // {gid: 学生代表id, subject: 科目路径}
@@ -1771,6 +1888,7 @@ function qePanelHtml(){
   const st = state.students.find(x=>x.id===quickEntry.gid);
   const isArchived = !!(st && st.archived);  // 历史学生：只读查看
   const savedComment = (st && st.subjComments && st.subjComments[quickEntry.subject]) ? st.subjComments[quickEntry.subject] : '';
+  const savedAdvice = (st && st.subjAdvice && st.subjAdvice[quickEntry.subject]) ? st.subjAdvice[quickEntry.subject] : '';
   // 模考数据：{date:'YYYY-MM-DD', score:数字}，按 学生×科目 存储
   const mock = (st && st.mock && st.mock[quickEntry.subject]) || {};
   const mockDate = mock.date || '';
@@ -1805,16 +1923,20 @@ function qePanelHtml(){
     '<div class="plan-row">' +
     (isArchived
       ? '<span style="font-size:14px;font-weight:600">应完成作业次数</span><span class="plan-hint">' + (plan ? '已定 ' + plan + ' 次，已完成 ' + countSubjectRecs(quickEntry.gid, quickEntry.subject) + ' 次' : '未设置计划') + '</span>'
-      : '<span style="font-size:14px;font-weight:600">应完成作业次数</span>' +
-        '<input id="qe-plan" type="number" min="0" inputmode="numeric" placeholder="如 10" value="' + esc(plan) + '">' +
-        '<button class="btn mint sm" onclick="savePlanCount()">保存</button>' +
-        (plan ? '<span class="plan-hint">已定 ' + plan + ' 次，点击格子录入或查看当次作业</span>' : '<span class="plan-hint">填写次数并保存后，自动生成打卡格子</span>') +
-        (pendReq
-          ? ' <span class="tag amber">修改审核中（' + pendReq.oldPlan + ' → ' + pendReq.newPlan + '）</span>' +
-            '<button class="btn ghost sm" onclick="cancelPlanRequest(\'' + pendReq.id + '\')">撤回申请</button>'
-          : (!isAdminView() && lastReq && lastReq.status==='rejected'
-              ? ' <span class="tag red">上次修改申请已被驳回</span>'
-              : ''))) +
+      : isAdminView()
+        // 教务视角只读：计划变更只走审批流，教务不在打卡面板直改
+        ? '<span style="font-size:14px;font-weight:600">应完成作业次数</span><span class="plan-hint">' + (plan ? '已定 ' + plan + ' 次，已完成 ' + countSubjectRecs(quickEntry.gid, quickEntry.subject) + ' 次' : '未设置计划') + '</span>' +
+          (pendReq ? ' <span class="tag amber">有修改申请待审批（' + pendReq.oldPlan + ' → ' + pendReq.newPlan + '）</span>' : '')
+        : '<span style="font-size:14px;font-weight:600">应完成作业次数</span>' +
+          '<input id="qe-plan" type="number" min="0" inputmode="numeric" placeholder="如 10" value="' + esc(plan) + '">' +
+          '<button class="btn mint sm" onclick="savePlanCount()">' + (plan ? '修改' : '保存') + '</button>' +
+          (plan ? '<span class="plan-hint">已定 ' + plan + ' 次，点击格子录入或查看当次作业</span>' : '<span class="plan-hint">填写次数并保存后，自动生成打卡格子</span>') +
+          (pendReq
+            ? ' <span class="tag amber">已发送教管审批（' + pendReq.oldPlan + ' → ' + pendReq.newPlan + '）</span>' +
+              '<button class="btn ghost sm" onclick="cancelPlanRequest(\'' + pendReq.id + '\')">撤回申请</button>'
+            : (lastReq && lastReq.status==='rejected'
+                ? ' <span class="tag red">上次修改申请已被驳回</span>'
+                : ''))) +
     '</div>' +
     '<div class="ci-title">打卡情况' + (plan ? '（应完成 ' + plan + ' 次，已完成 ' + countSubjectRecs(quickEntry.gid, quickEntry.subject) + ' 次）' : '') + '</div>' +
     '<div class="ci-grid">' + checkinGridHtml() + '</div>' +
@@ -1836,6 +1958,16 @@ function qePanelHtml(){
         '<div class="mock-row" style="margin-top:8px">' + (mockScore!=='' ? '结课模考分数：<b>' + esc(mockScore) + '</b> 分' : '<span class="hint">未录入模考分数</span>') + '</div>'
       : '<div class="mock-row">' + mockBookHtml + '</div>' +
         '<div class="mock-row" style="margin-top:8px">' + mockScoreHtml + '</div>') +
+    '</div>' +
+    '<div class="qe-comment">' +
+    '<div class="qe-title">学习计划与建议（' + esc(shortSubject(quickEntry.subject)) + '）</div>' +
+    (isArchived
+      ? '<div style="font-size:13px;color:var(--ink2);background:var(--cream2);border-radius:8px;padding:8px 10px;white-space:pre-wrap">' + (savedAdvice ? esc(savedAdvice) : '<span class="hint">暂无</span>') + '</div>'
+      : '<textarea id="qe-advice" rows="3" placeholder="写给这位学生的学习计划与建议，会随「生成报告」一起输出…">' + esc(savedAdvice) + '</textarea>' +
+        '<div class="qe-comment-actions">' +
+        '<button class="btn mint sm" onclick="saveSubjectAdvice()">保存计划与建议</button>' +
+        '<span class="qe-saved-tip" id="qe-advice-tip" style="display:none">✓ 已保存</span>' +
+        '</div>') +
     '</div>' +
     '</div>';
 }
@@ -1887,6 +2019,8 @@ function savePlanCount(){
   const applyPlan = ()=>{
     st.subjPlans = st.subjPlans || {};
     st.subjPlans[subject] = v;
+    st.subjPlanSetAt = st.subjPlanSetAt || {};
+    st.subjPlanSetAt[subject] = todayStr();  // 记录设定日期，供「计划停滞提醒」使用
     save();
     renderAll();
   };
@@ -2203,6 +2337,7 @@ function reportHtml(st, subject){
   }
   if(!rows) rows = '<tr><td colspan="4" style="padding:10px;border:1px solid #DDE3E0;font-size:13px;color:#9CA3AF">暂无作业记录</td></tr>';
   const comment = (st.subjComments && st.subjComments[subject]) ? st.subjComments[subject] : '';
+  const advice = (st.subjAdvice && st.subjAdvice[subject]) ? st.subjAdvice[subject] : '';
   const mock = (st.mock && st.mock[subject]) || {};
   const mockDate = mock.date || '';
   const mockScore = (mock.score!==undefined && mock.score!==null && mock.score!=='') ? mock.score : '';
@@ -2244,7 +2379,11 @@ function reportHtml(st, subject){
       '<tr><td style="padding:7px 10px;border:1px solid #DDE3E0;font-size:13px;color:#374151;background:#F8FAF9">结课模考分数</td>' +
       '<td style="padding:7px 10px;border:1px solid #DDE3E0;font-size:13px;color:#374151">' + (mockScore!=='' ? esc(mockScore) + ' 分' : '未录入') + '</td></tr>' +
     '</table>' +
-    '<div style="margin-top:26px;text-align:right;font-size:11px;color:#9CA3AF">本报告由「学生作业正确率工作台」自动生成</div>' +
+    '<div style="font-size:15px;font-weight:700;color:#0F8F68;margin-bottom:8px">四、学习计划与建议</div>' +
+    (advice
+      ? '<div style="background:#F8FAF9;border-left:4px solid #2FBF8F;padding:12px 14px;font-size:13px;color:#374151;line-height:1.7;white-space:pre-wrap;margin-bottom:20px">' + esc(advice) + '</div>'
+      : '<div style="padding:12px 14px;font-size:13px;color:#9CA3AF;background:#F8FAF9;margin-bottom:20px">暂无</div>') +
+    '<div style="margin-top:26px;text-align:right;font-size:11px;color:#9CA3AF">本报告由「学情跟踪平台」自动生成</div>' +
     '</div>';
 }
 async function genReport(){
@@ -2303,6 +2442,20 @@ function saveSubjectComment(){
     save();
   }
   const tip = document.getElementById('qe-comment-tip');
+  if(tip){ tip.style.display='inline'; setTimeout(()=>{ if(tip) tip.style.display='none'; }, 2500); }
+}
+/* 保存学习计划与建议（按 学生×科目 存储，随「生成报告」输出为第四节） */
+function saveSubjectAdvice(){
+  if(!quickEntry) return;
+  const ta = document.getElementById('qe-advice');
+  const text = ta ? ta.value : '';
+  const st = state.students.find(x=>x.id===quickEntry.gid);
+  if(st){
+    st.subjAdvice = st.subjAdvice || {};
+    st.subjAdvice[quickEntry.subject] = text.trim();
+    save();
+  }
+  const tip = document.getElementById('qe-advice-tip');
   if(tip){ tip.style.display='inline'; setTimeout(()=>{ if(tip) tip.style.display='none'; }, 2500); }
 }
 
@@ -2598,6 +2751,7 @@ document.getElementById('ns-ok').addEventListener('click', ()=>{
     if(clash){ alert('已有另一位同名学生「' + name + '」，不能改成相同姓名。'); return; }
     pool.students.forEach(s=>{ if(editStuIds.includes(s.id)){ s.name = name; s.school = school; s.gradYear = gradYear; } });
   } else {
+    if(!canWriteOwner(writeOwnerId())){ alert('没有权限操作该数据'); return; }  // 销售等只读角色不可新增
     if(activeStudents().some(s=>s.name.trim()===name)){ alert('「' + name + '」已在现有学生中，同名不能重复录入。'); return; }
     pool.students.push({id:uid(), name, school, gradYear, ownerId:writeOwnerId()});
   }
@@ -2623,6 +2777,11 @@ function restoreGroup(ids){
 }
 
 /* 历史学生列表（完整明细同步：科目正确率、评语、模考、打卡计划、未交记录；只读查看） */
+let alumniQuery = '';  // 历史学生搜索词（姓名/学校部分匹配）
+document.getElementById('alumni-search').addEventListener('input', function(){
+  alumniQuery = this.value.trim();
+  renderAlumni();
+});
 function renderAlumni(){
   const list = document.getElementById('alumni-list');
   const groups = [];
@@ -2635,11 +2794,25 @@ function renderAlumni(){
     if(s.school) g.school = s.school;
     if(s.gradYear) g.gradYear = s.gradYear;
   });
+  // 姓名/学校搜索过滤
+  const filtered = alumniQuery ? groups.filter(g=>g.name.indexOf(alumniQuery)!==-1 || (g.school||'').indexOf(alumniQuery)!==-1) : groups;
+  // 销售视角：无关键字不渲染任何学生卡
+  if(isSalesView()){
+    if(!alumniQuery){ list.innerHTML = '<p class="hint">输入学生姓名或学校进行查询</p>'; return; }
+    list.innerHTML = filtered.length
+      ? filtered.map(g=>salesStuCard(g, true)).join('')
+      : '<p class="hint">没有匹配「' + esc(alumniQuery) + '」的历史学生。</p>';
+    return;
+  }
   if(!groups.length){
     list.innerHTML = '<p class="hint">暂无历史学生。学生毕业或结课后，可在「现有学生」明细卡中转为历史学生。</p>';
     return;
   }
-  list.innerHTML = groups.map(g=>{
+  if(!filtered.length){
+    list.innerHTML = '<p class="hint">没有匹配「' + esc(alumniQuery) + '」的历史学生。</p>';
+    return;
+  }
+  list.innerHTML = filtered.map(g=>{
     const recs = state.records.filter(r=>g.ids.includes(r.studentId)).sort((a,b)=>a.date<b.date?-1:1);
     const misses = state.missed.filter(m=>g.ids.includes(m.studentId));
     const openMiss = misses.filter(m=>!m.resolved);
@@ -2742,8 +2915,8 @@ document.getElementById('f-import').addEventListener('change', function(e){
         pool.students = pool.students.filter(s=>!ownerInView(s.ownerId));
         pool.records = pool.records.filter(r=>!ownerInView(r.ownerId));
         pool.missed = pool.missed.filter(m=>!ownerInView(m.ownerId));
-        // 助教（或教务在指定助教视角）导入：ownerId 强制覆盖为当前归属；教务全部视角：保留文件内 ownerId
-        const targetOwner = (currentUser.role==='ta' || scope!=='all') ? writeOwnerId() : null;
+        // 助教导入：ownerId 强制覆盖为本人；教务导入：保留文件内 ownerId（无归属的记到教务名下）
+        const targetOwner = currentUser.role==='ta' ? writeOwnerId() : null;
         ['students','records','missed'].forEach(k=>{
           data[k].forEach(it=>{ it.ownerId = targetOwner || it.ownerId || currentUser.id; pool[k].push(it); });
         });
@@ -2764,6 +2937,7 @@ function clearSamplesOfView(){
   pool.students = pool.students.filter(s=>!(ownerInView(s.ownerId) && s.sample));
 }
 function clearSamples(){
+  if(!isAdminView()){ alert('仅教务可清理数据'); return; }
   askConfirm('清空示例数据', '将删除当前数据范围内所有标记为「示例」的学生、作业记录和未交记录，你自己录入的数据不受影响。确定吗？', ()=>{
     clearSamplesOfView();
     save(); renderAll();
@@ -2776,7 +2950,7 @@ function doLoadSampleData(){
   try{ localStorage.setItem('wb_ha_v2_backup', JSON.stringify(pool)); }catch(e){}
   clearSamplesOfView();
   let owners;
-  if(isAdminView() && scope==='all'){
+  if(isAdminView()){
     owners = Api.listUsers().filter(u=>u.role==='ta' && !u.disabled).map(u=>u.id);
     if(!owners.length) owners = [writeOwnerId()];
   } else {
@@ -2786,7 +2960,8 @@ function doLoadSampleData(){
   save(); renderAll();
 }
 function loadSampleData(){
-  const adminAll = isAdminView() && scope==='all';
+  if(!isAdminView()){ alert('仅教务可清理数据'); return; }
+  const adminAll = isAdminView();  // 教务恒为全部数据视角
   askConfirm('重新载入示例数据',
     adminAll
       ? '将为每位助教各生成一套示例数据（含作业记录、审批申请、历史学生），你自己录入的数据不受影响。确定继续吗？'
@@ -2798,6 +2973,7 @@ function loadSampleData(){
 }
 document.getElementById('btn-load-sample').addEventListener('click', loadSampleData);
 document.getElementById('btn-clear-all').addEventListener('click', ()=>{
+  if(!isAdminView()){ alert('仅教务可清理数据'); return; }
   askConfirm('清空全部数据', '将删除当前数据范围内的所有学生、作业记录和未交记录（含你自己录入的数据），此操作不可恢复！建议先导出备份。确定继续吗？', ()=>{
     pool.students = pool.students.filter(s=>!ownerInView(s.ownerId));
     pool.records = pool.records.filter(r=>!ownerInView(r.ownerId));
@@ -2814,39 +2990,36 @@ function showLogin(){
 function enterApp(){
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
-  scope = 'all';
   document.getElementById('user-name').textContent = currentUser.name;
   const rb = document.getElementById('user-role');
-  rb.textContent = currentUser.role==='admin' ? '教务' : '助教';
+  rb.textContent = currentUser.role==='admin' ? '教务' : (currentUser.role==='sales' ? '销售' : '助教');
   rb.classList.toggle('admin', currentUser.role==='admin');
-  // 「账号管理」「数据看板」页签与数据范围切换器仅教务可见；教务端底部 Tab 用看板替换低频的「数据管理」
-  const isAdmin = isAdminView();
-  ['nav-accounts','tab-accounts','nav-dashboard','tab-dashboard'].forEach(id=>{ document.getElementById(id).style.display = isAdmin ? '' : 'none'; });
-  document.getElementById('tab-data').style.display = isAdmin ? 'none' : '';
-  document.getElementById('scope-wrap').style.display = isAdmin ? '' : 'none';
-  if(isAdmin) renderScopeOptions();
-  updateScopeHint();
+  // 页签显隐：教务=全部（底部 Tab 用看板替换低频的「数据管理」）；助教=今日/现有/历史/数据；销售=仅现有/历史
+  const role = currentUser.role;
+  const navVis = role==='admin' ? ['today','dashboard','stats','alumni','accounts','data']
+    : role==='sales' ? ['stats','alumni']
+    : ['today','stats','alumni','data'];
+  const tabVis = role==='admin' ? ['today','dashboard','stats','alumni','accounts']
+    : role==='sales' ? ['stats','alumni']
+    : ['today','stats','alumni','data'];
+  ['today','dashboard','stats','alumni','accounts','data'].forEach(t=>{
+    document.getElementById('nav-' + t).style.display = navVis.indexOf(t)>=0 ? '' : 'none';
+    document.getElementById('tab-' + t).style.display = tabVis.indexOf(t)>=0 ? '' : 'none';
+  });
+  // 「数据管理」页的清理数据区块仅教务可见（助教只保留导出/导入；销售无此页签）
+  document.getElementById('data-clean-zone').style.display = role==='admin' ? '' : 'none';
+  // 销售端搜索框提示语 + 隐藏图表卡与新增学生入口（只读查询）
+  document.getElementById('stats-chart-card').style.display = role==='sales' ? 'none' : '';
+  document.getElementById('btn-open-add-stu').style.display = role==='sales' ? 'none' : '';
+  if(role==='sales'){
+    document.getElementById('stu-search').placeholder = '输入学生姓名或学校进行查询';
+  } else {
+    document.getElementById('stu-search').placeholder = '按学生姓名搜索，支持部分匹配，如：林';
+  }
+  stuQuery = ''; alumniQuery = '';
   refreshView();
   renderAll();
-  switchTab('today');
-}
-function renderScopeOptions(){
-  const sel = document.getElementById('scope-select');
-  const tas = Api.listUsers().filter(u=>u.role==='ta');
-  sel.innerHTML = '<option value="all">全部数据</option>' +
-    tas.map(u=>'<option value="' + u.id + '"' + (u.disabled?' disabled':'') + '>' + esc(u.name) + (u.disabled?'（已停用）':'') + '</option>').join('');
-  sel.value = scope;
-}
-/* 教务录入身份提示：指定助教视角下新数据归属该助教 */
-function updateScopeHint(){
-  const el = document.getElementById('scope-hint');
-  if(!el) return;
-  if(!isAdminView()){ el.textContent = ''; return; }
-  if(scope==='all'){
-    el.textContent = '当前为全部数据视角，新录入数据归属教务';
-  } else {
-    el.textContent = '当前以「' + ownerName(scope) + '」身份查看，新录入数据归属该助教';
-  }
+  switchTab(role==='sales' ? 'stats' : 'today');
 }
 /* 登录界面角色选择：助教 / 教务（默认助教） */
 let loginRole = 'ta';
@@ -2879,12 +3052,6 @@ document.getElementById('btn-login').addEventListener('click', ()=>doLogin());
 document.getElementById('login-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
 document.getElementById('login-user').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
 document.getElementById('btn-logout').addEventListener('click', doLogout);
-document.getElementById('scope-select').addEventListener('change', function(){
-  scope = this.value;
-  updateScopeHint();
-  refreshView();
-  renderAll();
-});
 
 /* ================= 修改密码（验旧密；mustChangePwd 时强制，不可取消） ================= */
 let pwdForced = false;
@@ -2917,7 +3084,6 @@ document.getElementById('pwd-ok').addEventListener('click', ()=>doChangePwd());
 
 /* ================= 教务：账号管理 ================= */
 function renderAccounts(){
-  renderPlanRequests();
   const el = document.getElementById('accounts-list');
   if(!el) return;
   const users = Api.listUsers();
@@ -2926,12 +3092,12 @@ function renderAccounts(){
     const isSelf = currentUser && u.id===currentUser.id;
     return '<div class="acct-row">' +
       '<div class="grow"><b>' + esc(u.name) + '</b> ' +
-      '<span class="tag ' + (u.role==='admin'?'amber':'mint') + '">' + (u.role==='admin'?'教务':'助教') + '</span>' +
+      '<span class="tag ' + (u.role==='admin'?'amber':'mint') + '">' + (u.role==='admin'?'教务':(u.role==='sales'?'销售':'助教')) + '</span>' +
       (u.disabled ? ' <span class="tag red">已停用</span>' : '') +
       (u.mustChangePwd ? ' <span class="tag sample">待改密</span>' : '') +
       (isSelf ? ' <span class="tag sample">当前登录</span>' : '') +
       '<div class="hint" style="margin-top:2px">账号 ' + esc(u.username) + ' · 学生 ' + stuCnt + ' 人 · 创建于 ' + esc(u.createdAt||'-') + '</div></div>' +
-      (u.role==='ta'
+      (u.role==='ta' || u.role==='sales'
         ? '<button class="btn ghost sm" onclick="resetUserPwd(\'' + u.id + '\')">重置密码</button>' +
           '<button class="btn ' + (u.disabled?'mint':'danger') + ' sm" onclick="toggleUser(\'' + u.id + '\')">' + (u.disabled?'启用':'停用') + '</button>'
         : '') +
@@ -2982,10 +3148,10 @@ function reviewPlanRequest(id, approve){
     });
   }
 }
-/* 侧栏/底部 Tab「账号管理」待审批红点徽章（仅教务可见，0 不显示） */
+/* 侧栏/底部 Tab「今日概览」待审批红点徽章（仅教务可见，0 不显示） */
 function renderPendingBadges(){
   const n = (isAdminView() && pool.planRequests) ? pool.planRequests.filter(r=>r.status==='pending').length : 0;
-  ['badge-accounts','badge-accounts-tab'].forEach(id=>{
+  ['badge-today','badge-today-tab'].forEach(id=>{
     const el = document.getElementById(id);
     el.style.display = n > 0 ? '' : 'none';
     el.textContent = String(n);
@@ -3009,20 +3175,21 @@ function toggleUser(id){
     ()=>{
       const res = Api.toggleUser(id);
       if(!res.ok){ alert(res.msg); return; }
-      renderScopeOptions(); updateScopeHint(); renderAll();
+      renderAll();
     });
 }
 document.getElementById('btn-create-ta').addEventListener('click', async ()=>{
   const name = document.getElementById('ac-name').value.trim();
   const username = document.getElementById('ac-username').value.trim();
   const pwd = document.getElementById('ac-password').value;
-  const res = await Api.createUser(name, username, pwd, 'ta');
+  const role = document.getElementById('ac-role').value;
+  const res = await Api.createUser(name, username, pwd, role);
   if(!res.ok){ alert(res.msg); return; }
   document.getElementById('ac-name').value = '';
   document.getElementById('ac-username').value = '';
   document.getElementById('ac-password').value = '';
-  renderScopeOptions(); renderAll();
-  alert('已创建助教账号「' + name + '」，首次登录需修改初始密码。');
+  renderAll();
+  alert('已创建' + (role==='sales' ? '销售' : '助教') + '账号「' + name + '」，首次登录需修改初始密码。');
 });
 
 /* ================= 教务：转移学生归属 ================= */
@@ -3134,13 +3301,13 @@ function computeDash(){
     };
   }).sort((a,b)=>b.days-a.days);
 
-  // 预警三：沉睡学生（≥14 天无任何作业记录的现有学生，当前状态指标）
+  // 预警三：沉睡学生（≥7 天无任何作业记录的现有学生，当前状态指标）
   const sleepers = students.filter(s=>!s.archived).map(s=>{
     const rs = pool.records.filter(r=>r.studentId===s.id);
     const last = rs.length ? rs.reduce((a,b)=>a.date>b.date?a:b).date : null;
     return { name: s.name, ownerId: s.ownerId, last: last,
       days: last ? Math.round((new Date(t) - new Date(last)) / 86400000) : null };
-  }).filter(x=>x.days===null || x.days>=14)
+  }).filter(x=>x.days===null || x.days>=7)
     .sort((a,b)=>(b.days===null?999999:b.days)-(a.days===null?999999:a.days));
 
   return { recCnt: recs.length, avgAcc: avgAcc,
@@ -3225,24 +3392,37 @@ function renderDashboard(){
       '</div>';
   }).join('');
 
-  // 5. 预警名单（低分/沉睡跳「现有学生」并填搜索框；逾期跳「今日概览」）
-  document.getElementById('dash-alert-low').innerHTML = d.lowStus.length ? d.lowStus.map(g=>
+  // 5. 预警名单（低分/沉睡跳「现有学生」并填搜索框；逾期跳「今日概览」）；各默认显示前 5 条，超出折叠
+  const renderAlertList = (items, key, emptyText, renderItem)=>{
+    if(!items.length) return '<p class="hint">' + emptyText + '</p>';
+    const expanded = !!dashAlertExpand[key];
+    let h = (expanded ? items : items.slice(0,5)).map(renderItem).join('');
+    if(items.length > 5){
+      h += '<button class="btn ghost sm" style="width:100%" onclick="dashToggleAlert(\'' + key + '\')">' +
+        (expanded ? '收起' : '展开全部 ' + items.length + ' 条') + '</button>';
+    }
+    return h;
+  };
+  document.getElementById('dash-alert-low').innerHTML = renderAlertList(d.lowStus, 'low', '范围内没有低分学生。', g=>
     '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(g.name) + '\')">' +
     '<b>' + esc(g.name) + '</b> <span class="tag red">' + g.avg + '%</span>' +
     '<div class="meta">归属 ' + esc(ownerName(g.ownerId)) +
     (g.lowSubs.length ? ' · 低分科目：' + g.lowSubs.map(s=>esc(s.name) + ' ' + s.avg + '%').join('、') : '') + '</div>' +
-    '</button>').join('') : '<p class="hint">范围内没有低分学生。</p>';
-  document.getElementById('dash-alert-miss').innerHTML = d.overdueList.length ? d.overdueList.map(x=>
+    '</button>');
+  document.getElementById('dash-alert-miss').innerHTML = renderAlertList(d.overdueList, 'miss', '没有逾期未交的作业。', x=>
     '<button class="dash-alert-item" onclick="switchTab(\'today\')">' +
     '<b>' + esc(x.name) + '</b> <span class="tag red">逾期 ' + x.days + ' 天</span>' +
     '<div class="meta">归属 ' + esc(ownerName(x.ownerId)) + (x.subject ? ' · ' + esc(shortSubject(x.subject)) : '') + ' · ' + x.date + '</div>' +
-    '</button>').join('') : '<p class="hint">没有逾期未交的作业。</p>';
-  document.getElementById('dash-alert-sleep').innerHTML = d.sleepers.length ? d.sleepers.map(x=>
+    '</button>');
+  document.getElementById('dash-alert-sleep').innerHTML = renderAlertList(d.sleepers, 'sleep', '没有沉睡学生。', x=>
     '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(x.name) + '\')">' +
     '<b>' + esc(x.name) + '</b> <span class="tag amber">' + (x.days===null ? '从未有记录' : x.days + ' 天无记录') + '</span>' +
     '<div class="meta">归属 ' + esc(ownerName(x.ownerId)) + '</div>' +
-    '</button>').join('') : '<p class="hint">没有沉睡学生。</p>';
+    '</button>');
 }
+/* 预警名单折叠/展开（默认前 5 条） */
+let dashAlertExpand = { low: false, miss: false, sleep: false };
+function dashToggleAlert(key){ dashAlertExpand[key] = !dashAlertExpand[key]; renderDashboard(); }
 /* 预警跳转：跳到「现有学生」并把姓名填入搜索框（复用现有搜索机制定位学生卡） */
 function dashGotoStudent(name){
   stuQuery = name;
@@ -3271,9 +3451,11 @@ function renderAll(){
   renderToday();
   renderStats();
   renderAlumni();
-  if(isAdminView()) renderAccounts();
+  // 计划修改审批区挂在「今日概览-今天要处理」卡片顶部，仅教务可见
+  document.getElementById('planreq-zone').style.display = isAdminView() ? '' : 'none';
+  if(isAdminView()){ renderAccounts(); renderPlanRequests(); }
   renderDashboard();  // 内部含教务守卫，助教端自动清空看板内容
-  renderPendingBadges();  // 账号管理待审批红点（仅教务显示）
+  renderPendingBadges();  // 待审批红点（仅教务显示）
 }
 document.getElementById('today-str').textContent =
   todayStr() + ' · ' + ['周日','周一','周二','周三','周四','周五','周六'][new Date().getDay()];
@@ -3297,18 +3479,21 @@ window.__wb = {
   doLogin, doChangePwd, doLogout, enterApp, showLogin,
   saveQuickEntry, saveSlot, removeMissed, markMissedToday, buildExport,
   viewState, refreshView, canWriteOwner, writeOwnerId,
-  renderDashboard, computeDash, dashDrillTa, dashGotoStudent,
+  renderDashboard, computeDash, dashDrillTa, dashGotoStudent, dashToggleAlert,
   savePlanCount, submitPlanRequest, cancelPlanRequest, reviewPlanRequest, renderPlanRequests, renderPendingBadges,
-  setStuTaFilter, renderStats, renderAlumni, clearSamplesOfView, doLoadSampleData,
+  setStuTaFilter, toggleTaGroup, renderStats, renderAlumni, clearSamplesOfView,
+  qePanelHtml, reportHtml, renderToday, saveSubjectAdvice, gotoPlanEntry, doLoadSampleData,
+  switchTab,
   get stuTaFilter(){ return stuTaFilter; },
   get stuQuery(){ return stuQuery; },
   setStuQuery(v){ stuQuery = v; renderStats(); },
+  get alumniQuery(){ return alumniQuery; },
+  setAlumniQuery(v){ alumniQuery = v; renderAlumni(); },
   get currentUser(){ return currentUser; },
   get pool(){ return pool; },
   get state(){ return state; },
   get dashRange(){ return dashRange; },
   get dashOwner(){ return dashOwner; },
-  setScope(s){ scope = s; refreshView(); },
   setDashRange(v){ dashRange = v; renderDashboard(); },
   setDashOwner(v){ dashOwner = v; renderDashboard(); },
   setQuickEntry(v){ quickEntry = v; },
