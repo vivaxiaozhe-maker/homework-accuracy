@@ -1,9 +1,10 @@
 # 学情跟踪平台 — 后端开发与上线部署分步计划
 
-> 版本：v1.2（2026-08-27）
-> 前提已确认：无现成服务器（新购**阿里云**轻量应用服务器）、域名 **rocketacademy.cc**（阿里云注册，未备案，走新增 ICP 备案——.cc 后缀已于 2020 年通过工信部审批，可正常备案）。
+> 版本：v1.3（2026-08-28）
+> 前提已确认：无现成服务器（新购**阿里云**轻量应用服务器）；域名 **rocketacademy.cc**（阿里云注册，未备案，走新增 ICP 备案，**主体为企业**——需营业执照、法人/网站负责人身份证与人脸识别）；.cc 后缀已于 2020 年通过工信部审批，可正常备案。
 > 规模：使用账号（助教+教务+销售）合计 **≤20 人**；学生 **1200–1500 人/年**。
 > 原则：前后端 Api 层已有约定（见 `学生作业正确率.html` 文件头注释），后端按约定实现；前端改动最小化（LocalApi → HttpApi 平替）。
+> v1.3 修订：前端已上线「操作记录」审计日志、销售只读详情、未交软删除留痕、计划次数审批等新功能，后端范围相应扩大（见 M1.2 / M3.3 / M3.5 / M3.6 / M5）。
 
 ## 规模测算（v1.1 更新）
 
@@ -28,20 +29,20 @@
 ## 轨 A：采购与备案（第 1 天启动，等待期不占开发）
 
 - [ ] A1. 购买**阿里云轻量应用服务器**：2核2G、50GB SSD、4M 带宽，系统选 Ubuntu 22.04 LTS。**时长必须包年包月 ≥3 个月（建议直接 1 年）**——阿里云要求账号下有符合条件的云产品才发放备案服务号（SN 码），按量付费不产生服务号（新客首年活动价常 100–300 元，续费约 600–1000 元/年）；与域名同账号，后续备案/解析/证书一站完成
-- [ ] A2. 服务器购买后备案服务号自动发放，rocketacademy.cc 走阿里云**新增 ICP 备案**（App 或备案系统提交：主体证件、负责人人脸识别、网站信息填「学情跟踪平台」）；域名实名信息与备案主体保持一致，提交前确认实名认证已入库工信部（实名变更后需等 2–3 天）。管局审核约 1–2 周。**微信内打开链接要求域名已备案，此为硬前提**
+- [ ] A2. 服务器购买后备案服务号自动发放，rocketacademy.cc 走阿里云**新增 ICP 备案（企业主体）**：准备营业执照、法人身份证、网站负责人身份证与人脸识别（阿里云 App 内完成），网站名称填「学情跟踪平台」；域名实名信息（企业）与备案主体保持一致，提交前确认实名认证已入库工信部（实名变更后需等 2–3 天）。管局审核约 1–2 周。**微信内打开链接要求域名已备案，此为硬前提**
 - [ ] A3. 备案通过后：域名 A 记录解析到服务器 IP；申请免费 HTTPS 证书（阿里云免费 SSL 或 certbot/Let's Encrypt）
 
 ## 轨 B：开发与部署
 
 ### M1 项目骨架与数据库（约 1 天）
 - [ ] M1.1 初始化 `server/`：`package.json`（dependencies: express、better-sqlite3、bcryptjs、helmet、express-rate-limit、multer）
-- [ ] M1.2 `db.js`：建表 users / students / records / missed / plan_requests / files / sessions（token 表）；索引：owner_id、student_id、date
+- [ ] M1.2 `db.js`：建表 users / students / records / missed（含 resolved、resolution、resolved_at 软删除留痕字段）/ plan_requests / files / sessions（token 表）/ **audit_logs**（审计日志：ts 精确到秒、user_id、role、action、target_type、target_desc、detail、owner_id）；索引：owner_id、student_id、date、audit_logs(ts)
 - [ ] M1.3 首次启动初始化：创建教务管理员账号（从环境变量读初始密码）
 - [ ] 验收：`node server/index.js` 启动，SQLite 文件生成，表结构齐全
 
 ### M2 认证与账号 API（约 1–2 天）
 - [ ] M2.1 `POST /api/login`（bcrypt 校验、签发 token 写 sessions 表、登录限流 10 次/分钟/IP）、`POST /api/logout`、`POST /api/password`（验旧改新、清 must_change_pwd）
-- [ ] M2.2 auth 中间件：校验 token → 挂载 req.user；角色中间件 requireAdmin / requireTA
+- [ ] M2.2 auth 中间件：校验 token → 挂载 req.user；角色中间件 requireAdmin / requireTA / requireSales（三角色：admin / ta / sales）
 - [ ] M2.3 账号管理（仅教务）：`GET /api/users`、`POST /api/users`（角色 ta/sales、username 唯一）、`POST /api/users/:id/reset`、`POST /api/users/:id/toggle`（不能停自己/最后一个教务）
 - [ ] 验收：Postman/curl 跑通；错误密码、停用账号、非教务访问 users 接口均返回正确错误码
 
@@ -49,9 +50,10 @@
 > 关键语义变化：mock 期是全量保存，多人环境必须改为**每条增删改一个请求**，服务端强制 owner 过滤。
 - [ ] M3.1 `GET /api/state`：助教只返回自己 owner 的数据；教务返回全量；销售不开放此接口
 - [ ] M3.2 students：新增/修改/归档/恢复/删除、转移归属（`POST /api/students/:id/owner`）
-- [ ] M3.3 records / missed：增删改、标记补交；写操作时服务端校验目标学生归属当前用户（教务除外）
-- [ ] M3.4 plan_requests：`POST /api/plan-requests`（助教，含首次/重复/无变化校验）、`/:id/cancel`（本人）、`/:id/review`（教务，通过时原子更新 subj_plans 与 set_at）
-- [ ] M3.5 销售搜索：`GET /api/search/students?q=`（仅 sales/教务，必须带关键字，返回只读学生摘要，服务端强制，杜绝全量拉取）
+- [ ] M3.3 records / missed：增删改、标记补交；**未交删除为软删除**（置 resolved + resolution='deleted' + resolved_at，不物理删除，支撑「已处理事项」回溯）；写操作时服务端校验目标学生归属当前用户（教务除外）
+- [ ] M3.4 plan_requests：`POST /api/plan-requests`（助教，含首次/重复/无变化校验）、`/:id/cancel`（本人）、`/:id/review`（教务，通过时原子更新 subj_plans 与 subj_plan_set_at）
+- [ ] M3.5 销售搜索与只读详情：`GET /api/search/students?q=`（仅 sales/教务，必须带关键字，返回只读学生摘要，服务端强制，杜绝全量拉取）；`GET /api/search/students/:id`（学生只读详情：科目进度、打卡记录、评语、学习计划与建议、模考——对应前端销售端科目徽章展开的只读面板）
+- [ ] M3.6 **审计日志**：所有写接口在服务端统一打点写 audit_logs（权威记录，不信前端）；`GET /api/audit-logs?q=&type=&range=&page=`（教务全量；助教只返回自己名下数据相关 + 自己的操作；销售拒绝）；操作记录页改为接口驱动（搜索/筛选/分页服务端完成）
 - [ ] 验收：助教 A 的 token 无法读写助教 B 的数据（越权用例全覆盖）；并发两名助教同时录入互不干扰
 
 ### M4 附件上传（约 1 天）
@@ -63,8 +65,9 @@
 - [ ] M5.1 实现 `HttpApi`（fetch + Bearer token），方法与现有 LocalApi 一一对应；登录页移除演示账号提示
 - [ ] M5.2 写操作异步化：录入/删除等加 loading 态与失败重试提示；401 自动跳登录
 - [ ] M5.3 附件：前端由 base64 内嵌改为先传文件再引用（图片压缩逻辑保留在前端）
-- [ ] M5.4 保留 `USE_MOCK` 开关：本地无后端时仍可回退 LocalApi 演示
-- [ ] 验收：现有 `test/smoke.js` 改造为打真实后端（supertest 起内存服务），151 项断言全过
+- [ ] M5.4 操作记录页改走 `GET /api/audit-logs`（搜索/筛选/分页服务端化）；销售端搜索与科目只读详情改走 `/api/search/students` 系列接口
+- [ ] M5.5 保留 `USE_MOCK` 开关：本地无后端时仍可回退 LocalApi 演示
+- [ ] 验收：现有 `test/smoke.js` 改造为打真实后端（supertest 起内存服务），204 项断言全过
 
 ### M6 测试与加固（约 1–2 天）
 - [ ] M6.1 接口级测试：角色矩阵（助教/教务/销售 × 各接口）、越权、停用、审批流全链路
@@ -95,7 +98,7 @@
 ## 成本（年度，v1.1 按 20 用户 / 1500 学生测算）
 | 项 | 配置 | 费用 |
 |---|---|---|
-| 轻量应用服务器 | 2核2G / 50GB SSD / 4M 带宽（腾讯云或阿里云，新客首年常有活动价 100–300 元） | 约 600–1000 元/年 |
+| 轻量应用服务器 | 阿里云 2核2G / 50GB SSD / 4M 带宽（新客首年常有活动价 100–300 元） | 约 600–1000 元/年 |
 | 域名续费 | 已有 | 0（已持有） |
 | 对象存储备份 | 每日备份 SQLite（≈100MB）+ uploads/（首年 ≈10GB），30 天滚动 | 约 30–60 元/年 |
 | HTTPS 证书 | 云厂商免费证书 / Let's Encrypt | 0 |
@@ -107,5 +110,5 @@
 ## 待办决策（开工前）
 1. ~~云厂商二选一~~ → 已定：**阿里云**（域名 rocketacademy.cc 在其名下，同账号最顺）
 2. ~~域名备案状态~~ → 已定：未备案，走**新增 ICP 备案**（.cc 可备案，2020 年起工信部已审批）
-3. 正式教务账号的初始管理员姓名/账号名
-4. 备案主体：个人还是企业（影响备案所需证件；企业主体需营业执照）
+3. ~~备案主体~~ → 已定：**企业主体**（需营业执照、法人/网站负责人身份证与人脸识别）
+4. 正式教务账号的初始管理员姓名/账号名
