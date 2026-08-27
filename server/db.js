@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS students (
   grad_year TEXT,
   archived INTEGER NOT NULL DEFAULT 0,  -- 历史学生
   sample INTEGER NOT NULL DEFAULT 0,
+  subjects TEXT,                        -- JSON：手动添加的学习科目数组
   subj_plans TEXT,                      -- JSON：科目 → 应完成次数
   subj_plan_set_at TEXT,                -- JSON：科目 → 计划设定日期
   subj_comments TEXT,                   -- JSON：科目 → 老师评语
@@ -126,5 +127,11 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_logs(ts);
 CREATE INDEX IF NOT EXISTS idx_audit_owner ON audit_logs(owner_id);
 `);
+
+/* 轻量迁移：M1 老库补 subjects 列（CREATE TABLE 对已有表不生效） */
+const stuCols = db.prepare("PRAGMA table_info(students)").all().map(c => c.name);
+if(!stuCols.includes('subjects')){
+  db.exec('ALTER TABLE students ADD COLUMN subjects TEXT');
+}
 
 module.exports = db;
