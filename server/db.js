@@ -95,7 +95,7 @@ CREATE INDEX IF NOT EXISTS idx_planreq_status ON plan_requests(status);
 
 CREATE TABLE IF NOT EXISTS files (
   id TEXT PRIMARY KEY,
-  record_id TEXT NOT NULL,
+  record_id TEXT,                       -- 可空：上传可能先于记录保存
   filename TEXT NOT NULL,
   mime TEXT NOT NULL,
   size INTEGER NOT NULL,
@@ -132,6 +132,38 @@ CREATE INDEX IF NOT EXISTS idx_audit_owner ON audit_logs(owner_id);
 const stuCols = db.prepare("PRAGMA table_info(students)").all().map(c => c.name);
 if(!stuCols.includes('subjects')){
   db.exec('ALTER TABLE students ADD COLUMN subjects TEXT');
+}
+/* M4 迁移：files 补 owner_id（上传人，鉴权读取用）；records 补 pdfs（与 images 并列的附件 id 数组） */
+const fileCols = db.prepare("PRAGMA table_info(files)").all().map(c => c.name);
+if(!fileCols.includes('owner_id')){
+  db.exec('ALTER TABLE files ADD COLUMN owner_id TEXT');
+}
+/* M4 迁移：M1 老库 files.record_id 为 NOT NULL，需重建表改为可空（上传先于记录保存） */
+const filesRecCol = db.prepare("PRAGMA table_info(files)").all().find(c => c.name === 'record_id');
+if(filesRecCol && filesRecCol.notnull){
+  db.exec(`
+    BEGIN;
+    CREATE TABLE files_new (
+      id TEXT PRIMARY KEY,
+      record_id TEXT,
+      filename TEXT NOT NULL,
+      mime TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      path TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      owner_id TEXT
+    );
+    INSERT INTO files_new (id, record_id, filename, mime, size, path, created_at, owner_id)
+      SELECT id, record_id, filename, mime, size, path, created_at, owner_id FROM files;
+    DROP TABLE files;
+    ALTER TABLE files_new RENAME TO files;
+    COMMIT;
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_files_record ON files(record_id)');
+}
+const recCols = db.prepare("PRAGMA table_info(records)").all().map(c => c.name);
+if(!recCols.includes('pdfs')){
+  db.exec("ALTER TABLE records ADD COLUMN pdfs TEXT");
 }
 
 module.exports = db;

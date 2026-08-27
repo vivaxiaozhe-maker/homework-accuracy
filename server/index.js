@@ -34,6 +34,7 @@ app.use('/api', require('./routes/records'));      // /api/records + /api/missed
 app.use('/api', require('./routes/planreq'));      // /api/plan/set + /api/plan-requests
 app.use('/api/search', require('./routes/search'));
 app.use('/api/audit-logs', require('./routes/audit'));
+app.use('/api/files', require('./routes/files'));
 
 // 未匹配的 /api 路由 → 404 JSON（避免落到静态页）
 app.use('/api', (req, res) => res.status(404).json({ ok: false, msg: '接口不存在' }));

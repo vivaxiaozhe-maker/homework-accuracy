@@ -45,7 +45,7 @@ function stuToJson(s){
 function recToJson(r){
   return { id: r.id, studentId: r.student_id, ownerId: r.owner_id, date: r.date,
     total: r.total, correct: r.correct, wrongs: parseJson(r.wrongs, []),
-    subject: r.subject || '', images: parseJson(r.images, []), sample: !!r.sample };
+    subject: r.subject || '', images: parseJson(r.images, []), pdfs: parseJson(r.pdfs, []), sample: !!r.sample };
 }
 function missToJson(m){
   return { id: m.id, studentId: m.student_id, ownerId: m.owner_id, date: m.date, subject: m.subject || '',

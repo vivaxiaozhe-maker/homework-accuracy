@@ -1,9 +1,10 @@
 /* 作业记录 + 未交路由（records / missed）
    归属口径：记录的 owner_id 跟随学生归属；写操作校验归属（教务除外） */
 const express = require('express');
+const fs = require('fs');
 const db = require('../db');
 const { requireRole } = require('../auth');
-const { uid, logAudit, canWrite, recToJson, missToJson } = require('../util');
+const { uid, logAudit, canWrite, recToJson, missToJson, parseJson } = require('../util');
 
 const router = express.Router();
 const guard = requireRole('ta', 'admin');  // 销售只读，不能写（逐路由挂载，不能用 router.use——本路由挂在 /api 根上）
@@ -24,42 +25,73 @@ function validRec(date, total, correct){
 }
 
 /* ---------- 作业记录 ---------- */
-// POST /api/records {studentId, date, total, correct, wrongs, subject}
+// 附件 id 数组校验：每个文件必须存在且属当前用户（教务除外）；返回错误消息或 null
+function checkFileIds(user, ids){
+  if(!Array.isArray(ids)) return '附件格式不正确';
+  for(const fid of ids){
+    const f = db.prepare('SELECT * FROM files WHERE id = ?').get(fid);
+    if(!f) return '附件不存在：' + fid;
+    if(user.role !== 'admin' && f.owner_id !== user.id) return '没有权限使用附件：' + fid;
+  }
+  return null;
+}
+// 保存后把附件绑定到记录（record_id），并解绑被移除的旧附件
+function bindFiles(recordId, fileIds){
+  db.prepare('UPDATE files SET record_id = NULL WHERE record_id = ?').run(recordId);
+  const upd = db.prepare('UPDATE files SET record_id = ? WHERE id = ?');
+  (fileIds || []).forEach(fid => upd.run(recordId, fid));
+}
+
+// POST /api/records {studentId, date, total, correct, wrongs, subject, images, pdfs}
 router.post('/records', guard, (req, res) => {
-  const { studentId, date, total, correct, wrongs, subject } = req.body || {};
+  const { studentId, date, total, correct, wrongs, subject, images, pdfs } = req.body || {};
   const st = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId);
   if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
   if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
   const err = validRec(date, total, correct);
   if(err) return res.status(400).json({ ok: false, msg: err });
+  const ferr = checkFileIds(req.user, images || []) || checkFileIds(req.user, pdfs || []);
+  if(ferr) return res.status(400).json({ ok: false, msg: ferr });
   const id = uid('r_');
-  db.prepare(`INSERT INTO records (id, student_id, owner_id, date, total, correct, wrongs, subject, images, sample)
-              VALUES (?,?,?,?,?,?,?,?,?,0)`)
-    .run(id, studentId, st.owner_id, date, total, correct, JSON.stringify(wrongs || []), subject || '', '[]');
+  db.prepare(`INSERT INTO records (id, student_id, owner_id, date, total, correct, wrongs, subject, images, pdfs, sample)
+              VALUES (?,?,?,?,?,?,?,?,?,?,0)`)
+    .run(id, studentId, st.owner_id, date, total, correct, JSON.stringify(wrongs || []), subject || '',
+      JSON.stringify(images || []), JSON.stringify(pdfs || []));
+  bindFiles(id, (images || []).concat(pdfs || []));
   logAudit(req.user, '录入作业', 'record', stuDesc(studentId, subject), '日期 ' + date + '，' + accText(total, correct), st.owner_id);
   res.json({ ok: true, record: recToJson(db.prepare('SELECT * FROM records WHERE id = ?').get(id)) });
 });
 
-// PUT /api/records/:id {date, total, correct, wrongs, subject}
+// PUT /api/records/:id {date, total, correct, wrongs, subject, images, pdfs}
 router.put('/records/:id', guard, (req, res) => {
   const r = db.prepare('SELECT * FROM records WHERE id = ?').get(req.params.id);
   if(!r) return res.status(404).json({ ok: false, msg: '记录不存在' });
   if(!canWrite(req.user, r.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
-  const { date, total, correct, wrongs, subject } = req.body || {};
+  const { date, total, correct, wrongs, subject, images, pdfs } = req.body || {};
   const err = validRec(date, total, correct);
   if(err) return res.status(400).json({ ok: false, msg: err });
-  db.prepare('UPDATE records SET date = ?, total = ?, correct = ?, wrongs = ?, subject = ? WHERE id = ?')
-    .run(date, total, correct, JSON.stringify(wrongs || []), subject !== undefined ? subject : r.subject, r.id);
+  // images/pdfs 未传则保持原值；传了则校验并重新绑定
+  const newImages = images !== undefined ? images : parseJson(r.images, []);
+  const newPdfs = pdfs !== undefined ? pdfs : parseJson(r.pdfs, []);
+  const ferr = checkFileIds(req.user, newImages) || checkFileIds(req.user, newPdfs);
+  if(ferr) return res.status(400).json({ ok: false, msg: ferr });
+  db.prepare('UPDATE records SET date = ?, total = ?, correct = ?, wrongs = ?, subject = ?, images = ?, pdfs = ? WHERE id = ?')
+    .run(date, total, correct, JSON.stringify(wrongs || []), subject !== undefined ? subject : r.subject,
+      JSON.stringify(newImages), JSON.stringify(newPdfs), r.id);
+  if(images !== undefined || pdfs !== undefined) bindFiles(r.id, newImages.concat(newPdfs));
   logAudit(req.user, '修改作业', 'record', stuDesc(r.student_id, subject !== undefined ? subject : r.subject),
     '日期 ' + date + '，' + accText(total, correct), r.owner_id);
   res.json({ ok: true });
 });
 
-// DELETE /api/records/:id
+// DELETE /api/records/:id（连带删除挂载的附件：库行 + 磁盘文件）
 router.delete('/records/:id', guard, (req, res) => {
   const r = db.prepare('SELECT * FROM records WHERE id = ?').get(req.params.id);
   if(!r) return res.status(404).json({ ok: false, msg: '记录不存在' });
   if(!canWrite(req.user, r.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
+  const files = db.prepare('SELECT * FROM files WHERE record_id = ?').all(r.id);
+  db.prepare('DELETE FROM files WHERE record_id = ?').run(r.id);
+  files.forEach(f => { try{ fs.unlinkSync(f.path); }catch(e){} });
   db.prepare('DELETE FROM records WHERE id = ?').run(r.id);
   logAudit(req.user, '删除作业', 'record', stuDesc(r.student_id, r.subject), '日期 ' + r.date + '，' + accText(r.total, r.correct), r.owner_id);
   res.json({ ok: true });
