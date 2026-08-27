@@ -604,13 +604,28 @@ function ok(cond, name){
   ok(salesDefaultStu.indexOf('以下为示例学生（演示用）') !== -1 && salesDefaultStu.indexOf('林小满') !== -1
     && salesDefaultAl.indexOf('以下为示例历史学生（演示用）') !== -1 && salesDefaultAl.indexOf('李浩然') !== -1,
     '销售端无关键字时展示示例学生卡（现有+历史）');
-  ok(salesDefaultStu.indexOf('onclick') === -1 && salesDefaultAl.indexOf('onclick') === -1,
-    '销售端示例卡只读（无 onclick 操作入口）');
+  ok(salesDefaultStu.replace(/onclick="toggleSalesSubject[^"]*"/g,'').indexOf('onclick') === -1
+    && salesDefaultAl.replace(/onclick="toggleSalesSubject[^"]*"/g,'').indexOf('onclick') === -1,
+    '销售端示例卡只读（仅科目详情切换，无其他操作入口）');
   ok(wb.state.students.length === wb.pool.students.length, '销售 viewState 可见全量（mock 期）');
   wb.setStuQuery('林');
   const salesHtml = documentStub.getElementById('stu-list').innerHTML;
   ok(salesHtml.indexOf('林小满') !== -1 && salesHtml.indexOf('归属：') !== -1, '销售输入关键字后出现匹配学生卡（含归属助教）');
-  ok(salesHtml.indexOf('onclick') === -1, '销售学生卡只读（无任何 onclick 操作入口）');
+  ok(salesHtml.replace(/onclick="toggleSalesSubject[^"]*"/g,'').indexOf('onclick') === -1, '销售学生卡只读（仅科目详情切换，无其他操作入口）');
+  // 销售点击科目徽章展开只读详情
+  const salesGid = wb.pool.students.find(s=>s.name==='林小满' && s.ownerId===ta1.id).id;
+  wb.toggleSalesSubject(salesGid, '学科 / IB / 数学');
+  const salesDetail = documentStub.getElementById('stu-list').innerHTML;
+  ok(salesDetail.indexOf('作业打卡（只读）') !== -1 && salesDetail.indexOf('打卡情况') !== -1
+    && salesDetail.indexOf('老师评语') !== -1 && salesDetail.indexOf('学习计划与建议') !== -1
+    && salesDetail.indexOf('模考') !== -1,
+    '销售点击科目徽章展开只读详情（打卡/评语/建议/模考）');
+  ok(salesDetail.replace(/onclick="toggleSalesSubject[^"]*"/g,'').indexOf('onclick') === -1
+    && salesDetail.indexOf('openSlot') === -1 && salesDetail.indexOf('<input') === -1
+    && salesDetail.indexOf('<textarea') === -1 && salesDetail.indexOf('点击补录') === -1,
+    '销售科目详情面板只读（无输入框/编辑按钮/格子点击/补录提示）');
+  wb.toggleSalesSubject(salesGid, '学科 / IB / 数学');
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('作业打卡（只读）') === -1, '再点同一徽章收起详情');
   wb.setAlumniQuery('赵');
   const salesAl = documentStub.getElementById('alumni-list').innerHTML;
   ok(salesAl.indexOf('赵雨桐') !== -1 && salesAl.indexOf('restoreGroup') === -1, '销售历史学生搜索出卡且无恢复按钮');

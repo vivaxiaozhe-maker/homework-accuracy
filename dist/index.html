@@ -2000,7 +2000,8 @@ function salesStuCard(g, isAlumni){
   const subHtml = subKeys.length ? '<div class="sub-acc">' + subKeys.map(k=>{
     const arr = subMap[k];
     const sa = Math.round(arr.reduce((x,r)=>x+acc(r),0)/arr.length);
-    return '<span class="sub-chip" style="cursor:default">' +
+    const isOpen = salesSubj && salesSubj.gid===g.ids[0] && salesSubj.subject===k;
+    return '<span class="sub-chip' + (isOpen?' active':'') + '" onclick="toggleSalesSubject(\'' + g.ids[0] + '\',\'' + esc(k) + '\')" title="点击查看该科目详情（只读）">' +
       '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
       '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>' +
       '<span class="sub-cnt">' + arr.length + ' 次</span></span>';
@@ -2018,6 +2019,83 @@ function salesStuCard(g, isAlumni){
     (recs.length ? '<span>最近正确率 <b>' + acc(recs[recs.length-1]) + '%</b></span>' : '') +
     '</div>' +
     subHtml +
+    (salesSubj && salesSubj.gid===g.ids[0] ? salesSubjectPanel(g, salesSubj.subject) : '') +
+    '</div>';
+}
+
+/* ================= 销售端：科目只读详情（点击徽章展开，无任何编辑入口） ================= */
+let salesSubj = null;  // {gid, subject} 当前展开的科目详情
+function toggleSalesSubject(gid, subject){
+  salesSubj = (salesSubj && salesSubj.gid===gid && salesSubj.subject===subject) ? null : {gid:gid, subject:subject};
+  renderStats(); renderAlumni();
+}
+/* 只读打卡格子：复用 checkinGrid 的结构与配色，去掉全部 onclick/补录提示 */
+function salesCheckinGrid(g, subject){
+  const st = state.students.find(x=>x.id===g.ids[0]);
+  const plan = (st && st.subjPlans && st.subjPlans[subject]) || 0;
+  const recs = state.records.filter(r=>g.ids.includes(r.studentId) && r.subject===subject)
+    .map(r=>({type:'rec', date:r.date, rec:r}));
+  const miss = state.missed.filter(m=>g.ids.includes(m.studentId) && (m.subject||'')===subject && !m.resolved)
+    .map(m=>({type:'miss', date:m.date, miss:m}));
+  const items = recs.concat(miss).sort((a,b)=> a.date===b.date ? (a.type==='rec'?-1:1) : (a.date<b.date?-1:1));
+  const total = Math.max(plan, items.length);
+  if(!total) return '<span style="font-size:12px;color:var(--ink2)">暂无计划与记录</span>';
+  return Array.from({length: total}, (_,i)=>{
+    const idx = i+1;
+    const it = items[i];
+    if(it && it.type==='miss'){
+      return '<div class="ci-slot miss" title="第 ' + idx + ' 次：' + it.miss.date + ' 未交">' +
+        '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">未交✗</span></div>' +
+        '<div class="ci-date">' + it.miss.date + '</div>' +
+        '<div class="ci-acc" style="color:var(--red)">0%</div>' +
+        '<div class="ci-wrongs">错题 0</div>' +
+        '</div>';
+    }
+    const r = it && it.type==='rec' ? it.rec : null;
+    if(r){
+      const ra = acc(r);
+      const acls = ra>=85?'good':(ra>=60?'mid':'bad');
+      return '<div class="ci-slot done" title="第 ' + idx + ' 次：' + r.date + '，正确率 ' + ra + '%' +
+        (r.wrongs&&r.wrongs.length ? '，错题 ' + esc(r.wrongs.join('、')) : '') + '">' +
+        '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">✓</span></div>' +
+        '<div class="ci-date">' + r.date + '</div>' +
+        '<div class="ci-acc ' + acls + '">' + ra + '%</div>' +
+        '<div class="ci-wrongs">' + (r.wrongs&&r.wrongs.length ? '错 ' + esc(r.wrongs.join('、')) : '无错题') + '</div>' +
+        '</div>';
+    }
+    return '<div class="ci-slot miss" title="第 ' + idx + ' 次作业未完成">' +
+      '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span></div>' +
+      '<div class="ci-date">未完成</div>' +
+      '<div class="ci-acc" style="color:var(--red)">—</div>' +
+      '<div class="ci-wrongs">未完成</div>' +
+      '</div>';
+  }).join('');
+}
+/* 只读科目详情面板：打卡格子 + 老师评语 + 学习计划与建议 + 模考（全部只读） */
+function salesSubjectPanel(g, subject){
+  const st = state.students.find(x=>x.id===g.ids[0]);
+  const plan = (st && st.subjPlans && st.subjPlans[subject]) || 0;
+  const recCount = state.records.filter(r=>g.ids.includes(r.studentId) && r.subject===subject).length;
+  const cmt = (st && st.subjComments && st.subjComments[subject]) || '';
+  const adv = (st && st.subjAdvice && st.subjAdvice[subject]) || '';
+  const mock = (st && st.mock && st.mock[subject]) || {};
+  const mockDate = mock.date || '';
+  const mockScore = (mock.score!==undefined && mock.score!==null && mock.score!=='') ? mock.score : '';
+  const roBox = t => '<div style="font-size:13px;color:var(--ink2);background:var(--cream2);border-radius:8px;padding:8px 10px;white-space:pre-wrap">' + t + '</div>';
+  return '<div class="qe-panel">' +
+    '<div class="qe-title">「' + esc(shortSubject(subject)) + '」作业打卡（只读）</div>' +
+    '<div class="plan-row"><span style="font-size:14px;font-weight:600">应完成作业次数</span><span class="plan-hint">' +
+      (plan ? '已定 ' + plan + ' 次，已完成 ' + recCount + ' 次' : '未设置计划') + '</span></div>' +
+    '<div class="ci-title">打卡情况' + (plan ? '（应完成 ' + plan + ' 次，已完成 ' + recCount + ' 次）' : '') + '</div>' +
+    '<div class="ci-grid">' + salesCheckinGrid(g, subject) + '</div>' +
+    '<div class="qe-comment"><div class="qe-title">老师评语（' + esc(shortSubject(subject)) + '）</div>' +
+      roBox(cmt ? esc(cmt) : '<span class="hint">暂无评语</span>') + '</div>' +
+    '<div class="qe-comment"><div class="qe-title">学习计划与建议（' + esc(shortSubject(subject)) + '）</div>' +
+      roBox(adv ? esc(adv) : '<span class="hint">暂无</span>') + '</div>' +
+    '<div class="qe-mock"><div class="qe-title">模考（' + esc(shortSubject(subject)) + '）</div>' +
+      '<div class="mock-row">' + (mockDate ? '<span class="mock-booked">✓ 已预约 ' + esc(mockDate) + ' 模考</span>' : '<span class="hint">未预约模考</span>') + '</div>' +
+      '<div class="mock-row" style="margin-top:8px">' + (mockScore!=='' ? '结课模考分数：<b>' + esc(mockScore) + '</b> 分' : '<span class="hint">未录入模考分数</span>') + '</div>' +
+    '</div>' +
     '</div>';
 }
 /* ================= 卡内科目 Tab 快速录入 ================= */
@@ -3802,7 +3880,7 @@ window.__wb = {
   renderDashboard, computeDash, dashDrillTa, dashGotoStudent, dashToggleAlert,
   savePlanCount, submitPlanRequest, cancelPlanRequest, reviewPlanRequest, renderPlanRequests, renderPendingBadges,
   setStuTaFilter, toggleTaGroup, renderStats, renderAlumni, clearSamplesOfView,
-  qePanelHtml, reportHtml, renderToday, saveSubjectAdvice, gotoPlanEntry, doLoadSampleData, renderMotto,
+  qePanelHtml, reportHtml, renderToday, saveSubjectAdvice, gotoPlanEntry, doLoadSampleData, renderMotto, toggleSalesSubject,
   renderDoneZone, doneZoneToggle, resolveMissed,
   logAction, visibleAuditLogs, renderAudit, auditLoadMore,
   setAuditQuery(v){ auditQuery = v; auditShown = 50; renderAudit(); },
