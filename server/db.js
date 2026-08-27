@@ -3,10 +3,12 @@ const path = require('path');
 const fs = require('fs');
 const Database = require('better-sqlite3');
 
-// DB 文件放 server/data/app.db，目录自动创建
+// DB 文件默认 server/data/app.db（目录自动创建）；测试可用环境变量 DB_PATH 指向独立临时库
 const DATA_DIR = path.join(__dirname, 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
-const db = new Database(path.join(DATA_DIR, 'app.db'));
+const DB_FILE = process.env.DB_PATH || path.join(DATA_DIR, 'app.db');
+fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
+const db = new Database(DB_FILE);
 
 db.pragma('journal_mode = WAL');       // 读写并发更稳
 db.pragma('foreign_keys = ON');
