@@ -2,3 +2,6 @@
 .DS_Store
 学生作业正确率.zip
 *.docx
+server/node_modules/
+server/data/
+server/uploads/

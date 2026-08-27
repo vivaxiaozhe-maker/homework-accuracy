@@ -1,0 +1,19 @@
+{
+  "name": "xueqing-server",
+  "version": "0.1.0",
+  "description": "学情跟踪平台后端（Express + SQLite）",
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "better-sqlite3": "^12.4.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "multer": "^2.0.2"
+  }
+}
