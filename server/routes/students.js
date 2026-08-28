@@ -78,4 +78,52 @@ router.post('/:id/owner', requireRole('admin'), (req, res) => {
   res.json({ ok: true });
 });
 
+/* PUT /api/students/:id/subj-fields：合并式更新学生 JSON 列（用请求体整体替换对应列，前端先本地改好再整体提交）
+   字段白名单：subjComments（评语）/ subjAdvice（学习计划与建议）/ mock（模考）/ subjects（科目列表）。
+   注意：刻意不含 subj_plans——计划次数只能走 plan/set + 审批流，防止经此绕过审批 */
+const SUBJ_FIELD_WHITELIST = ['subjComments', 'subjAdvice', 'mock', 'subjects'];
+router.put('/:id/subj-fields', (req, res) => {
+  const st = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.id);
+  if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
+  if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
+  const body = req.body || {};
+  const keys = Object.keys(body);
+  if(!keys.length || keys.some(k => SUBJ_FIELD_WHITELIST.indexOf(k) === -1)){
+    return res.status(400).json({ ok: false, msg: '仅允许更新字段：' + SUBJ_FIELD_WHITELIST.join('、') });
+  }
+  const setClauses = [];
+  const params = [];
+  const actions = [];
+  for(const k of keys){
+    const v = body[k];
+    if(k === 'subjects'){
+      if(!Array.isArray(v) || v.some(x => typeof x !== 'string')){
+        return res.status(400).json({ ok: false, msg: 'subjects 必须是字符串数组' });
+      }
+      setClauses.push('subjects = ?'); params.push(JSON.stringify(v)); actions.push('科目管理');
+    } else if(k === 'mock'){
+      if(!v || typeof v !== 'object' || Array.isArray(v)) return res.status(400).json({ ok: false, msg: 'mock 必须是对象' });
+      for(const sub of Object.keys(v)){
+        const slot = v[sub] || {};
+        if(slot.date !== undefined && slot.date !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(slot.date))){
+          return res.status(400).json({ ok: false, msg: 'mock 日期格式应为 YYYY-MM-DD' });
+        }
+        if(slot.score !== undefined && slot.score !== null && slot.score !== ''){
+          const sc = Number(slot.score);
+          if(!Number.isInteger(sc) || sc < 0 || sc > 100) return res.status(400).json({ ok: false, msg: 'mock 分数需在 0-100 之间' });
+        }
+      }
+      setClauses.push('mock = ?'); params.push(JSON.stringify(v)); actions.push('保存模考');
+    } else {
+      if(!v || typeof v !== 'object' || Array.isArray(v)) return res.status(400).json({ ok: false, msg: k + ' 必须是对象' });
+      setClauses.push(k === 'subjComments' ? 'subj_comments = ?' : 'subj_advice = ?');
+      params.push(JSON.stringify(v));
+      actions.push(k === 'subjComments' ? '保存评语' : '保存学习计划与建议');
+    }
+  }
+  db.prepare('UPDATE students SET ' + setClauses.join(', ') + ' WHERE id = ?').run(...params, st.id);
+  logAudit(req.user, actions.join('、'), 'student', st.name, keys.join('、'), st.owner_id);
+  res.json({ ok: true });
+});
+
 module.exports = router;

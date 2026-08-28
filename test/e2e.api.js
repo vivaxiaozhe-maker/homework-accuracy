@@ -243,6 +243,28 @@ function ok(cond, name){
   const panelEl = documentStub.getElementById('sales-api-panel-' + sid);
   ok(panelEl && panelEl.innerHTML.indexOf('作业打卡（只读）') !== -1, '销售科目只读详情面板渲染');
 
+  /* ---- M5c：评语/学习计划建议/模考/科目管理接通 ---- */
+  await wb.doLogin('ta1', 'ta654321', 'ta');
+  wb.setQuickEntry({ gid: sid, subject: subj });
+  setVal('qe-comment', '本月进步明显');
+  wb.saveSubjectComment();
+  setVal('qe-advice', '每周复盘错题');
+  wb.saveSubjectAdvice();
+  setVal('mock-score', '92');
+  wb.saveMockScore();
+  await sleep(400);
+  st1 = await apiGetState();
+  const stuRow = st1.students.find(s=>s.id===sid);
+  ok(stuRow.subjComments && stuRow.subjComments[subj] === '本月进步明显', '评语已持久化到服务端（state 回读）');
+  ok(stuRow.subjAdvice && stuRow.subjAdvice[subj] === '每周复盘错题', '学习计划建议已持久化（state 回读）');
+  ok(stuRow.mock && stuRow.mock[subj] && stuRow.mock[subj].score === 92, '模考分数已持久化（state 回读）');
+  documentStub.getElementById('as-' + sid + '-s1').value = '__custom__';
+  documentStub.getElementById('as-' + sid + '-custom').value = '测试科目X';
+  wb.confirmAddSubject(sid);
+  await sleep(400);
+  st1 = await apiGetState();
+  ok((st1.students.find(s=>s.id===sid).subjects || []).indexOf('测试科目X') !== -1, '添加科目已持久化（state 回读）');
+
   console.log('\ne2e 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();
   try{ fs.unlinkSync(TEST_DB); fs.unlinkSync(TEST_DB + '-wal'); fs.unlinkSync(TEST_DB + '-shm'); }catch(e){}

@@ -169,8 +169,30 @@ function ok(cond, name){
   stuRow = db.prepare('SELECT * FROM students WHERE id = ?').get(stuA);
   ok(JSON.parse(stuRow.subj_plans)['学科 / AP / 微积分BC'] === 12, '审批驳回后计划不变');
 
-  /* ---- 销售搜索 ---- */
-  r = await req('GET', '/api/search/students', null, TS);
+  /* ---- M5c：学生 JSON 列合并式更新（subj-fields） ---- */
+  r = await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjComments: { '学科 / AP / 微积分BC': '进步明显' } }, T1);
+  ok(r.status === 200, 'subj-fields 保存评语成功');
+  let stuRow2 = db.prepare('SELECT * FROM students WHERE id = ?').get(stuA);
+  ok(JSON.parse(stuRow2.subj_comments)['学科 / AP / 微积分BC'] === '进步明显', '评语已写入 subj_comments 列');
+  r = await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjAdvice: { '学科 / AP / 微积分BC': '每周复盘错题' }, subjects: ['学科 / AP / 微积分BC', '竞赛 / AMC10'] }, T1);
+  ok(r.status === 200, 'subj-fields 同时更新建议+科目列表');
+  stuRow2 = db.prepare('SELECT * FROM students WHERE id = ?').get(stuA);
+  ok(JSON.parse(stuRow2.subj_advice)['学科 / AP / 微积分BC'] === '每周复盘错题'
+    && JSON.parse(stuRow2.subjects).length === 2, '建议与科目列表已写入');
+  r = await req('PUT', '/api/students/' + stuA + '/subj-fields', { mock: { '学科 / AP / 微积分BC': { date: '2026-09-01', score: 92 } } }, T1);
+  ok(r.status === 200, 'subj-fields 保存模考成功');
+  r = await req('PUT', '/api/students/' + stuA + '/subj-fields', { mock: { 'x': { score: 101 } } }, T1);
+  ok(r.status === 400, 'mock score 越界 400');
+  r = await req('PUT', '/api/students/' + stuA + '/subj-fields', { mock: { 'x': { date: '2026/09/01' } } }, T1);
+  ok(r.status === 400, 'mock 日期格式错误 400');
+  r = await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjPlans: { 'x': 99 } }, T1);
+  ok(r.status === 400, '白名单外字段（subjPlans）被拒');
+  r = await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjComments: { 'x': 'y' } }, T2);
+  ok(r.status === 403, '越权：助教不能改他人学生 JSON 列');
+  r = await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjComments: { 'x': 'y' } }, TS);
+  ok(r.status === 403, '销售不能写 subj-fields');
+
+  /* ---- 销售搜索 ---- */  r = await req('GET', '/api/search/students', null, TS);
   ok(r.status === 400, '搜索无关键字 400');
   r = await req('GET', '/api/search/students?q=' + encodeURIComponent('林小满'), null, TS);
   ok(r.status === 200 && r.data.students.length >= 2 && r.data.students[0].ownerName, '销售搜索出结果（含归属助教名）');

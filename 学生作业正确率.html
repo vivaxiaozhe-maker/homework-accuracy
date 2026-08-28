@@ -1488,6 +1488,8 @@ const HttpApi = {
   deleteMissed(id){ return this._req('DELETE', '/api/missed/' + id); },
   // 计划次数
   setPlan(b){ return this._req('POST', '/api/plan/set', b); },
+  // 学生 JSON 列合并式更新（评语/学习计划与建议/模考/科目列表；整体提交该列）
+  updateSubjFields(id, fields){ return this._req('PUT', '/api/students/' + id + '/subj-fields', fields); },
   // 计划审批：先本地乐观更新（含前端校验），再持久化；失败重取回滚
   async createPlanRequest(b){
     const local = LocalApi.createPlanRequest(b);
@@ -1547,8 +1549,6 @@ async function resyncState(){
 }
 // 附件直链（img/PDF 引用；后端对 GET /api/files/:id 放开 ?token= 查询参数）
 function fileUrl(id){ return '/api/files/' + id + '?token=' + encodeURIComponent(HttpApi._token || ''); }
-// API 模式下暂未接后端的写功能（评语/建议/模考/科目管理）：本地生效并明确提示，后端接口 M5c 补齐
-function apiTodoNote(){ if(USE_API) alert('该功能的后端接口将在下一版本提供，本次修改仅在当前会话有效'); }
 
 /* ---- 模式开关与门面 ---- */
 let USE_API = false;          // 启动时探测：同 origin 有后端 → true
@@ -2994,7 +2994,6 @@ function printReport(area){
 /* 保存老师评语（按 学生×科目 存储，同名组合并共享） */
 function saveSubjectComment(){
   if(!quickEntry) return;
-  apiTodoNote();
   const ta = document.getElementById('qe-comment');
   const text = ta ? ta.value : '';
   const st = state.students.find(x=>x.id===quickEntry.gid);
@@ -3002,6 +3001,7 @@ function saveSubjectComment(){
     st.subjComments = st.subjComments || {};
     st.subjComments[quickEntry.subject] = text.trim();
     logAction('保存评语', 'record', auditStuDesc(st.id, quickEntry.subject), text.trim() ? text.trim().slice(0,50) : '（清空评语）', {ownerId: st.ownerId});
+    apiPersist(HttpApi.updateSubjFields(st.id, {subjComments: st.subjComments}));  // API 模式：整体提交评语列
     save();
   }
   const tip = document.getElementById('qe-comment-tip');
@@ -3010,7 +3010,6 @@ function saveSubjectComment(){
 /* 保存学习计划与建议（按 学生×科目 存储，随「生成报告」输出为第四节） */
 function saveSubjectAdvice(){
   if(!quickEntry) return;
-  apiTodoNote();
   const ta = document.getElementById('qe-advice');
   const text = ta ? ta.value : '';
   const st = state.students.find(x=>x.id===quickEntry.gid);
@@ -3018,6 +3017,7 @@ function saveSubjectAdvice(){
     st.subjAdvice = st.subjAdvice || {};
     st.subjAdvice[quickEntry.subject] = text.trim();
     logAction('保存学习计划与建议', 'record', auditStuDesc(st.id, quickEntry.subject), text.trim() ? text.trim().slice(0,50) : '（清空）', {ownerId: st.ownerId});
+    apiPersist(HttpApi.updateSubjFields(st.id, {subjAdvice: st.subjAdvice}));
     save();
   }
   const tip = document.getElementById('qe-advice-tip');
@@ -3042,25 +3042,25 @@ function getMockSlot(st, subject){
 }
 function bookMockExam(){
   if(!quickEntry) return;
-  apiTodoNote();
   const d = document.getElementById('mock-date').value;
   if(!d){ alert('请选择模考日期'); return; }
   const slot = getMockSlot(getMockStu(), quickEntry.subject);
   slot.date = d;
   const mst = getMockStu();
   logAction('预约模考', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '预约日期 ' + d, {ownerId: mst ? mst.ownerId : undefined});
+  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: mst.mock}));  // API 模式：整体提交模考列
   mockEdit = null;
   save();
   renderAll();
 }
 function cancelMockExam(){
   if(!quickEntry) return;
-  apiTodoNote();
   const st = getMockStu();
   if(st && st.mock && st.mock[quickEntry.subject]){
     delete st.mock[quickEntry.subject].date;
     if(!Object.keys(st.mock[quickEntry.subject]).length) delete st.mock[quickEntry.subject];
     logAction('取消模考预约', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '', {ownerId: st.ownerId});
+    apiPersist(HttpApi.updateSubjFields(st.id, {mock: st.mock}));
   }
   mockEdit = null;
   save();
@@ -3068,25 +3068,25 @@ function cancelMockExam(){
 }
 function saveMockScore(){
   if(!quickEntry) return;
-  apiTodoNote();
   const v = parseInt(document.getElementById('mock-score').value, 10);
   if(isNaN(v) || v<0 || v>100){ alert('请填写 0-100 之间的模考分数'); return; }
   const slot = getMockSlot(getMockStu(), quickEntry.subject);
   slot.score = v;
   const mst = getMockStu();
   logAction('保存模考分数', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '结课模考 ' + v + ' 分', {ownerId: mst ? mst.ownerId : undefined});
+  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: mst.mock}));
   mockEdit = null;
   save();
   renderAll();
 }
 function clearMockScore(){
   if(!quickEntry) return;
-  apiTodoNote();
   const st = getMockStu();
   if(st && st.mock && st.mock[quickEntry.subject]){
     delete st.mock[quickEntry.subject].score;
     if(!Object.keys(st.mock[quickEntry.subject]).length) delete st.mock[quickEntry.subject];
     logAction('清除模考分数', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '', {ownerId: st.ownerId});
+    apiPersist(HttpApi.updateSubjFields(st.id, {mock: st.mock}));
   }
   mockEdit = null;
   save();
@@ -3161,7 +3161,6 @@ function getAddSubjValue(gid){
 function confirmAddSubject(gid){
   const subj = getAddSubjValue(gid);
   if(!subj){ alert('请选择科目'); return; }
-  apiTodoNote();
   const repStu = state.students.find(s=>s.id===gid);
   if(!repStu) return;
   const name = repStu.name.trim();
@@ -3173,7 +3172,11 @@ function confirmAddSubject(gid){
     }
   });
   addSubjGid = null;
-  if(added) logAction('添加科目', 'student', repStu.name, subj, {ownerId: repStu.ownerId});
+  if(added){
+    logAction('添加科目', 'student', repStu.name, subj, {ownerId: repStu.ownerId});
+    // API 模式：同名组每个学生分别整体提交科目列表
+    state.students.forEach(s=>{ if(!s.archived && s.name.trim()===name) apiPersist(HttpApi.updateSubjFields(s.id, {subjects: s.subjects})); });
+  }
   save();
   renderAll();
   if(!added) alert('该科目已在列表中，无需重复添加。');
@@ -3198,7 +3201,6 @@ function saveRenameSubject(){
   const newName = document.getElementById('ren-input').value.trim();
   if(!newName){ alert('科目名不能为空'); return; }
   if(newName === oldName){ renaming = null; renderStats(); return; }
-  apiTodoNote();
   const repStu = state.students.find(s=>s.id===renaming.gid);
   if(!repStu){ renaming = null; renderStats(); return; }
   // 该学生（含同名组）的全部学生 id
@@ -3208,6 +3210,11 @@ function saveRenameSubject(){
     state.missed.some(m=>ids.includes(m.studentId) && m.subject===newName) ||
     ids.some(id=>{ const st = state.students.find(x=>x.id===id); return !!(st && Array.isArray(st.subjects) && st.subjects.includes(newName)); });
   if(dup){ alert('该学生已有科目「' + newName + '」，不能重复命名。'); return; }
+  // API 模式持久化快照（本地乐观更新前捕获受影响行）
+  const snap = {
+    recs: pool.records.filter(x=>ids.includes(x.studentId) && x.subject===oldName).map(r=>({id:r.id, date:r.date, total:r.total, correct:r.correct, wrongs:r.wrongs})),
+    miss: pool.missed.filter(x=>ids.includes(x.studentId) && x.subject===oldName && !x.resolved).map(m=>({id:m.id, date:m.date}))
+  };
   // 同步更新：作业记录、未交记录、手动科目列表
   state.records.forEach(r=>{ if(ids.includes(r.studentId) && r.subject===oldName) r.subject = newName; });
   state.missed.forEach(m=>{ if(ids.includes(m.studentId) && m.subject===oldName) m.subject = newName; });
@@ -3247,13 +3254,52 @@ function saveRenameSubject(){
   }
   renaming = null;
   logAction('重命名科目', 'student', repStu.name, oldName + ' → ' + newName, {ownerId: repStu.ownerId});
+  apiRenameSubjectPersist(repStu, ids, oldName, newName, snap);  // API 模式异步持久化（失败重取回滚）
   save();
   renderAll();
+}
+/* API 模式科目重命名持久化：作业记录/未交逐条改科目 + 学生 JSON 列整体提交（本地已先行乐观更新） */
+async function apiRenameSubjectPersist(repStu, ids, oldName, newName, snap){
+  if(!USE_API) return;
+  try{
+    for(const r of snap.recs){
+      const res = await HttpApi.updateRecord(r.id, {date: r.date, total: r.total, correct: r.correct, wrongs: r.wrongs, subject: newName});
+      if(!res.ok) throw new Error('rec');
+    }
+    for(const m of snap.miss){
+      const res = await HttpApi._req('PUT', '/api/missed/' + m.id, {date: m.date, subject: newName});
+      if(!res.ok) throw new Error('miss');
+    }
+    for(const sid of ids){
+      const st = pool.students.find(x=>x.id===sid);
+      if(st){
+        const res = await HttpApi.updateSubjFields(sid, {subjects: st.subjects || [], subjComments: st.subjComments || {}, subjAdvice: st.subjAdvice || {}, mock: st.mock || {}});
+        if(!res.ok) throw new Error('fields');
+      }
+    }
+  }catch(e){
+    alert('保存失败，请检查网络后重试');
+    resyncState();
+  }
+}
+/* API 模式删除科目持久化：逐条删除该科目作业记录/未交 + 学生 JSON 列整体提交 */
+async function apiDeleteSubjectPersist(ids, snap){
+  if(!USE_API) return;
+  try{
+    for(const r of snap.recs){ const res = await HttpApi.deleteRecord(r.id); if(!res.ok) throw 0; }
+    for(const m of snap.miss){ const res = await HttpApi.deleteMissed(m.id); if(!res.ok) throw 0; }
+    for(const sid of ids){
+      const st = pool.students.find(x=>x.id===sid);
+      if(st){
+        const res = await HttpApi.updateSubjFields(sid, {subjects: st.subjects || [], subjComments: st.subjComments || {}, subjAdvice: st.subjAdvice || {}, mock: st.mock || {}});
+        if(!res.ok) throw 0;
+      }
+    }
+  }catch(e){ alert('保存失败，请检查网络后重试'); resyncState(); }
 }
 /* 删除科目：清除该科目下的全部关联数据（同名组合并处理），带确认 */
 function deleteSubject(){
   if(!renaming) return;
-  apiTodoNote();
   const oldName = renaming.subject;
   const repStu = state.students.find(s=>s.id===renaming.gid);
   if(!repStu){ renaming = null; renderStats(); return; }
@@ -3263,6 +3309,11 @@ function deleteSubject(){
   askConfirm('删除科目', '确定删除科目「' + oldName + '」吗？该科目下的 ' + nRecs + ' 条作业记录' +
     (nMiss? '、' + nMiss + ' 条未交记录' : '') +
     '，以及打卡计划、老师评语、模考信息将一并清除，此操作不可恢复。', ()=>{
+    // API 模式持久化快照（本地删除前捕获受影响行）
+    const snap = {
+      recs: pool.records.filter(x=>ids.includes(x.studentId) && x.subject===oldName).map(r=>({id:r.id})),
+      miss: pool.missed.filter(x=>ids.includes(x.studentId) && x.subject===oldName).map(m=>({id:m.id}))
+    };
     pool.records = pool.records.filter(r=>!(ids.includes(r.studentId) && r.subject===oldName));
     pool.missed = pool.missed.filter(m=>!(ids.includes(m.studentId) && m.subject===oldName));
     state.students.forEach(s=>{
@@ -3279,6 +3330,7 @@ function deleteSubject(){
     if(mockEdit && ids.includes(mockEdit.gid) && mockEdit.subject===oldName) mockEdit = null;
     renaming = null;
     logAction('删除科目', 'student', repStu.name, oldName + '（含 ' + nRecs + ' 条作业记录）', {ownerId: repStu.ownerId});
+    apiDeleteSubjectPersist(ids, snap);  // API 模式异步持久化（失败重取回滚）
     save();
     renderAll();
   });
@@ -4296,6 +4348,7 @@ window.__wb = {
   savePlanCount, submitPlanRequest, cancelPlanRequest, reviewPlanRequest, renderPlanRequests, renderPendingBadges,
   setStuTaFilter, toggleTaGroup, renderStats, renderAlumni, clearSamplesOfView,
   qePanelHtml, reportHtml, renderToday, saveSubjectAdvice, gotoPlanEntry, doLoadSampleData, renderMotto, toggleSalesSubject,
+  saveSubjectComment, saveMockScore, confirmAddSubject,
   renderDoneZone, doneZoneToggle, resolveMissed,
   toggleSalesSubjectApi, fileUrl, renderAuditApi, resyncState,
   get salesSubjApi(){ return salesSubjApi; },
