@@ -916,7 +916,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
     </div>
     <p class="hint" id="login-err" style="color:var(--red);min-height:18px;margin-top:0"></p>
     <button class="btn mint big" id="btn-login">登 录</button>
-    <div class="login-demo">
+    <div class="login-demo" id="login-demo">
       演示账号（请先选择对应角色再登录）：<br>
       教务 <b>admin / admin123</b><br>
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
@@ -1152,13 +1152,15 @@ function logAction(action, targetType, targetDesc, detail, opts){
   save();
 }
 function ownerName(ownerId){
-  const u = Api.listUsers().find(x=>x.id===ownerId);
+  const u = getUsersCache().find(x=>x.id===ownerId);
   return u ? u.name : '未分配';
 }
 function stuOwnerId(sid){ const s = pool.students.find(x=>x.id===sid); return s ? s.ownerId : null; }
 
-/* ================= Api 层（当前实现 LocalApi：localStorage 驱动；后端就绪后替换为 HttpApi，方法签名一一对应上方 REST 约定） ================= */
-const Api = {
+/* ================= Api 层 =================
+   LocalApi：localStorage 驱动（演示环境）；HttpApi：真实后端（fetch + Bearer token）。
+   两者方法签名一一对应（见文件头 REST 约定）；门面 Api 按启动探测结果转发，UI 代码零改动。 */
+const LocalApi = {
   _users: null,
   _loadUsers(){
     if(this._users) return this._users;
@@ -1381,6 +1383,122 @@ const Api = {
   }
 };
 
+/* ---- HttpApi：真实后端实现（M5a 骨架：认证 + 读取链路 + 账号管理；业务写路径 M5b 接入） ---- */
+const HttpApi = {
+  _token: null,
+  // 统一响应处理：res.ok 且 body.ok 才算成功；401 清会话回登录页；网络异常给友好提示
+  async _req(method, url, body){
+    try{
+      const res = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json', ...(this._token ? { Authorization: 'Bearer ' + this._token } : {}) },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      if(res.status === 401){
+        this._token = null;
+        sessionStorage.removeItem(SS_SESSION);
+        forceLogout();  // 注意：不可调用 doLogout（会递归走 logout 接口）
+        return { ok: false, msg: '未登录或登录已过期' };
+      }
+      const data = await res.json().catch(() => null);
+      if(res.ok && data && data.ok) return data;
+      return { ok: false, msg: (data && data.msg) || '请求失败' };
+    }catch(e){
+      return { ok: false, msg: '网络异常，请重试' };
+    }
+  },
+  // POST /api/login
+  async login(username, password, role){
+    const r = await this._req('POST', '/api/login', { username: username, password: password, role: role });
+    if(!r.ok) return r;
+    this._token = r.token;
+    sessionStorage.setItem(SS_SESSION, JSON.stringify({ uid: r.user.id, token: r.token, ts: Date.now() }));
+    return { ok: true, user: r.user };
+  },
+  // POST /api/logout
+  async logout(){
+    await this._req('POST', '/api/logout');
+    this._token = null;
+    sessionStorage.removeItem(SS_SESSION);
+  },
+  // 刷新恢复会话：读本地 token → GET /api/me 校验；401 则清除
+  async restoreSession(){
+    try{
+      const s = JSON.parse(sessionStorage.getItem(SS_SESSION));
+      if(!s || !s.token) return null;
+      this._token = s.token;
+      const r = await this._req('GET', '/api/me');
+      if(!r.ok){ this._token = null; return null; }
+      return r.user;
+    }catch(e){ return null; }
+  },
+  // POST /api/password
+  async changePassword(oldPwd, newPwd){
+    return this._req('POST', '/api/password', { oldPwd: oldPwd, newPwd: newPwd });
+  },
+  // GET /api/state（销售无此接口权限，前端跳过；M5.4 起销售走搜索接口）
+  async getState(){
+    const r = await this._req('GET', '/api/state');
+    return r.ok ? { ok: true, state: r.state } : r;
+  },
+  // GET /api/users（教务）
+  async listUsers(){
+    const r = await this._req('GET', '/api/users');
+    return r.ok ? r.users : [];
+  },
+  // POST /api/users
+  async createUser(name, username, password, role){
+    return this._req('POST', '/api/users', { name: name, username: username, password: password, role: role || 'ta' });
+  },
+  // POST /api/users/:id/reset
+  async resetPassword(id, newPwd){
+    return this._req('POST', '/api/users/' + id + '/reset', { password: newPwd });
+  },
+  // POST /api/users/:id/toggle
+  async toggleUser(id){
+    return this._req('POST', '/api/users/' + id + '/toggle');
+  },
+  // 计划申请的 pending 查询是纯前端过滤（pool 已从服务端同步），两种模式一致
+  pendingPlanRequest(studentId, subject){ return LocalApi.pendingPlanRequest(studentId, subject); },
+  // M5b 待接入的业务写路径：API 模式下先明确拦截，避免本地 pool 与服务端静默分叉
+  _todo(){ return { ok: false, msg: '该写操作尚未接入后端（下一版本提供），当前请使用演示环境' }; },
+  createPlanRequest(){ return this._todo(); },
+  cancelPlanRequest(){ return this._todo(); },
+  reviewPlanRequest(){ return this._todo(); },
+  transferStudent(){ return this._todo(); },
+  async _ensureSeed(){ /* API 模式不播种演示数据 */ }
+};
+
+/* ---- 模式开关与门面 ---- */
+let USE_API = false;          // 启动时探测：同 origin 有后端 → true
+let apiImpl = LocalApi;       // 当前实现
+// 门面：方法调用绑定到当前实现（保持 this 正确），测试钩子 wb.Api 两种模式均可用
+const Api = new Proxy({}, {
+  get(t, k){ const v = apiImpl[k]; return typeof v === 'function' ? v.bind(apiImpl) : v; },
+  set(t, k, v){ apiImpl[k] = v; return true; }
+});
+// 快速探测后端（2 秒超时；file:// 或静态托管下立即失败回退 mock）
+async function detectApi(){
+  if(typeof fetch !== 'function') return false;
+  try{
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), 2000) : null;
+    const res = await fetch('/api/health', ctl ? { signal: ctl.signal } : {});
+    if(timer) clearTimeout(timer);
+    return !!res.ok;
+  }catch(e){ return false; }
+}
+
+/* 用户列表缓存：mock 模式实时读 LocalApi；API 模式读缓存（登录/账号操作后刷新）。
+   渲染层（归属标签/看板/审批等）全部走这个同步入口，避免渲染函数异步化 */
+let usersCache = [];
+function getUsersCache(){ return USE_API ? usersCache : LocalApi.listUsers(); }
+async function refreshUsersCache(){
+  if(!USE_API) return;
+  const users = await HttpApi.listUsers();
+  if(Array.isArray(users)) usersCache = users;
+}
+
 /* ================= 示例数据（相对当前日期；按归属助教分别生成，带 ownerId 与 sample 标记） ================= */
 function seedSamplesFor(ownerId){
   const s1 = {id:uid(), name:'林小满', sample:true, ownerId:ownerId};
@@ -1408,7 +1526,7 @@ function seedPlanRequestSamples(ownerId){
   pool.planRequests = pool.planRequests || [];
   const stus = pool.students.filter(s=>s.sample && s.ownerId===ownerId);
   if(!stus.length) return;
-  const admin = Api.listUsers().find(u=>u.role==='admin');
+  const admin = getUsersCache().find(u=>u.role==='admin');
   const pick = name => stus.find(s=>s.name===name);
   const sA = pick('周子墨'), sB = pick('苏晚晴'), sC = pick('陈星宇');
   if(sA){  // 待审批：周子墨 竞赛 / AMC10 8 → 10
@@ -1440,7 +1558,7 @@ function seedPlanRequestSamples(ownerId){
    ownerId 传助教 id 时只播种该助教的条目；不传则播种全部助教 + 教务的条目。 */
 function seedAuditSamples(ownerId){
   pool.auditLogs = pool.auditLogs || [];
-  const users = Api.listUsers();
+  const users = getUsersCache();
   const admin = users.find(u=>u.role==='admin');
   const tas = ownerId ? users.filter(u=>u.id===ownerId) : users.filter(u=>u.role==='ta');
   const at = (d, t)=> offsetDay(d) + ' ' + t;  // ts 格式同 nowTs()：YYYY-MM-DD HH:mm:ss
@@ -1788,7 +1906,7 @@ function renderStats(){
     if(!isAdminView()){
       chipBox.innerHTML = '';
     } else {
-      const chipTas = Api.listUsers().filter(u=>u.role==='ta');
+      const chipTas = getUsersCache().filter(u=>u.role==='ta');
       chipBox.innerHTML = '<div class="ta-chips">' +
         '<span class="sub-chip' + (stuTaFilter==='all'?' active':'') + '" onclick="setStuTaFilter(\'all\')">全部学生</span>' +
         chipTas.map(u=>'<span class="sub-chip' + (stuTaFilter===u.id?' active':'') + '" onclick="setStuTaFilter(\'' + u.id + '\')">' +
@@ -1955,11 +2073,11 @@ function renderStats(){
       missHtml +
       '</div>';
   };
-  // 教务且选中「全部学生」：按助教分组展示（分组顺序沿用 Api.listUsers() 中助教顺序），
+  // 教务且选中「全部学生」：按助教分组展示（分组顺序沿用 getUsersCache() 中助教顺序），
   // 默认折叠只显示组头，点击组头展开/收起；有搜索词时自动展开含匹配结果的组；
   // 选中某位助教：只显示该助教的学生卡（无分组标题，直接展开）
   if(isAdminView() && stuTaFilter==='all'){
-    const tas = Api.listUsers().filter(u=>u.role==='ta');
+    const tas = getUsersCache().filter(u=>u.role==='ta');
     const renderGroup = (key, label, gs)=>{
       const open = !!stuQuery || !!stuTaExpanded[key];
       return '<div class="ta-group-head" style="cursor:pointer" onclick="toggleTaGroup(\'' + key + '\')" title="点击展开/收起">' +
@@ -3204,6 +3322,7 @@ function clearSamplesOfView(){
   pool.students = pool.students.filter(s=>!(ownerInView(s.ownerId) && s.sample));
 }
 function clearSamples(){
+  if(USE_API){ alert('示例数据功能仅在演示环境（无后端）可用'); return; }
   if(!isAdminView()){ alert('仅教务可清理数据'); return; }
   askConfirm('清空示例数据', '将删除当前数据范围内所有标记为「示例」的学生、作业记录和未交记录，你自己录入的数据不受影响。确定吗？', ()=>{
     clearSamplesOfView();
@@ -3219,7 +3338,7 @@ function doLoadSampleData(){
   clearSamplesOfView();
   let owners;
   if(isAdminView()){
-    owners = Api.listUsers().filter(u=>u.role==='ta' && !u.disabled).map(u=>u.id);
+    owners = getUsersCache().filter(u=>u.role==='ta' && !u.disabled).map(u=>u.id);
     if(!owners.length) owners = [writeOwnerId()];
   } else {
     owners = [writeOwnerId()];
@@ -3230,6 +3349,7 @@ function doLoadSampleData(){
   save(); renderAll();
 }
 function loadSampleData(){
+  if(USE_API){ alert('示例数据功能仅在演示环境（无后端）可用'); return; }
   if(!isAdminView()){ alert('仅教务可清理数据'); return; }
   const adminAll = isAdminView();  // 教务恒为全部数据视角
   askConfirm('重新载入示例数据',
@@ -3243,6 +3363,7 @@ function loadSampleData(){
 }
 document.getElementById('btn-load-sample').addEventListener('click', loadSampleData);
 document.getElementById('btn-clear-all').addEventListener('click', ()=>{
+  if(USE_API){ alert('清空功能仅在演示环境（无后端）可用'); return; }
   if(!isAdminView()){ alert('仅教务可清理数据'); return; }
   askConfirm('清空全部数据', '将删除当前数据范围内的所有学生、作业记录和未交记录（含你自己录入的数据），此操作不可恢复！建议先导出备份。确定继续吗？', ()=>{
     pool.students = pool.students.filter(s=>!ownerInView(s.ownerId));
@@ -3341,11 +3462,24 @@ async function doLogin(u, p, role){
   currentUser = res.user;
   document.getElementById('login-pass').value = '';
   err.textContent = '';
+  if(USE_API && currentUser.role !== 'sales'){
+    const s = await HttpApi.getState();  // 登录成功拉取服务端数据填充 pool（销售无 state 权限，M5.4 走搜索接口）
+    if(s.ok){ pool = s.state; refreshView(); }
+  }
+  if(USE_API) await refreshUsersCache();
   if(currentUser.mustChangePwd){ openPwdModal(true); return; }  // 首登/重置后强制改密
   enterApp();
 }
+/* 401 时强制回登录页（不走 logout 接口，避免递归） */
+function forceLogout(){
+  sessionStorage.removeItem(SS_SESSION);
+  currentUser = null;
+  document.getElementById('pwd-modal').classList.remove('show');
+  showLogin();
+}
 function doLogout(){
-  Api.logout();
+  const r = Api.logout();
+  if(r && typeof r.then === 'function') r.catch(()=>{});  // HttpApi 登出为异步，失败不阻塞本地退出
   currentUser = null;
   document.getElementById('pwd-modal').classList.remove('show');
   document.getElementById('transfer-modal').classList.remove('show');
@@ -3389,7 +3523,7 @@ document.getElementById('pwd-ok').addEventListener('click', ()=>doChangePwd());
 function renderAccounts(){
   const el = document.getElementById('accounts-list');
   if(!el) return;
-  const users = Api.listUsers();
+  const users = getUsersCache();
   el.innerHTML = users.map(u=>{
     const stuCnt = pool.students.filter(s=>s.ownerId===u.id).length;
     const isSelf = currentUser && u.id===currentUser.id;
@@ -3413,7 +3547,7 @@ function renderPlanRequests(){
   if(!pendEl) return;
   const reqs = pool.planRequests || [];
   const pending = reqs.filter(r=>r.status==='pending');
-  const users = Api.listUsers();
+  const users = getUsersCache();
   const stuNameOf = sid => { const s = pool.students.find(x=>x.id===sid); return s ? s.name : '（已删除学生）'; };
   const reqUserOf = uid2 => { const u = users.find(x=>x.id===uid2); return u ? u.name : '未知'; };
   pendEl.innerHTML = pending.length ? pending.map(r=>
@@ -3449,7 +3583,7 @@ function renderDoneZone(){
     .forEach(r=>{
       if(!isAdminView() && r.requestedBy !== currentUser.id) return;
       const st = pool.students.find(x=>x.id===r.studentId);
-      const reqUser = Api.listUsers().find(u=>u.id===r.requestedBy);
+      const reqUser = getUsersCache().find(u=>u.id===r.requestedBy);
       items.push({ kind:'req', at:r.reviewedAt, status:r.status,
         name: st ? st.name : '（已删除学生）', subject: r.subject, oldPlan: r.oldPlan, newPlan: r.newPlan,
         reqBy: reqUser ? reqUser.name : '未知' });
@@ -3554,23 +3688,26 @@ function renderPendingBadges(){
   });
 }
 function resetUserPwd(id){
-  const u = Api.listUsers().find(x=>x.id===id);
+  const u = getUsersCache().find(x=>x.id===id);
   if(!u) return;
   askConfirm('重置密码', '将重置「' + u.name + '」的登录密码，其下次登录需使用新密码并被要求修改。确定吗？', async ()=>{
     const np = 'ta' + Math.random().toString(36).slice(2,8);
     const res = await Api.resetPassword(id, np);
-    if(res.ok) alert('密码已重置为：' + np + '\n请转告该助教，首次登录需修改密码。');
+    if(res.ok) alert('密码已重置为：' + np + '\\n请转告该助教，首次登录需修改密码。');
+    else alert(res.msg || '重置失败');
+    await refreshUsersCache();
     renderAll();
   });
 }
 function toggleUser(id){
-  const u = Api.listUsers().find(x=>x.id===id);
+  const u = getUsersCache().find(x=>x.id===id);
   if(!u) return;
   askConfirm(u.disabled ? '启用账号' : '停用账号',
     u.disabled ? '确定重新启用「' + u.name + '」吗？' : '停用后「' + u.name + '」将无法登录，其名下学生与作业数据完整保留。确定吗？',
-    ()=>{
-      const res = Api.toggleUser(id);
+    async ()=>{
+      const res = await Api.toggleUser(id);  // mock 同步返回、API 异步返回，await 兼容两者
       if(!res.ok){ alert(res.msg); return; }
+      await refreshUsersCache();
       renderAll();
     });
 }
@@ -3584,6 +3721,7 @@ document.getElementById('btn-create-ta').addEventListener('click', async ()=>{
   document.getElementById('ac-name').value = '';
   document.getElementById('ac-username').value = '';
   document.getElementById('ac-password').value = '';
+  await refreshUsersCache();
   renderAll();
   alert('已创建' + (role==='sales' ? '销售' : '助教') + '账号「' + name + '」，首次登录需修改初始密码。');
 });
@@ -3595,7 +3733,7 @@ function openTransfer(ids){
   transferIds = ids;
   const sel = document.getElementById('tf-target');
   const cur = stuOwnerId(ids[0]);
-  const opts = Api.listUsers().filter(u=>u.role==='ta' && !u.disabled && u.id!==cur);
+  const opts = getUsersCache().filter(u=>u.role==='ta' && !u.disabled && u.id!==cur);
   if(!opts.length){ alert('暂无可转移的目标助教'); return; }
   sel.innerHTML = opts.map(u=>'<option value="' + u.id + '">' + esc(u.name) + '（' + esc(u.username) + '）</option>').join('');
   document.getElementById('transfer-modal').classList.add('show');
@@ -3621,7 +3759,7 @@ function dashRangeStart(){ return dashRange === 0 ? null : offsetDay(-(dashRange
 /* 看板聚合数据（渲染与测试共用，避免 NaN/除零：所有均值在空数组时给 null） */
 function computeDash(){
   const t = todayStr();
-  const tas = Api.listUsers().filter(u=>u.role==='ta');
+  const tas = getUsersCache().filter(u=>u.role==='ta');
   const recsOwner = pool.records.filter(r=>dashOwner==='all' || r.ownerId===dashOwner);
   const start = dashRangeStart();
   const recs = start ? recsOwner.filter(r=>r.date >= start) : recsOwner;
@@ -3726,7 +3864,7 @@ function renderDashboard(){
   const d = computeDash();
   // 筛选条：助教下拉 + 时间范围按钮态
   const sel = document.getElementById('dash-owner');
-  const tas = Api.listUsers().filter(u=>u.role==='ta');
+  const tas = getUsersCache().filter(u=>u.role==='ta');
   sel.innerHTML = '<option value="all">全部助教</option>' +
     tas.map(u=>'<option value="' + u.id + '">' + esc(u.name) + (u.disabled ? '（已停用）' : '') + '</option>').join('');
   sel.value = dashOwner;
@@ -3859,6 +3997,28 @@ document.getElementById('today-str').textContent =
   todayStr() + ' · ' + ['周日','周一','周二','周三','周四','周五','周六'][new Date().getDay()];
 
 window.__ready = (async function init(){
+  USE_API = await detectApi();  // 同 origin 探测到后端 → API 模式；否则 mock 演示模式
+  document.getElementById('login-demo').style.display = USE_API ? 'none' : '';  // 演示账号提示仅 mock 模式
+  if(USE_API){
+    apiImpl = HttpApi;
+    const u = await HttpApi.restoreSession();  // 刷新恢复：本地 token → /api/me 校验
+    if(u){
+      currentUser = u;
+      if(u.role !== 'sales'){
+        const s = await HttpApi.getState();
+        if(s.ok){ pool = s.state; }
+      }
+      await refreshUsersCache();
+      refreshView();
+      enterApp();
+      if(u.mustChangePwd) openPwdModal(true);
+      return;
+    }
+    showLogin();
+    return;
+  }
+  // mock 模式：行为与此前完全一致
+  apiImpl = LocalApi;
   await Api._ensureSeed();  // 首次运行播种账号与示例数据
   load();
   const u = Api.currentSession();
@@ -3873,7 +4033,10 @@ window.__ready = (async function init(){
 
 /* 测试钩子：供 node DOM 桩冒烟测试访问内部状态（不影响 UI） */
 window.__wb = {
-  Api,
+  Api, HttpApi, LocalApi,
+  get USE_API(){ return USE_API; },
+  setUseApi(v){ USE_API = v; apiImpl = v ? HttpApi : LocalApi; },  // 测试用：强制切换模式
+  refreshUsersCache,
   doLogin, doChangePwd, doLogout, enterApp, showLogin,
   saveQuickEntry, saveSlot, removeMissed, markMissedToday, buildExport,
   viewState, refreshView, canWriteOwner, writeOwnerId,

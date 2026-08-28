@@ -10,7 +10,17 @@ const { auth } = require('./auth');
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
-app.use(helmet());
+// helmet 安全头；注意：前端为单文件（内联 <script>/<style>/style 属性 + CDN 按需加载 jsPDF），
+// 默认 CSP（script-src 'self'）会禁掉内联脚本导致整页不执行，故对内联脚本/样式放行（M6 加固时再评估收紧）
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      'script-src': ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+      'style-src': ["'self'", "'unsafe-inline'"],
+      'img-src': ["'self'", 'data:', 'blob:']
+    }
+  }
+}));
 app.use(express.json({ limit: '10mb' }));
 
 // 静态托管仓库根目录的前端（index.html 为入口）

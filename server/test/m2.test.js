@@ -62,6 +62,10 @@ function ok(cond, name){
   r = await req('GET', '/api/users', null, 'fake-token-123');
   ok(r.status === 401 && r.data.ok === false, '假 token 访问 401');
 
+  r = await req('GET', '/api/me', null, adminTok);
+  ok(r.status === 200 && r.data.ok && r.data.user.username === 'admin' && r.data.user.role === 'admin',
+    'GET /api/me 返回当前用户（刷新恢复会话用）');
+
   r = await req('GET', '/api/users', null, adminTok);
   ok(r.status === 200 && Array.isArray(r.data.users) && r.data.users.length === 1, '教务 GET /api/users 返回账号列表');
   ok(r.data.users[0].pass_hash === undefined && r.data.users[0].stuCnt === 0, '账号列表不含 pass_hash，附学生数统计');

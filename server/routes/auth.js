@@ -38,6 +38,14 @@ router.post('/login', loginLimiter, (req, res) => {
   }});
 });
 
+// GET /api/me（全局守卫已登录校验）：返回当前用户，供前端刷新时校验 token 并恢复会话
+router.get('/me', (req, res) => {
+  const u = req.user;
+  res.json({ ok: true, user: {
+    id: u.id, username: u.username, name: u.name, role: u.role, mustChangePwd: !!u.must_change_pwd
+  }});
+});
+
 // POST /api/logout（全局 /api 守卫已挂载 req.user / req.token）
 router.post('/logout', (req, res) => {
   db.prepare('DELETE FROM sessions WHERE token = ?').run(req.token);
