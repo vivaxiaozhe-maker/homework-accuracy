@@ -108,6 +108,11 @@ function trackFile(fid){
   ok(res2.status === 200 && res2.headers.get('content-type') === 'image/png' && buf.length === pngBytes.length
     && decodeURIComponent(res2.headers.get('content-disposition')).includes('批改图.png'),
     'owner 本人读取成功（mime/内容/中文文件名正确）');
+  // ?token= 查询参数读取（<img>/PDF 直接引用场景）
+  res2 = await fetch(base + '/api/files/' + imgId + '?token=' + encodeURIComponent(T1));
+  ok(res2.status === 200, '?token= 查询参数可读取附件（img/PDF 直接引用）');
+  res2 = await fetch(base + '/api/files/' + imgId + '?token=bad-token');
+  ok(res2.status === 401, '?token= 无效时 401');
 
   /* ---- 记录绑定附件 ---- */
   r = await req('POST', '/api/records', { studentId: stuA, date: '2026-08-28', total: 20, correct: 18, wrongs: [7], subject: '学科 / AP / 微积分BC', images: [imgId], pdfs: [pdfId] }, T1);

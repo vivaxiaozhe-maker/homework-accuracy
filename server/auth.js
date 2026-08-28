@@ -16,9 +16,14 @@ function createSession(userId){
 }
 
 // auth 中间件：Authorization: Bearer <token> → req.user；顺带惰性清理过期 session
+// 例外：GET /api/files/:id 支持 ?token= 查询参数（<img>/PDF 直接引用无法带 Header。
+// 安全说明：URL 中的 token 可能出现在访问日志/浏览器历史，故仅限附件读取路径放开，不用于其他接口）
 function auth(req, res, next){
   const h = req.headers.authorization || '';
-  const token = h.startsWith('Bearer ') ? h.slice(7) : '';
+  let token = h.startsWith('Bearer ') ? h.slice(7) : '';
+  if(!token && req.method === 'GET' && req.path.startsWith('/files/')){
+    token = String(req.query.token || '');
+  }
   if(!token) return res.status(401).json({ ok: false, msg: '未登录或登录已过期' });
   db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(nowIso());  // 惰性清理
   const sess = db.prepare('SELECT * FROM sessions WHERE token = ?').get(token);

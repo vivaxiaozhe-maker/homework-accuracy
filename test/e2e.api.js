@@ -140,6 +140,109 @@ function ok(cond, name){
   ok(wb.state.students.length === 1 && wb.state.students[0].ownerId === wb.currentUser.id,
     '助教登录后只见自己名下学生（服务端过滤）');
 
+  /* ================= M5b：写路径全链路 ================= */
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const apiGetState = async () => (await wb.HttpApi.getState()).state;
+  const sid = wb.state.students[0].id;
+  const subj = '学科 / AP / 微积分BC';
+  const setVal = (id, v) => { documentStub.getElementById(id).value = v; };
+
+  /* ---- 录入作业（本地乐观 + 异步持久化 + id 回填） ---- */
+  wb.setQuickEntry({ gid: sid, subject: subj });
+  setVal('qe-date', ''); setVal('qe-total', '20'); setVal('qe-correct', '18'); setVal('qe-wrongs', '7,14');
+  wb.saveQuickEntry();
+  await sleep(300);
+  let st1 = await apiGetState();
+  ok(st1.records.some(r=>r.studentId===sid && r.total===20 && r.correct===18), '录入作业已持久化到服务端');
+  const recId = wb.pool.records.find(r=>r.studentId===sid && r.total===20).id;
+  ok(st1.records.some(r=>r.id===recId), '服务端记录 id 已回填到本地 pool');
+
+  /* ---- 附件：上传 → 记录引用文件 id → state 回读 ---- */
+  const fd = new FormData();
+  fd.append('files', new Blob([new Uint8Array(256)], { type: 'image/png' }), '批改.png');
+  const up = await wb.HttpApi.uploadFiles(fd);
+  ok(up.ok && up.files[0].id, '附件上传成功（FormData）');
+  const fileId = up.files[0].id;
+  const rec2 = await wb.HttpApi.addRecord({ studentId: sid, date: '2026-08-28', total: 10, correct: 9, wrongs: [3], subject: subj, images: [fileId], pdfs: [] });
+  ok(rec2.ok, '带附件 id 的作业记录创建成功');
+  await wb.resyncState();
+  ok(wb.pool.records.some(r=>r.images && r.images[0]===fileId), '重取 state 后本地记录含附件文件 id');
+  ok(wb.fileUrl(fileId).indexOf('/api/files/' + fileId + '?token=') === 0, '附件直链拼 token 参数');
+
+  /* ---- 登记未交 → 软删除 ---- */
+  wb.setQuickEntry({ gid: sid, subject: '竞赛 / AMC10' });
+  setVal('sl-date', '');
+  const missBefore = wb.pool.missed.length;
+  wb.markMissedToday();
+  ok(wb.pool.missed.length === missBefore + 1, '登记未交本地生效');
+  await sleep(300);
+  st1 = await apiGetState();
+  const missRow = st1.missed.find(m=>m.studentId===sid && !m.resolved);
+  ok(!!missRow, '登记未交已持久化到服务端');
+  wb.removeMissed(missRow.id);
+  documentStub.getElementById('cf-ok').onclick();  // 二次确认
+  await sleep(300);
+  st1 = await apiGetState();
+  const missRow2 = st1.missed.find(m=>m.id===missRow.id);
+  ok(missRow2 && missRow2.resolved && missRow2.resolution === 'deleted', '软删除已持久化（resolved + resolution=deleted）');
+
+  /* ---- 计划次数：首次直存 → 二次申请 → 教务通过 ---- */
+  wb.setQuickEntry({ gid: sid, subject: subj });
+  setVal('qe-plan', '10');
+  wb.savePlanCount();
+  await sleep(300);
+  st1 = await apiGetState();
+  ok(st1.students.find(s=>s.id===sid).subjPlans[subj] === 10, '首次设定计划直存到服务端');
+  setVal('qe-plan', '12');
+  wb.savePlanCount();  // 打开申请弹窗
+  setVal('pr-reason', '加课');
+  wb.submitPlanRequest();
+  await sleep(300);
+  st1 = await apiGetState();
+  const pendReq = st1.planRequests.find(r=>r.studentId===sid && r.status==='pending');
+  ok(pendReq && pendReq.oldPlan === 10 && pendReq.newPlan === 12, '二次修改申请已提交服务端（pending）');
+  // 教务通过
+  await wb.doLogin('admin', 'admin456', 'admin');
+  await wb.Api.reviewPlanRequest(pendReq.id, true);
+  await sleep(300);
+  st1 = await apiGetState();
+  ok(st1.students.find(s=>s.id===sid).subjPlans[subj] === 12, '教务审批通过后计划次数生效');
+  ok(st1.planRequests.find(r=>r.id===pendReq.id).status === 'approved', '申请状态已更新 approved');
+
+  /* ---- 转移归属 ---- */
+  const ta2Made = await wb.Api.createUser('李助教', 'ta2', 'ta123456', 'ta');
+  await wb.Api.transferStudent([sid], ta2Made.user.id);
+  await sleep(300);
+  st1 = await apiGetState();
+  ok(st1.students.find(s=>s.id===sid).ownerId === ta2Made.user.id, '转移归属后学生 ownerId 已变更');
+  ok(st1.records.filter(r=>r.studentId===sid).every(r=>r.ownerId===ta2Made.user.id), '转移后作业记录归属跟随');
+
+  /* ---- 审计日志（服务端口径） ---- */
+  await wb.doLogin('ta1', 'ta654321', 'ta');
+  const auditResp = await wb.HttpApi._req('GET', '/api/audit-logs?range=0&pageSize=50');
+  ok(auditResp.ok && auditResp.total > 0, '助教可查审计日志接口');
+  ok(auditResp.items.every(l=>l.userId===wb.currentUser.id || l.ownerId===wb.currentUser.id), '助教审计口径：只见自己相关');
+  wb.switchTab('audit');
+  await sleep(400);
+  ok(documentStub.getElementById('audit-list').innerHTML.indexOf('audit-row') !== -1, '操作记录页（API 模式）渲染服务端日志');
+  ok(documentStub.getElementById('audit-count').textContent.indexOf('共 ') !== -1, '结果统计行渲染');
+
+  /* ---- 销售端接口化 ---- */
+  // 先回教务：创建销售账号 + 把学生转回 ta1，再验证销售搜索
+  await wb.doLogin('admin', 'admin456', 'admin');
+  await wb.Api.createUser('张顾问', 'sales1', 'sales123456', 'sales');
+  await wb.Api.transferStudent([sid], (await wb.Api.listUsers()).find(u=>u.username==='ta1').id);
+  wb.doLogout();
+  await wb.doLogin('sales1', 'sales123456', 'sales');
+  wb.setStuQuery('林');
+  await sleep(400);
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('林小满') !== -1, '销售搜索出学生卡（走服务端接口）');
+  ok(wb.pool.students.length === 0, '销售本地不拉全量（state 无权限）');
+  await wb.toggleSalesSubjectApi(sid, subj, false);
+  await sleep(400);
+  const panelEl = documentStub.getElementById('sales-api-panel-' + sid);
+  ok(panelEl && panelEl.innerHTML.indexOf('作业打卡（只读）') !== -1, '销售科目只读详情面板渲染');
+
   console.log('\ne2e 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();
   try{ fs.unlinkSync(TEST_DB); fs.unlinkSync(TEST_DB + '-wal'); fs.unlinkSync(TEST_DB + '-shm'); }catch(e){}
