@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test": "node test/m2.test.js && node test/m3.test.js && node test/m4.test.js"
+    "test": "node test/m2.test.js && node test/m3.test.js && node test/m4.test.js && node test/m6.test.js",
+    "perf": "node test/perf.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",

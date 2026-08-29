@@ -21,6 +21,27 @@ const MIME_EXT = {
 const IMG_MAX = 2 * 1024 * 1024;   // 图片 ≤2MB
 const PDF_MAX = 4 * 1024 * 1024;   // PDF ≤4MB
 
+/* 魔数校验：mime 声明必须与文件头一致，防改名伪装上传（GIF 的 47494638 不在白名单 mime 内，类型校验已先拦截） */
+const MAGIC = {
+  'image/jpeg': [[0xFF, 0xD8, 0xFF]],
+  'image/jpg': [[0xFF, 0xD8, 0xFF]],
+  'image/png': [[0x89, 0x50, 0x4E, 0x47]],
+  'application/pdf': [[0x25, 0x50, 0x44, 0x46]]  // %PDF
+};
+function sniffOk(mime, filePath){
+  let buf;
+  try{
+    const fd = fs.openSync(filePath, 'r');
+    buf = Buffer.alloc(12);
+    fs.readSync(fd, buf, 0, 12, 0);
+    fs.closeSync(fd);
+  }catch(e){ return false; }
+  if(mime === 'image/webp') return buf.toString('latin1', 0, 4) === 'RIFF' && buf.toString('latin1', 8, 12) === 'WEBP';
+  const sigs = MAGIC[mime];
+  if(!sigs) return false;
+  return sigs.some(sig => sig.every((b, i) => buf[i] === b));
+}
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: UPLOAD_DIR,
@@ -52,6 +73,12 @@ function uploadMw(req, res, next){
 router.post('/', requireRole('ta', 'admin'), uploadMw, (req, res) => {
   const files = req.files || [];
   if(!files.length) return res.status(400).json({ ok: false, msg: '未接收到文件' });
+  // 魔数校验：mime 声明与文件头不符 → 整批回滚
+  const badMagic = files.filter(f => !sniffOk(f.mimetype, f.path));
+  if(badMagic.length){
+    files.forEach(f => { try{ fs.unlinkSync(f.path); }catch(e){} });
+    return res.status(400).json({ ok: false, msg: '文件内容与类型不符：' + badMagic.map(f => f.originalname).join('、') });
+  }
   // 图片大小单独收紧（multer 全局限制是 PDF 的 4MB）
   const oversized = files.filter(f => f.mimetype !== 'application/pdf' && f.size > IMG_MAX);
   if(oversized.length){

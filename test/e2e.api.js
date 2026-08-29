@@ -159,7 +159,7 @@ function ok(cond, name){
 
   /* ---- 附件：上传 → 记录引用文件 id → state 回读 ---- */
   const fd = new FormData();
-  fd.append('files', new Blob([new Uint8Array(256)], { type: 'image/png' }), '批改.png');
+  fd.append('files', new Blob([Buffer.concat([Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), Buffer.alloc(248, 7)])], { type: 'image/png' }), '批改.png');
   const up = await wb.HttpApi.uploadFiles(fd);
   ok(up.ok && up.files[0].id, '附件上传成功（FormData）');
   const fileId = up.files[0].id;

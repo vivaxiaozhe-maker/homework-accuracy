@@ -52,8 +52,10 @@ function trackFile(fid){
     try{ data = await res.json(); }catch(e){}
     return { status: res.status, data };
   }
-  const pngBytes = new Uint8Array(1024).fill(7);          // 1KB 假图片（不嗅探内容）
-  const pdfBytes = new Uint8Array(2048).fill(8);          // 2KB 假 PDF
+  // 带真实魔数的假文件（服务端做魔数嗅探）
+  const pngBytes = Buffer.concat([Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), Buffer.alloc(1016, 7)]);   // 1KB 假 PNG
+  const pdfBytes = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(2038, 8)]);                                        // 2KB 假 PDF
+  const bigPng = Buffer.concat([Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), Buffer.alloc(Math.ceil(2.1 * 1024 * 1024) - 8, 1)]);
 
   /* ---- 账号准备 ---- */
   let r = await req('POST', '/api/login', { username: 'admin', password: 'admin123', role: 'admin' });
@@ -81,11 +83,14 @@ function trackFile(fid){
   const pdfId = r.data.files[0].id;
   trackFile(pdfId);
 
-  r = await upload([{ data: new Uint8Array(2.1 * 1024 * 1024), mime: 'image/png', name: 'big.png' }], T1);
+  r = await upload([{ data: bigPng, mime: 'image/png', name: 'big.png' }], T1);
   ok(r.status === 413 && r.data.ok === false, '超限图片（>2MB）被拒 413');
 
   r = await upload([{ data: new Uint8Array(100), mime: 'text/plain', name: 'a.txt' }], T1);
   ok(r.status === 400 && r.data.ok === false, '错误类型（.txt）被拒 400');
+
+  r = await upload([{ data: pdfBytes, mime: 'image/png', name: 'fake.png' }], T1);
+  ok(r.status === 400 && r.data.ok === false, '魔数不符（PDF 内容声明 image/png）被拒 400');
 
   r = await upload(Array.from({ length: 10 }, (_, i) => ({ data: pngBytes, mime: 'image/png', name: 'f' + i + '.png' })), T1);
   ok(r.status === 400 && r.data.ok === false, '单次 10 个文件被拒（最多 9 个）');
@@ -128,7 +133,7 @@ function trackFile(fid){
   r = await req('POST', '/api/records', { studentId: stuA, date: '2026-08-28', total: 10, correct: 9, wrongs: [], subject: 'x', images: [imgId] }, T2);
   ok(r.status === 403, '助教 B 不能用助教 A 的附件建记录（学生也不归他）');
   // 直接挂 recordId 上传
-  r = await upload([{ data: pngBytes, mime: 'image/jpeg', name: '补图.jpg' }], T1, { recordId: recA });
+  r = await upload([{ data: pngBytes, mime: 'image/png', name: '补图.png' }], T1, { recordId: recA });
   ok(r.status === 200, '带 recordId 上传成功');
   const img2 = r.data.files[0].id;
   trackFile(img2);
