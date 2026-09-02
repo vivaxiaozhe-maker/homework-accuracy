@@ -189,10 +189,19 @@ function ok(cond, name){
   /* ---- 计划次数：首次直存 → 二次申请 → 教务通过 ---- */
   wb.setQuickEntry({ gid: sid, subject: subj });
   setVal('qe-plan', '10');
+  setVal('qe-first-class', '');
+  wb.savePlanCount();
+  await sleep(300);
+  st1 = await apiGetState();
+  ok(!(st1.students.find(s=>s.id===sid).subjPlans || {})[subj], '首次设定缺开课日期被拦截');
+  setVal('qe-first-class', '2026-08-20');
   wb.savePlanCount();
   await sleep(300);
   st1 = await apiGetState();
   ok(st1.students.find(s=>s.id===sid).subjPlans[subj] === 10, '首次设定计划直存到服务端');
+  ok(st1.students.find(s=>s.id===sid).subjFirstClass
+    && st1.students.find(s=>s.id===sid).subjFirstClass[subj] === '2026-08-20',
+    'firstClassDate 随 plan/set 写入并序列化带出（state 回读）');
   setVal('qe-plan', '12');
   wb.savePlanCount();  // 打开申请弹窗
   setVal('pr-reason', '加课');
@@ -264,6 +273,14 @@ function ok(cond, name){
   await sleep(400);
   st1 = await apiGetState();
   ok((st1.students.find(s=>s.id===sid).subjects || []).indexOf('测试科目X') !== -1, '添加科目已持久化（state 回读）');
+  // 开课日期直改（走 subj-fields 白名单 subjFirstClass，不审批）
+  wb.setQuickEntry({ gid: sid, subject: subj });
+  wb.editFirstClass();
+  setVal('qe-first-class-edit', '2026-08-25');
+  wb.saveFirstClass();
+  await sleep(300);
+  st1 = await apiGetState();
+  ok(st1.students.find(s=>s.id===sid).subjFirstClass[subj] === '2026-08-25', '开课日期直改经 subj-fields 白名单持久化');
 
   console.log('\ne2e 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();

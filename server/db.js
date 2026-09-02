@@ -165,5 +165,9 @@ const recCols = db.prepare("PRAGMA table_info(records)").all().map(c => c.name);
 if(!recCols.includes('pdfs')){
   db.exec("ALTER TABLE records ADD COLUMN pdfs TEXT");
 }
+/* 首次课程时间迁移：students 补 subj_first_class JSON 列（科目 → 开课日期 YYYY-MM-DD） */
+if(!db.prepare("PRAGMA table_info(students)").all().map(c => c.name).includes('subj_first_class')){
+  db.exec('ALTER TABLE students ADD COLUMN subj_first_class TEXT');
+}
 
 module.exports = db;

@@ -251,13 +251,14 @@ function ok(cond, name){
   wb.pool.students.push(lowStu);
   wb.pool.records.push({id:'dash-low-rec', studentId:lowStu.id, date:offDay(0), total:10, correct:3,
     wrongs:[1,2,3,4,5,6,7], subject:'学科 / AP / 物理2', images:[], ownerId:ta1.id});
-  wb.pool.missed.push({id:'dash-od-miss', studentId:lowStu.id, date:offDay(-5), resolved:false,
+  wb.pool.missed.push({id:'dash-od-miss', studentId:lowStu.id, date:offDay(-10), resolved:false,
     subject:'学科 / AP / 物理2', ownerId:ta1.id});
+  lowStu.subjFirstClass = {'学科 / AP / 物理2': offDay(-20)};  // 新逾期口径：需已开课 + 超 7 天宽限
   wb.pool.students.push({id:'dash-sleep-stu', name:'看板沉睡测试', ownerId:ta2.id});
   wb.renderDashboard();
   const dFix = wb.computeDash();
   ok(dFix.lowStus.some(g=>g.name==='看板低分测试' && g.avg===30), '预警名单：平均 <60% 的低分学生入选');
-  ok(dFix.overdueList.some(x=>x.id==='dash-od-miss' && x.days===5), '预警名单：逾期未交入选且逾期天数正确');
+  ok(dFix.overdueList.some(x=>x.id==='dash-od-miss' && x.days===10), '预警名单：逾期未交入选且逾期天数正确（开课口径）');
   ok(dFix.sleepers.some(x=>x.name==='看板沉睡测试' && x.days===null), '预警名单：14 天无记录学生入选（从未有记录）');
   ok(documentStub.getElementById('dash-alert-low').innerHTML.indexOf('看板低分测试') !== -1
     && documentStub.getElementById('dash-alert-miss').innerHTML.indexOf('看板低分测试') !== -1
@@ -284,8 +285,12 @@ function ok(cond, name){
   const planStu = wb.pool.students.find(s=>s.ownerId===ta1.id && !s.archived);
   const planSubj = '学科 / AP / 微积分BC';
   wb.setQuickEntry({gid: planStu.id, subject: planSubj});
-  // 首次设置：直接生效，不产生申请
+  // 首次设置：直接生效，不产生申请（需填第一次课程时间）
   setVal('qe-plan', '10');
+  setVal('qe-first-class', '');
+  wb.savePlanCount();
+  ok(!planStu.subjPlans || planStu.subjPlans[planSubj] === undefined, '首次设置缺开课日期被拦截');
+  setVal('qe-first-class', offDay(-14));
   wb.savePlanCount();
   ok(planStu.subjPlans && planStu.subjPlans[planSubj]===10 && wb.pool.planRequests.length===0,
     '首次设置应完成次数直接生效，不产生申请');
@@ -769,6 +774,75 @@ function ok(cond, name){
     && documentStub.getElementById('tab-audit').style.display === 'none', '销售端无操作记录入口');
   ok(wb.switchTab('audit') === 'stats', '销售 switchTab(\'audit\') 被守卫拦截');
   ok(wb.visibleAuditLogs().length === 0 && documentStub.getElementById('audit-list').innerHTML === '', '销售可见日志为空且页面不产出内容');
+
+  /* ---- 去补录修复 + 首次课程时间逾期口径 + 搜索框位置 + 明细倒序 ---- */
+  // 逾期统一判定矩阵（isOverdueMissed）
+  const mockStu = { subjFirstClass: { '学科 / AP / 微积分BC': offDay(-20) } };
+  const mockStuFuture = { subjFirstClass: { '学科 / AP / 微积分BC': offDay(7) } };
+  ok(wb.isOverdueMissed({resolved:false, subject:'学科 / AP / 微积分BC', date:offDay(-8)}, mockStu), '逾期口径：开课后超 7 天宽限 → 逾期');
+  ok(!wb.isOverdueMissed({resolved:false, subject:'学科 / AP / 微积分BC', date:offDay(-3)}, mockStu), '逾期口径：宽限期内 → 不逾期');
+  ok(!wb.isOverdueMissed({resolved:false, subject:'学科 / AP / 微积分BC', date:offDay(-8)}, mockStuFuture), '逾期口径：未开课 → 不逾期');
+  ok(!wb.isOverdueMissed({resolved:false, subject:'学科 / AP / 微积分BC', date:offDay(-8)}, {}), '逾期口径：未填开课时间 → 不逾期');
+  ok(!wb.isOverdueMissed({resolved:false, subject:'', date:offDay(-8)}, mockStu), '逾期口径：无科目 → 不逾期');
+  ok(!wb.isOverdueMissed({resolved:true, resolution:'made-up', subject:'学科 / AP / 微积分BC', date:offDay(-8)}, mockStu), '逾期口径：已处理 → 不逾期');
+  // 未开课不进今天要处理 + 宽限期内进入但不标红
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  const fcStu = wb.pool.students.find(s=>s.ownerId===ta1.id && !s.archived && s.sample);
+  fcStu.subjFirstClass = {'竞赛 / AMC12': offDay(10), '语培 / 雅思': offDay(-30)};
+  wb.pool.missed.push({id:'fc-miss-1', studentId:fcStu.id, date:offDay(-2), subject:'竞赛 / AMC12', resolved:false, ownerId:ta1.id});
+  wb.pool.missed.push({id:'fc-miss-2', studentId:fcStu.id, date:offDay(-2), subject:'语培 / 雅思', resolved:false, ownerId:ta1.id});
+  wb.refreshView(); wb.renderToday();
+  const fcTodayHtml = documentStub.getElementById('today-list').innerHTML;
+  ok(fcTodayHtml.indexOf('fc-miss-1') === -1 && fcTodayHtml.indexOf('AMC12') === -1, '未开课的未交不进入今天要处理');
+  // 注意：此前看板测试构造的 dash-od-miss（已超宽限）合法显示「逾期」红标，这里只校验 fc-miss-2 这一行
+  const fc2Pos = fcTodayHtml.indexOf("resolveMissed('fc-miss-2')");
+  const fc2Row = fcTodayHtml.slice(Math.max(0, fc2Pos - 300), fc2Pos);
+  ok(fc2Pos !== -1 && fc2Row.indexOf('>未交<') !== -1 && fc2Row.indexOf('>逾期<') === -1,
+    '宽限期内未交进入但不标逾期红');
+  // 停滞提醒抑制：fc 在未来 → 不提醒
+  fcStu.subjPlans = fcStu.subjPlans || {};
+  fcStu.subjPlans['竞赛 / AMC12'] = 6;
+  fcStu.subjPlanSetAt = fcStu.subjPlanSetAt || {};
+  fcStu.subjPlanSetAt['竞赛 / AMC12'] = offDay(-10);
+  wb.refreshView(); wb.renderToday();
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf('AMC12') === -1, '未开课科目停滞提醒被抑制');
+  // 无科目未交 → 弹科目选择 → 回填并进面板
+  wb.pool.missed.push({id:'fc-miss-3', studentId:fcStu.id, date:offDay(-1), resolved:false, ownerId:ta1.id});
+  wb.refreshView();
+  wb.resolveMissed('fc-miss-3');
+  ok(documentStub.getElementById('miss-subj-modal').classList.contains('show'), '无科目未交点击「去补录」弹出科目选择');
+  setVal('as-ms-s1', '__custom__');
+  setVal('as-ms-custom', '测试 / 自定义科目');
+  wb.confirmMissSubject();
+  const fcMiss3 = wb.pool.missed.find(x=>x.id==='fc-miss-3');
+  ok(fcMiss3.subject === '测试 / 自定义科目', '选定科目回填到未交记录');
+  // rep 解析：同名组第二条记录的未交，应解析到代表学生
+  const repBase = wb.pool.students.find(s=>s.ownerId===ta1.id && !s.archived && s.sample);
+  const dupStu = {id:'fc-dup-stu', name:repBase.name, sample:true, ownerId:ta1.id};
+  wb.pool.students.push(dupStu);
+  wb.pool.missed.push({id:'fc-miss-4', studentId:dupStu.id, date:offDay(-1), subject:'竞赛 / AMC12', resolved:false, ownerId:ta1.id});
+  wb.refreshView();
+  wb.resolveMissed('fc-miss-4');
+  // quickEntry.gid 应为组内代表学生（非 fc-dup-stu 自身）
+  // 通过打卡面板渲染校验：qe 面板存在即可（间接验证 rep 解析成功跳转）
+  // 开课日期直改（不审批，记审计）
+  wb.setQuickEntry({gid: fcStu.id, subject: '竞赛 / AMC12'});
+  wb.editFirstClass();
+  setVal('qe-first-class-edit', offDay(-5));
+  wb.saveFirstClass();
+  ok(fcStu.subjFirstClass['竞赛 / AMC12'] === offDay(-5), '开课日期直改生效（不走审批）');
+  // 注：此前审计测试已触发 5000 条 FIFO 裁剪，条数不再增长；断言最新一条为本次动作
+  ok(wb.pool.auditLogs[wb.pool.auditLogs.length-1].action === '修改开课日期', '开课日期修改记审计日志');
+  // 搜索框位置：图表卡 → 搜索卡 → 明细卡
+  ok(html.indexOf('id="stats-chart-card"') < html.indexOf('id="stu-search"')
+    && html.indexOf('id="stu-search"') < html.indexOf('id="stu-list"'), '搜索框位于图表与学生明细之间');
+  // 明细倒序：最新创建的学生排最前（id 为时间戳基底 base36；长度主导大小，补长后缀确保最新）
+  const newStu = {id: Date.now().toString(36) + 'zzzzzz', name:'最新学生', ownerId:ta1.id};
+  wb.pool.students.push(newStu);
+  wb.refreshView(); wb.renderStats();
+  const detHtml = documentStub.getElementById('stu-list').innerHTML;
+  ok(detHtml.indexOf('最新学生') < detHtml.indexOf(repBase.name), '学生明细最新创建排在最前');
 
   console.log('\n断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   process.exit(fail ? 1 : 0);

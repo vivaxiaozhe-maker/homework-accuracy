@@ -139,10 +139,13 @@ function ok(cond, name){
 
   /* ---- 计划次数：首次直存 + 审批流 ---- */
   r = await req('POST', '/api/plan/set', { studentId: stuA, subject: '学科 / AP / 微积分BC', plan: 10 }, T1);
-  ok(r.status === 200, '首次设定计划直存');
+  ok(r.status === 400 && r.data.msg.indexOf('第一次课程时间') !== -1, '首次设定缺 firstClassDate 被拒');
+  r = await req('POST', '/api/plan/set', { studentId: stuA, subject: '学科 / AP / 微积分BC', plan: 10, firstClassDate: offDay(-14) }, T1);
+  ok(r.status === 200, '首次设定计划直存（含 firstClassDate）');
   let stuRow = db.prepare('SELECT * FROM students WHERE id = ?').get(stuA);
   ok(JSON.parse(stuRow.subj_plans)['学科 / AP / 微积分BC'] === 10
-    && JSON.parse(stuRow.subj_plan_set_at)['学科 / AP / 微积分BC'] === today(), '直存写入 subj_plans + subj_plan_set_at');
+    && JSON.parse(stuRow.subj_plan_set_at)['学科 / AP / 微积分BC'] === today()
+    && JSON.parse(stuRow.subj_first_class)['学科 / AP / 微积分BC'] === offDay(-14), '直存写入 subj_plans + set_at + firstClassDate');
   r = await req('POST', '/api/plan/set', { studentId: stuA, subject: '学科 / AP / 微积分BC', plan: 12 }, T1);
   ok(r.status === 400, '已有计划值时直存被拒（提示走申请）');
   r = await req('POST', '/api/plan-requests', { studentId: stuA, subject: '学科 / AP / 微积分BC', newPlan: 12, reason: '加课' }, T1);

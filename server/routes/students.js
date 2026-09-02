@@ -81,7 +81,7 @@ router.post('/:id/owner', requireRole('admin'), (req, res) => {
 /* PUT /api/students/:id/subj-fields：合并式更新学生 JSON 列（用请求体整体替换对应列，前端先本地改好再整体提交）
    字段白名单：subjComments（评语）/ subjAdvice（学习计划与建议）/ mock（模考）/ subjects（科目列表）。
    注意：刻意不含 subj_plans——计划次数只能走 plan/set + 审批流，防止经此绕过审批 */
-const SUBJ_FIELD_WHITELIST = ['subjComments', 'subjAdvice', 'mock', 'subjects'];
+const SUBJ_FIELD_WHITELIST = ['subjComments', 'subjAdvice', 'mock', 'subjects', 'subjFirstClass'];
 router.put('/:id/subj-fields', (req, res) => {
   const st = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.id);
   if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
@@ -114,6 +114,15 @@ router.put('/:id/subj-fields', (req, res) => {
         }
       }
       setClauses.push('mock = ?'); params.push(JSON.stringify(v)); actions.push('保存模考');
+    } else if(k === 'subjFirstClass'){
+      // 开课日期（修改不需审批，只记审计）：{科目: 'YYYY-MM-DD'}
+      if(!v || typeof v !== 'object' || Array.isArray(v)) return res.status(400).json({ ok: false, msg: 'subjFirstClass 必须是对象' });
+      for(const sub of Object.keys(v)){
+        if(v[sub] !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(v[sub]))){
+          return res.status(400).json({ ok: false, msg: '开课日期格式应为 YYYY-MM-DD' });
+        }
+      }
+      setClauses.push('subj_first_class = ?'); params.push(JSON.stringify(v)); actions.push('修改开课日期');
     } else {
       if(!v || typeof v !== 'object' || Array.isArray(v)) return res.status(400).json({ ok: false, msg: k + ' 必须是对象' });
       setClauses.push(k === 'subjComments' ? 'subj_comments = ?' : 'subj_advice = ?');

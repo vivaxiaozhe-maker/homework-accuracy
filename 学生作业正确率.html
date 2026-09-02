@@ -677,15 +677,16 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
     </section>
 
     <!-- 学生统计 -->
-    <section id="pane-stats" class="tab-pane">      <div class="card" style="padding:14px 20px">
+    <section id="pane-stats" class="tab-pane">      <div class="card" id="stats-chart-card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>各科目平均正确率（全体学生）</h2>
+        <div class="chart-wrap" id="bar-chart"></div>
+      </div>
+      <!-- 搜索框移到图表与学生明细之间 -->
+      <div class="card" style="padding:14px 20px">
         <div class="search-box">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input id="stu-search" placeholder="按学生姓名搜索，支持部分匹配，如：林">
         </div>
-      </div>
-      <div class="card" id="stats-chart-card">
-        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>各科目平均正确率（全体学生）</h2>
-        <div class="chart-wrap" id="bar-chart"></div>
       </div>
       <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2"/><circle cx="10" cy="7" r="4"/></svg>学生明细<span style="flex:1"></span>
@@ -978,6 +979,24 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
     <div class="row">
       <button class="btn ghost sm" id="pr-cancel">取消</button>
       <button class="btn mint sm" id="pr-ok">提交申请</button>
+    </div>
+  </div>
+</div>
+
+<!-- 无科目未交：补录前选科目（三级联动，复用新增科目面板的取值逻辑） -->
+<div class="modal-mask" id="miss-subj-modal">
+  <div class="modal">
+    <h3>选择该次未交的科目</h3>
+    <p>这条未交记录没有科目信息。选定科目后将回填到记录，并进入该科目的打卡面板补录。</p>
+    <div class="subject-row" style="margin-bottom:16px">
+      <select id="as-ms-s1" onchange="asSub1Change('ms')"></select>
+      <select id="as-ms-s2" onchange="asSub2Change('ms')" disabled><option value="">二级科目…</option></select>
+      <select id="as-ms-s3" disabled style="display:none"><option value="">三级科目…</option></select>
+      <input id="as-ms-custom" placeholder="输入自定义科目" style="display:none">
+    </div>
+    <div class="row">
+      <button class="btn ghost sm" id="ms-cancel">取消</button>
+      <button class="btn mint sm" id="ms-ok">确定并去补录</button>
     </div>
   </div>
 </div>
@@ -1610,9 +1629,12 @@ function seedPlanRequestSamples(ownerId){
   const admin = getUsersCache().find(u=>u.role==='admin');
   const pick = name => stus.find(s=>s.name===name);
   const sA = pick('周子墨'), sB = pick('苏晚晴'), sC = pick('陈星宇');
+  // 示例计划补开课日期（相对日期，过去时间——让逾期/宽限口径在演示中可见）
+  const setFc = (s, sub, off)=>{ s.subjFirstClass = s.subjFirstClass || {}; s.subjFirstClass[sub] = offsetDay(off); };
   if(sA){  // 待审批：周子墨 竞赛 / AMC10 8 → 10
     sA.subjPlans = sA.subjPlans || {};
     sA.subjPlans['竞赛 / AMC10'] = 8;
+    setFc(sA, '竞赛 / AMC10', -20);
     pool.planRequests.push({id:uid(), studentId:sA.id, ownerId:ownerId, subject:'竞赛 / AMC10',
       oldPlan:8, newPlan:10, reason:'竞赛班加课，需要增加 2 次作业', status:'pending',
       requestedBy:ownerId, requestedAt:offsetDay(-1), reviewedBy:null, reviewedAt:null, sample:true});
@@ -1620,6 +1642,7 @@ function seedPlanRequestSamples(ownerId){
   if(sB){  // 已通过：苏晚晴 语培 / 托福 12 → 15
     sB.subjPlans = sB.subjPlans || {};
     sB.subjPlans['语培 / 托福'] = 15;
+    setFc(sB, '语培 / 托福', -30);
     pool.planRequests.push({id:uid(), studentId:sB.id, ownerId:ownerId, subject:'语培 / 托福',
       oldPlan:12, newPlan:15, reason:'冲分班课程延长', status:'approved',
       requestedBy:ownerId, requestedAt:offsetDay(-3), reviewedBy:admin?admin.id:null, reviewedAt:offsetDay(-2), sample:true});
@@ -1627,6 +1650,7 @@ function seedPlanRequestSamples(ownerId){
   if(sC){  // 已驳回：陈星宇 学科 / AP / 物理1 8 → 20
     sC.subjPlans = sC.subjPlans || {};
     sC.subjPlans['学科 / AP / 物理1'] = 8;
+    setFc(sC, '学科 / AP / 物理1', -20);
     pool.planRequests.push({id:uid(), studentId:sC.id, ownerId:ownerId, subject:'学科 / AP / 物理1',
       oldPlan:8, newPlan:20, reason:'想把整学期作业一次录完', status:'rejected',
       requestedBy:ownerId, requestedAt:offsetDay(-4), reviewedBy:admin?admin.id:null, reviewedAt:offsetDay(-3), sample:true});
@@ -1697,10 +1721,26 @@ function shortSubject(s){
   return s;
 }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-// 某学生（组）某科目的逾期未交次数：未处理 且 未交日期早于系统今天
-function overdueMissCount(ids, subject){
+/* ---- 逾期统一判定（首次课程时间口径） ----
+   逾期 ⟺ 未处理 && 该科目已填开课时间（未填一律不算逾期）&& 开课时间 ≤ 今天（未开课不算）&& 未交日期 + 7 天宽限 < 今天
+   「未指定科目」的未交无法定位开课时间 → 不算逾期 */
+function addDays(dateStr, n){ const d = new Date(dateStr + 'T00:00:00'); d.setDate(d.getDate() + n); return fmtDate(d); }
+function isOverdueMissed(m, st){
+  if(!m || m.resolved) return false;
+  if(!m.subject) return false;
+  const fc = st && st.subjFirstClass && st.subjFirstClass[m.subject];
+  if(!fc) return false;
   const t = todayStr();
-  return state.missed.filter(m=>!m.resolved && m.date < t && (m.subject||'')===subject && ids.indexOf(m.studentId)>=0).length;
+  if(fc > t) return false;
+  return addDays(m.date, 7) < t;
+}
+// 某学生（组）某科目的逾期未交次数（统一逾期口径）
+function overdueMissCount(ids, subject){
+  return state.missed.filter(m=>{
+    if((m.subject||'')!==subject || ids.indexOf(m.studentId)===-1) return false;
+    const st = state.students.find(x=>x.id===m.studentId);
+    return isOverdueMissed(m, st);
+  }).length;
 }
 function hasSample(){
   return state.students.some(s=>s.sample) || state.records.some(r=>r.sample) || state.missed.some(m=>m.sample);
@@ -1770,9 +1810,13 @@ function renderToday(){
   let html = '';
 
   // 未交作业：按学生合并成一个卡片，姓名显示一次，框内按科目分列；
-  // 科目按最新未交日期倒序，科目内按日期升序编号（第N次）；逾期标红
+  // 科目按最新未交日期倒序，科目内按日期升序编号（第N次）；
+  // 逾期判定用统一口径 isOverdueMissed（开课时间 + 7 天宽限）；未开课的未交不进今天要处理（提前排课不催办）
   const stuGroups = {};
   state.missed.filter(m=>!m.resolved).forEach(m=>{
+    const st = state.students.find(x=>x.id===m.studentId);
+    const fc = m.subject && st && st.subjFirstClass && st.subjFirstClass[m.subject];
+    if(fc && fc > todayStr()) return;  // 未开课：不进入今天要处理
     (stuGroups[m.studentId] = stuGroups[m.studentId] || []).push(m);
   });
   Object.entries(stuGroups)
@@ -1803,10 +1847,10 @@ function renderToday(){
         html += '<div class="miss-sub">' +
           '<div class="miss-sub-name"><span class="tag mint">' + esc(shortSubject(s.sub || '未指定科目')) + '</span></div>';
         s.arr.forEach((m,i)=>{
-          const overdue = m.date < t;
+          const overdue = isOverdueMissed(m, state.students.find(x=>x.id===m.studentId));
           html += '<div class="todo-item' + (overdue?' overdue':'') + '">' +
             '<div class="grow"><span class="idx-tag">第' + (i+1) + '次</span>' +
-            (overdue ? '<span class="tag red" title="未交日期早于今天，尚未补交">逾期</span>' : '<span class="tag amber" title="今天（或之后）的未交">今日</span>') +
+            (overdue ? '<span class="tag red" title="开课后超过 7 天未补交">逾期</span>' : '<span class="tag amber" title="宽限期内（开课后 7 天内）或未填开课时间的未交">未交</span>') +
             '<span class="miss-date">' + m.date + '</span></div>' +
             (isAdminView() ? '' :  // 教务视角未交提醒只读，不显示补录/删除按钮
               '<button class="btn mint sm" onclick="resolveMissed(\'' + m.id + '\')" title="跳转到该生该科目的打卡面板补录这次作业；填写并保存后，该条未交才算补交完成">去补录</button>' +
@@ -1832,8 +1876,11 @@ function renderToday(){
 
   // 计划停滞提醒：科目已设定应完成次数，但超过 7 天没有任何新作业记录
   // 基准日 = max(计划设定日 subjPlanSetAt, 该科目最近一次作业记录日)；旧数据无 setAt 时以最近记录日为基准（无记录则不提醒）
+  // 未开课（首次课程时间在未来）不提醒
   state.students.filter(s=>!s.archived && s.subjPlans).forEach(st=>{
     Object.keys(st.subjPlans).forEach(sub=>{
+      const fc = st.subjFirstClass && st.subjFirstClass[sub];
+      if(fc && fc > t) return;  // 未开课：不提醒
       const setAt = st.subjPlanSetAt && st.subjPlanSetAt[sub];
       const recs = state.records.filter(r=>r.studentId===st.id && r.subject===sub);
       const lastRec = recs.length ? recs.reduce((a,b)=>a.date>b.date?a:b).date : null;
@@ -1874,22 +1921,57 @@ function resolveMissed(id){
   const m = state.missed.find(x=>x.id===id);
   if(!m) return;
   const stu = state.students.find(s=>s.id===m.studentId);
-  const canJump = stu && !stu.archived && m.subject;  // 现有学生且有科目 → 跳转打卡面板补录
-  if(!canJump) return;  // 历史学生或无科目：不跳转、不标记
-  const items = subjectItems(m.studentId, m.subject);
+  if(!stu || stu.archived) return;  // 历史学生：不跳转、不标记
+  if(!m.subject){
+    // 无科目（「未指定科目」）：先弹三级联动选科目，选后回填到该未交记录再进打卡面板
+    openMissSubjectPicker(m.id);
+    return;
+  }
+  // 同名合并组需解析代表学生（否则打卡面板可能挂在组内非代表条目上不显示）
+  const rep = activeStudents().find(s=>s.name.trim()===stu.name.trim() && (s.ownerId||'')===(stu.ownerId||'')) || stu;
+  const items = subjectItems(rep.id, m.subject);
   const pos = items.findIndex(it=>it.type==='miss' && it.miss.id===id);
   switchTab('stats');
   // 打开该生该科目的「作业打卡」面板（若已是同一面板则不重复切换）
-  if(quickEntry && quickEntry.gid===stu.id && quickEntry.subject===m.subject){
+  if(quickEntry && quickEntry.gid===rep.id && quickEntry.subject===m.subject){
     renderAll();
   } else {
-    toggleQuickEntry(stu.id, m.subject);
+    toggleQuickEntry(rep.id, m.subject);
   }
   // 自动展开补录表单：定位原未交所在格子（表单内日期自动预填为该未交日期）
   if(pos >= 0){
-    slotEdit = {gid: stu.id, subject: m.subject, idx: pos+1};
+    slotEdit = {gid: rep.id, subject: m.subject, idx: pos+1};
     renderAll();
   }
+}
+/* 无科目未交的补录流程：三级联动选科目 → 回填 missed.subject（记审计）→ 进入打卡面板补录 */
+let missPickId = null;  // 当前待选科目的未交记录 id
+function openMissSubjectPicker(missedId){
+  missPickId = missedId;
+  const p = 'as-ms';  // 复用新增科目面板的三级联动（getAddSubjValue/asSub1Change 读取 'as-' + 前缀 的 id）
+  document.getElementById(p + '-s1').innerHTML = '<option value="">选择分类…</option>' +
+    Object.keys(SUBJECT_TREE).map(k=>'<option value="' + k + '">' + k + '</option>').join('') +
+    '<option value="__custom__">自定义…</option>';
+  document.getElementById(p + '-s2').innerHTML = '<option value="">二级科目…</option>';
+  document.getElementById(p + '-s2').disabled = true;
+  document.getElementById(p + '-s3').innerHTML = '<option value="">三级科目…</option>';
+  document.getElementById(p + '-s3').disabled = true; document.getElementById(p + '-s3').style.display = 'none';
+  document.getElementById(p + '-custom').value = ''; document.getElementById(p + '-custom').style.display = 'none';
+  document.getElementById('miss-subj-modal').classList.add('show');
+}
+function confirmMissSubject(){
+  const subj = getAddSubjValue('ms');  // 复用新增科目面板的三级联动取值
+  if(!subj){ alert('请选择科目'); return; }
+  const m = pool.missed.find(x=>x.id===missPickId);
+  document.getElementById('miss-subj-modal').classList.remove('show');
+  missPickId = null;
+  if(!m) return;
+  if(!canWriteOwner(m.ownerId)){ alert('没有权限操作该数据'); return; }
+  m.subject = subj;
+  logAction('补登未交科目', 'missed', auditStuDesc(m.studentId, subj), '原未交日期 ' + m.date, {ownerId: m.ownerId});
+  apiPersist(HttpApi._req('PUT', '/api/missed/' + m.id, {date: m.date, subject: subj}));
+  save();
+  resolveMissed(m.id);  // 回填后走正常补录跳转
 }
 function removeMissed(id){
   const m = pool.missed.find(x=>x.id===id);
@@ -1977,6 +2059,9 @@ function renderStats(){
       : '<p class="hint">没有匹配「' + esc(stuQuery) + '」的学生。</p>';
     return;
   }
+
+  // 明细按创建时间倒序（uid 为时间戳基底，倒序即最新在前）；教务分组视图组内同序；销售端示例卡顺序不动
+  groups.sort((a,b)=>{ const ma = Math.max(...a.ids.map(id=>parseInt(id,36)||0)); const mb = Math.max(...b.ids.map(id=>parseInt(id,36)||0)); return mb - ma; });
 
   // 柱状图
   const wrap = document.getElementById('bar-chart');
@@ -2445,6 +2530,23 @@ function qePanelHtml(){
       '<button class="btn mint sm" onclick="saveMockScore()">保存模考分数</button>';
   }
   const plan = (st && st.subjPlans && st.subjPlans[quickEntry.subject]) || '';
+  // 首次课程时间（科目级）：首次设定计划时必填；已设后助教可直改（不审批，记审计）
+  const firstClass = (st && st.subjFirstClass && st.subjFirstClass[quickEntry.subject]) || '';
+  const fcEditing = fcEdit && fcEdit.gid===quickEntry.gid && fcEdit.subject===quickEntry.subject;
+  // 首次课程行：教务/历史学生只读展示；助教未设时不显示（随首次设定表单一起填）
+  let firstClassHtml = '';
+  if(plan || firstClass){
+    firstClassHtml = '<div class="plan-row" style="margin-top:-4px"><span style="font-size:14px;font-weight:600">第一次课程时间</span>' +
+      ((!isAdminView() && !isArchived)
+        ? (fcEditing
+            ? '<input id="qe-first-class-edit" type="date" value="' + esc(firstClass) + '">' +
+              '<button class="btn mint sm" onclick="saveFirstClass()">保存</button>' +
+              '<button class="btn ghost sm" onclick="fcEdit=null;renderAll()">取消</button>'
+            : '<span class="plan-hint">' + esc(firstClass || '未填') + '</span>' +
+              '<button class="btn ghost sm" onclick="editFirstClass()" title="修改开课日期（直接生效，不走审批）">修改</button>')
+        : '<span class="plan-hint">' + esc(firstClass || '未填') + '</span>') +
+      '</div>';
+  }
   // 计划次数修改的申请状态：pending 显示「审核中（N→M）+ 撤回」；最近一次被驳回显示提示（有新申请/通过后消失）
   const pendReq = st ? Api.pendingPlanRequest(st.id, quickEntry.subject) : null;
   const lastReq = st ? (pool.planRequests || []).filter(r=>r.studentId===st.id && r.subject===quickEntry.subject && (r.status==='approved' || r.status==='rejected')).slice(-1)[0] : null;
@@ -2460,6 +2562,8 @@ function qePanelHtml(){
           (pendReq ? ' <span class="tag amber">有修改申请待审批（' + pendReq.oldPlan + ' → ' + pendReq.newPlan + '）</span>' : '')
         : '<span style="font-size:14px;font-weight:600">应完成作业次数</span>' +
           '<input id="qe-plan" type="number" min="0" inputmode="numeric" placeholder="如 10" value="' + esc(plan) + '">' +
+          (!plan ? '<input id="qe-first-class" type="date" title="第一次课程时间（必填，允许未来日期——提前排课）">' : '') +
+          (!plan ? '<span class="plan-hint" style="color:var(--red)">* 首次设定需选第一次课程时间</span>' : '') +
           '<button class="btn mint sm" onclick="savePlanCount()">' + (plan ? '修改' : '保存') + '</button>' +
           (plan ? '<span class="plan-hint">已定 ' + plan + ' 次，点击格子录入或查看当次作业</span>' : '<span class="plan-hint">填写次数并保存后，自动生成打卡格子</span>') +
           (pendReq
@@ -2469,6 +2573,7 @@ function qePanelHtml(){
                 ? ' <span class="tag red">上次修改申请已被驳回</span>'
                 : ''))) +
     '</div>' +
+    firstClassHtml +
     '<div class="ci-title">打卡情况' + (plan ? '（应完成 ' + plan + ' 次，已完成 ' + countSubjectRecs(quickEntry.gid, quickEntry.subject) + ' 次）' : '') + '</div>' +
     '<div class="ci-grid">' + checkinGridHtml() + '</div>' +
     (slotEdit && slotEdit.gid===quickEntry.gid && slotEdit.subject===quickEntry.subject ? slotEditHtml() : '') +
@@ -2553,13 +2658,14 @@ function savePlanCount(){
   if(!st || !canWriteOwner(st.ownerId)){ alert('没有权限操作该数据'); return; }
   const subject = quickEntry.subject;
   const oldPlan = (st.subjPlans && st.subjPlans[subject] !== undefined) ? st.subjPlans[subject] : null;
+  let firstClassForPersist = null;  // 首次设定时由表单填入的第一次课程时间
   const applyPlan = ()=>{
     st.subjPlans = st.subjPlans || {};
     st.subjPlans[subject] = v;
     st.subjPlanSetAt = st.subjPlanSetAt || {};
     st.subjPlanSetAt[subject] = todayStr();  // 记录设定日期，供「计划停滞提醒」使用
     logAction(isAdminView() ? '教务直改计划次数' : '设定应完成次数', 'plan', auditStuDesc(st.id, subject), '设定为 ' + v + ' 次', {ownerId: st.ownerId});
-    apiPersist(HttpApi.setPlan({studentId: st.id, subject: subject, plan: v}));
+    apiPersist(HttpApi.setPlan({studentId: st.id, subject: subject, plan: v, firstClassDate: firstClassForPersist || (st.subjFirstClass && st.subjFirstClass[subject])}));
     save();
     renderAll();
   };
@@ -2576,11 +2682,42 @@ function savePlanCount(){
     applyPlan();
     return;
   }
-  if(oldPlan === null){ applyPlan(); return; }  // 首次设置：直接保存生效
+  if(oldPlan === null){
+    // 首次设定：必须选第一次课程时间（允许未来日期——提前排课）
+    const fcInput = document.getElementById('qe-first-class');
+    const fc = fcInput ? fcInput.value : '';
+    if(!fc){ alert('请选择第一次课程时间'); return; }
+    firstClassForPersist = fc;
+    st.subjFirstClass = st.subjFirstClass || {};
+    st.subjFirstClass[subject] = fc;
+    applyPlan(); return;
+  }
   if(v === oldPlan){ alert('次数未变化，无需修改'); return; }
   const pend = Api.pendingPlanRequest(st.id, subject);
   if(pend){ alert('该科目已有待审核的修改申请（' + pend.oldPlan + ' → ' + pend.newPlan + ' 次），请先撤回或等待教务审批。'); return; }
   openPlanRequest(st, subject, oldPlan, v);  // 二次修改：走审批申请
+}
+/* ---- 第一次课程时间：助教直改（不走审批，记审计） ---- */
+let fcEdit = null;  // {gid, subject} 当前展开的开课日期编辑行
+function editFirstClass(){
+  if(!quickEntry) return;
+  fcEdit = {gid: quickEntry.gid, subject: quickEntry.subject};
+  renderAll();
+}
+function saveFirstClass(){
+  if(!quickEntry || !fcEdit) return;
+  const inp = document.getElementById('qe-first-class-edit');
+  const v = inp ? inp.value : '';
+  if(!v){ alert('请选择第一次课程时间'); return; }
+  const st = state.students.find(x=>x.id===quickEntry.gid);
+  if(!st || !canWriteOwner(st.ownerId)){ alert('没有权限操作该数据'); return; }
+  st.subjFirstClass = st.subjFirstClass || {};
+  st.subjFirstClass[quickEntry.subject] = v;
+  fcEdit = null;
+  logAction('修改开课日期', 'plan', auditStuDesc(st.id, quickEntry.subject), '首次课程 ' + v, {ownerId: st.ownerId});
+  apiPersist(HttpApi.updateSubjFields(st.id, {subjFirstClass: st.subjFirstClass}));
+  save();
+  renderAll();
 }
 /* ================= 计划修改申请弹窗（助教） ================= */
 let planReqCtx = null;  // {gid, subject, oldPlan, newPlan}
@@ -2610,6 +2747,11 @@ document.getElementById('pr-cancel').addEventListener('click', ()=>{
   document.getElementById('pr-modal').classList.remove('show');
 });
 document.getElementById('pr-ok').addEventListener('click', submitPlanRequest);
+document.getElementById('ms-cancel').addEventListener('click', ()=>{
+  missPickId = null;
+  document.getElementById('miss-subj-modal').classList.remove('show');
+});
+document.getElementById('ms-ok').addEventListener('click', confirmMissSubject);
 /* 助教撤回待审核申请 */
 function cancelPlanRequest(id){
   askConfirm('撤回申请', '确定撤回这条计划修改申请吗？撤回后可重新提交。', async ()=>{
@@ -4071,7 +4213,7 @@ function computeDash(){
   const students = pool.students.filter(s=>dashOwner==='all' || s.ownerId===dashOwner);
   const avgAcc = recs.length ? Math.round(recs.reduce((s,r)=>s+acc(r),0)/recs.length) : null;
   const openMiss = missed.filter(m=>!m.resolved);
-  const overdue = openMiss.filter(m=>m.date < t);
+  const overdue = openMiss.filter(m=>isOverdueMissed(m, pool.students.find(x=>x.id===m.studentId)));
 
   // 近 30 天录入趋势：始终画 30 天，受助教筛选影响
   const trend = [];
@@ -4092,7 +4234,7 @@ function computeDash(){
       recCnt: rs.length,
       avg: rs.length ? Math.round(rs.reduce((s,r)=>s+acc(r),0)/rs.length) : null,
       missCnt: ms.filter(m=>!m.resolved).length,
-      overdueCnt: ms.filter(m=>!m.resolved && m.date<t).length,
+      overdueCnt: ms.filter(m=>isOverdueMissed(m, pool.students.find(x=>x.id===m.studentId))).length,
       lastDate: lastDate,
       silent: !lastDate || lastDate <= offsetDay(-7) };
   }).sort((a,b)=>b.recCnt-a.recCnt);
@@ -4350,6 +4492,7 @@ window.__wb = {
   qePanelHtml, reportHtml, renderToday, saveSubjectAdvice, gotoPlanEntry, doLoadSampleData, renderMotto, toggleSalesSubject,
   saveSubjectComment, saveMockScore, confirmAddSubject,
   renderDoneZone, doneZoneToggle, resolveMissed,
+  isOverdueMissed, addDays, editFirstClass, saveFirstClass, openMissSubjectPicker, confirmMissSubject,
   toggleSalesSubjectApi, fileUrl, renderAuditApi, resyncState,
   get salesSubjApi(){ return salesSubjApi; },
   logAction, visibleAuditLogs, renderAudit, auditLoadMore,

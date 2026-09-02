@@ -677,15 +677,16 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
     </section>
 
     <!-- 学生统计 -->
-    <section id="pane-stats" class="tab-pane">      <div class="card" style="padding:14px 20px">
+    <section id="pane-stats" class="tab-pane">      <div class="card" id="stats-chart-card">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>各科目平均正确率（全体学生）</h2>
+        <div class="chart-wrap" id="bar-chart"></div>
+      </div>
+      <!-- 搜索框移到图表与学生明细之间 -->
+      <div class="card" style="padding:14px 20px">
         <div class="search-box">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input id="stu-search" placeholder="按学生姓名搜索，支持部分匹配，如：林">
         </div>
-      </div>
-      <div class="card" id="stats-chart-card">
-        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>各科目平均正确率（全体学生）</h2>
-        <div class="chart-wrap" id="bar-chart"></div>
       </div>
       <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2"/><circle cx="10" cy="7" r="4"/></svg>学生明细<span style="flex:1"></span>
@@ -916,7 +917,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
     </div>
     <p class="hint" id="login-err" style="color:var(--red);min-height:18px;margin-top:0"></p>
     <button class="btn mint big" id="btn-login">登 录</button>
-    <div class="login-demo">
+    <div class="login-demo" id="login-demo">
       演示账号（请先选择对应角色再登录）：<br>
       教务 <b>admin / admin123</b><br>
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
@@ -978,6 +979,24 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
     <div class="row">
       <button class="btn ghost sm" id="pr-cancel">取消</button>
       <button class="btn mint sm" id="pr-ok">提交申请</button>
+    </div>
+  </div>
+</div>
+
+<!-- 无科目未交：补录前选科目（三级联动，复用新增科目面板的取值逻辑） -->
+<div class="modal-mask" id="miss-subj-modal">
+  <div class="modal">
+    <h3>选择该次未交的科目</h3>
+    <p>这条未交记录没有科目信息。选定科目后将回填到记录，并进入该科目的打卡面板补录。</p>
+    <div class="subject-row" style="margin-bottom:16px">
+      <select id="as-ms-s1" onchange="asSub1Change('ms')"></select>
+      <select id="as-ms-s2" onchange="asSub2Change('ms')" disabled><option value="">二级科目…</option></select>
+      <select id="as-ms-s3" disabled style="display:none"><option value="">三级科目…</option></select>
+      <input id="as-ms-custom" placeholder="输入自定义科目" style="display:none">
+    </div>
+    <div class="row">
+      <button class="btn ghost sm" id="ms-cancel">取消</button>
+      <button class="btn mint sm" id="ms-ok">确定并去补录</button>
     </div>
   </div>
 </div>
@@ -1135,6 +1154,7 @@ function auditStuDesc(sid, subject){
 }
 /* 写操作打点。opts: {user} 指定操作人（登录时 currentUser 尚未赋值）；{ownerId} 记录数据归属快照（助教口径过滤用） */
 function logAction(action, targetType, targetDesc, detail, opts){
+  if(USE_API) return;  // API 模式审计由服务端权威打点，前端不再写本地
   const u = (opts && opts.user) || currentUser;
   if(!u) return;
   pool.auditLogs = pool.auditLogs || [];
@@ -1152,13 +1172,15 @@ function logAction(action, targetType, targetDesc, detail, opts){
   save();
 }
 function ownerName(ownerId){
-  const u = Api.listUsers().find(x=>x.id===ownerId);
+  const u = getUsersCache().find(x=>x.id===ownerId);
   return u ? u.name : '未分配';
 }
 function stuOwnerId(sid){ const s = pool.students.find(x=>x.id===sid); return s ? s.ownerId : null; }
 
-/* ================= Api 层（当前实现 LocalApi：localStorage 驱动；后端就绪后替换为 HttpApi，方法签名一一对应上方 REST 约定） ================= */
-const Api = {
+/* ================= Api 层 =================
+   LocalApi：localStorage 驱动（演示环境）；HttpApi：真实后端（fetch + Bearer token）。
+   两者方法签名一一对应（见文件头 REST 约定）；门面 Api 按启动探测结果转发，UI 代码零改动。 */
+const LocalApi = {
   _users: null,
   _loadUsers(){
     if(this._users) return this._users;
@@ -1381,6 +1403,202 @@ const Api = {
   }
 };
 
+/* ---- HttpApi：真实后端实现（M5a 骨架：认证 + 读取链路 + 账号管理；业务写路径 M5b 接入） ---- */
+const HttpApi = {
+  _token: null,
+  // 统一响应处理：res.ok 且 body.ok 才算成功；401 清会话回登录页；网络异常给友好提示
+  async _req(method, url, body){
+    try{
+      const res = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json', ...(this._token ? { Authorization: 'Bearer ' + this._token } : {}) },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      if(res.status === 401){
+        this._token = null;
+        sessionStorage.removeItem(SS_SESSION);
+        forceLogout();  // 注意：不可调用 doLogout（会递归走 logout 接口）
+        return { ok: false, msg: '未登录或登录已过期' };
+      }
+      const data = await res.json().catch(() => null);
+      if(res.ok && data && data.ok) return data;
+      return { ok: false, msg: (data && data.msg) || '请求失败' };
+    }catch(e){
+      return { ok: false, msg: '网络异常，请重试' };
+    }
+  },
+  // POST /api/login
+  async login(username, password, role){
+    const r = await this._req('POST', '/api/login', { username: username, password: password, role: role });
+    if(!r.ok) return r;
+    this._token = r.token;
+    sessionStorage.setItem(SS_SESSION, JSON.stringify({ uid: r.user.id, token: r.token, ts: Date.now() }));
+    return { ok: true, user: r.user };
+  },
+  // POST /api/logout
+  async logout(){
+    await this._req('POST', '/api/logout');
+    this._token = null;
+    sessionStorage.removeItem(SS_SESSION);
+  },
+  // 刷新恢复会话：读本地 token → GET /api/me 校验；401 则清除
+  async restoreSession(){
+    try{
+      const s = JSON.parse(sessionStorage.getItem(SS_SESSION));
+      if(!s || !s.token) return null;
+      this._token = s.token;
+      const r = await this._req('GET', '/api/me');
+      if(!r.ok){ this._token = null; return null; }
+      return r.user;
+    }catch(e){ return null; }
+  },
+  // POST /api/password
+  async changePassword(oldPwd, newPwd){
+    return this._req('POST', '/api/password', { oldPwd: oldPwd, newPwd: newPwd });
+  },
+  // GET /api/state（销售无此接口权限，前端跳过；M5.4 起销售走搜索接口）
+  async getState(){
+    const r = await this._req('GET', '/api/state');
+    return r.ok ? { ok: true, state: r.state } : r;
+  },
+  // GET /api/users（教务）
+  async listUsers(){
+    const r = await this._req('GET', '/api/users');
+    return r.ok ? r.users : [];
+  },
+  // POST /api/users
+  async createUser(name, username, password, role){
+    return this._req('POST', '/api/users', { name: name, username: username, password: password, role: role || 'ta' });
+  },
+  // POST /api/users/:id/reset
+  async resetPassword(id, newPwd){
+    return this._req('POST', '/api/users/' + id + '/reset', { password: newPwd });
+  },
+  // POST /api/users/:id/toggle
+  async toggleUser(id){
+    return this._req('POST', '/api/users/' + id + '/toggle');
+  },
+  // 计划申请的 pending 查询是纯前端过滤（pool 已从服务端同步），两种模式一致
+  pendingPlanRequest(studentId, subject){ return LocalApi.pendingPlanRequest(studentId, subject); },
+  /* ---- M5b：业务写路径（乐观本地更新 + 异步持久化 + 失败重取回滚） ---- */
+  // 学生
+  addStudent(b){ return this._req('POST', '/api/students', b); },
+  updateStudent(id, b){ return this._req('PUT', '/api/students/' + id, b); },
+  setStudentArchived(id, flag){ return this._req('POST', '/api/students/' + id + (flag ? '/archive' : '/restore')); },
+  // 转移归属：后端为单 id 接口，同名组逐个调用；本地乐观更新，失败重取（服务端校验目标助教）
+  async transferStudent(ids, newOwnerId){
+    pool.students.forEach(s=>{ if(ids.includes(s.id)) s.ownerId = newOwnerId; });
+    pool.records.forEach(r=>{ if(ids.includes(r.studentId)) r.ownerId = newOwnerId; });
+    pool.missed.forEach(m=>{ if(ids.includes(m.studentId)) m.ownerId = newOwnerId; });
+    refreshView();
+    for(const id of ids){
+      const r = await this._req('POST', '/api/students/' + id + '/owner', { ownerId: newOwnerId });
+      if(!r.ok){ resyncState(); return { ok: false, msg: r.msg || '转移失败，请重试' }; }
+    }
+    return { ok: true, count: ids.length };
+  },
+  // 作业记录
+  addRecord(b){ return this._req('POST', '/api/records', b); },
+  updateRecord(id, b){ return this._req('PUT', '/api/records/' + id, b); },
+  deleteRecord(id){ return this._req('DELETE', '/api/records/' + id); },
+  // 未交
+  addMissed(b){ return this._req('POST', '/api/missed', b); },
+  resolveMissed(id){ return this._req('POST', '/api/missed/' + id + '/resolve'); },
+  deleteMissed(id){ return this._req('DELETE', '/api/missed/' + id); },
+  // 计划次数
+  setPlan(b){ return this._req('POST', '/api/plan/set', b); },
+  // 学生 JSON 列合并式更新（评语/学习计划与建议/模考/科目列表；整体提交该列）
+  updateSubjFields(id, fields){ return this._req('PUT', '/api/students/' + id + '/subj-fields', fields); },
+  // 计划审批：先本地乐观更新（含前端校验），再持久化；失败重取回滚
+  async createPlanRequest(b){
+    const local = LocalApi.createPlanRequest(b);
+    if(!local.ok) return local;
+    const r = await this._req('POST', '/api/plan-requests', b);
+    if(!r.ok){ resyncState(); return r; }
+    return { ok: true, request: local.request };
+  },
+  async cancelPlanRequest(id){
+    const r = await this._req('POST', '/api/plan-requests/' + id + '/cancel');
+    if(!r.ok){ resyncState(); return r; }
+    LocalApi.cancelPlanRequest(id);
+    return r;
+  },
+  async reviewPlanRequest(id, approve, note){
+    const r = await this._req('POST', '/api/plan-requests/' + id + '/review', { approve: approve, note: note });
+    if(!r.ok){ resyncState(); return r; }
+    LocalApi.reviewPlanRequest(id, approve, note);
+    return r;
+  },
+  // 附件上传（multipart；图片 ≤2MB / PDF ≤4MB 客户端先拦一道）
+  async uploadFiles(formData){
+    try{
+      const res = await fetch('/api/files', {
+        method: 'POST',
+        headers: this._token ? { Authorization: 'Bearer ' + this._token } : {},
+        body: formData
+      });
+      if(res.status === 401){
+        this._token = null;
+        sessionStorage.removeItem(SS_SESSION);
+        forceLogout();
+        return { ok: false, msg: '未登录或登录已过期' };
+      }
+      const data = await res.json().catch(() => null);
+      if(res.ok && data && data.ok) return data;
+      return { ok: false, msg: (data && data.msg) || '上传失败' };
+    }catch(e){ return { ok: false, msg: '网络异常，请重试' }; }
+  },
+  async _ensureSeed(){ /* API 模式不播种演示数据 */ }
+};
+
+/* ---- 写路径持久化帮手（仅 API 模式生效；mock 模式为纯本地行为，零变化） ---- */
+// 异步持久化：失败 → 提示 + 重取 state 回滚本地乐观更新；onOk 可拿到响应回填（如服务端生成的 id）
+function apiPersist(promise, onOk){
+  if(!USE_API || !promise || typeof promise.then !== 'function') return;
+  promise.then(r => {
+    if(r && r.ok === false){ alert('保存失败，请检查网络后重试'); resyncState(); return; }
+    if(onOk) onOk(r);
+  }).catch(() => { alert('保存失败，请检查网络后重试'); resyncState(); });
+}
+// 从服务端重取全量状态（回滚/同步用）
+async function resyncState(){
+  if(!USE_API) return;
+  const s = await HttpApi.getState();
+  if(s.ok){ pool = s.state; refreshView(); renderAll(); }
+}
+// 附件直链（img/PDF 引用；后端对 GET /api/files/:id 放开 ?token= 查询参数）
+function fileUrl(id){ return '/api/files/' + id + '?token=' + encodeURIComponent(HttpApi._token || ''); }
+
+/* ---- 模式开关与门面 ---- */
+let USE_API = false;          // 启动时探测：同 origin 有后端 → true
+let apiImpl = LocalApi;       // 当前实现
+// 门面：方法调用绑定到当前实现（保持 this 正确），测试钩子 wb.Api 两种模式均可用
+const Api = new Proxy({}, {
+  get(t, k){ const v = apiImpl[k]; return typeof v === 'function' ? v.bind(apiImpl) : v; },
+  set(t, k, v){ apiImpl[k] = v; return true; }
+});
+// 快速探测后端（2 秒超时；file:// 或静态托管下立即失败回退 mock）
+async function detectApi(){
+  if(typeof fetch !== 'function') return false;
+  try{
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctl ? setTimeout(() => ctl.abort(), 2000) : null;
+    const res = await fetch('/api/health', ctl ? { signal: ctl.signal } : {});
+    if(timer) clearTimeout(timer);
+    return !!res.ok;
+  }catch(e){ return false; }
+}
+
+/* 用户列表缓存：mock 模式实时读 LocalApi；API 模式读缓存（登录/账号操作后刷新）。
+   渲染层（归属标签/看板/审批等）全部走这个同步入口，避免渲染函数异步化 */
+let usersCache = [];
+function getUsersCache(){ return USE_API ? usersCache : LocalApi.listUsers(); }
+async function refreshUsersCache(){
+  if(!USE_API) return;
+  const users = await HttpApi.listUsers();
+  if(Array.isArray(users)) usersCache = users;
+}
+
 /* ================= 示例数据（相对当前日期；按归属助教分别生成，带 ownerId 与 sample 标记） ================= */
 function seedSamplesFor(ownerId){
   const s1 = {id:uid(), name:'林小满', sample:true, ownerId:ownerId};
@@ -1408,12 +1626,15 @@ function seedPlanRequestSamples(ownerId){
   pool.planRequests = pool.planRequests || [];
   const stus = pool.students.filter(s=>s.sample && s.ownerId===ownerId);
   if(!stus.length) return;
-  const admin = Api.listUsers().find(u=>u.role==='admin');
+  const admin = getUsersCache().find(u=>u.role==='admin');
   const pick = name => stus.find(s=>s.name===name);
   const sA = pick('周子墨'), sB = pick('苏晚晴'), sC = pick('陈星宇');
+  // 示例计划补开课日期（相对日期，过去时间——让逾期/宽限口径在演示中可见）
+  const setFc = (s, sub, off)=>{ s.subjFirstClass = s.subjFirstClass || {}; s.subjFirstClass[sub] = offsetDay(off); };
   if(sA){  // 待审批：周子墨 竞赛 / AMC10 8 → 10
     sA.subjPlans = sA.subjPlans || {};
     sA.subjPlans['竞赛 / AMC10'] = 8;
+    setFc(sA, '竞赛 / AMC10', -20);
     pool.planRequests.push({id:uid(), studentId:sA.id, ownerId:ownerId, subject:'竞赛 / AMC10',
       oldPlan:8, newPlan:10, reason:'竞赛班加课，需要增加 2 次作业', status:'pending',
       requestedBy:ownerId, requestedAt:offsetDay(-1), reviewedBy:null, reviewedAt:null, sample:true});
@@ -1421,6 +1642,7 @@ function seedPlanRequestSamples(ownerId){
   if(sB){  // 已通过：苏晚晴 语培 / 托福 12 → 15
     sB.subjPlans = sB.subjPlans || {};
     sB.subjPlans['语培 / 托福'] = 15;
+    setFc(sB, '语培 / 托福', -30);
     pool.planRequests.push({id:uid(), studentId:sB.id, ownerId:ownerId, subject:'语培 / 托福',
       oldPlan:12, newPlan:15, reason:'冲分班课程延长', status:'approved',
       requestedBy:ownerId, requestedAt:offsetDay(-3), reviewedBy:admin?admin.id:null, reviewedAt:offsetDay(-2), sample:true});
@@ -1428,6 +1650,7 @@ function seedPlanRequestSamples(ownerId){
   if(sC){  // 已驳回：陈星宇 学科 / AP / 物理1 8 → 20
     sC.subjPlans = sC.subjPlans || {};
     sC.subjPlans['学科 / AP / 物理1'] = 8;
+    setFc(sC, '学科 / AP / 物理1', -20);
     pool.planRequests.push({id:uid(), studentId:sC.id, ownerId:ownerId, subject:'学科 / AP / 物理1',
       oldPlan:8, newPlan:20, reason:'想把整学期作业一次录完', status:'rejected',
       requestedBy:ownerId, requestedAt:offsetDay(-4), reviewedBy:admin?admin.id:null, reviewedAt:offsetDay(-3), sample:true});
@@ -1440,7 +1663,7 @@ function seedPlanRequestSamples(ownerId){
    ownerId 传助教 id 时只播种该助教的条目；不传则播种全部助教 + 教务的条目。 */
 function seedAuditSamples(ownerId){
   pool.auditLogs = pool.auditLogs || [];
-  const users = Api.listUsers();
+  const users = getUsersCache();
   const admin = users.find(u=>u.role==='admin');
   const tas = ownerId ? users.filter(u=>u.id===ownerId) : users.filter(u=>u.role==='ta');
   const at = (d, t)=> offsetDay(d) + ' ' + t;  // ts 格式同 nowTs()：YYYY-MM-DD HH:mm:ss
@@ -1498,10 +1721,26 @@ function shortSubject(s){
   return s;
 }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-// 某学生（组）某科目的逾期未交次数：未处理 且 未交日期早于系统今天
-function overdueMissCount(ids, subject){
+/* ---- 逾期统一判定（首次课程时间口径） ----
+   逾期 ⟺ 未处理 && 该科目已填开课时间（未填一律不算逾期）&& 开课时间 ≤ 今天（未开课不算）&& 未交日期 + 7 天宽限 < 今天
+   「未指定科目」的未交无法定位开课时间 → 不算逾期 */
+function addDays(dateStr, n){ const d = new Date(dateStr + 'T00:00:00'); d.setDate(d.getDate() + n); return fmtDate(d); }
+function isOverdueMissed(m, st){
+  if(!m || m.resolved) return false;
+  if(!m.subject) return false;
+  const fc = st && st.subjFirstClass && st.subjFirstClass[m.subject];
+  if(!fc) return false;
   const t = todayStr();
-  return state.missed.filter(m=>!m.resolved && m.date < t && (m.subject||'')===subject && ids.indexOf(m.studentId)>=0).length;
+  if(fc > t) return false;
+  return addDays(m.date, 7) < t;
+}
+// 某学生（组）某科目的逾期未交次数（统一逾期口径）
+function overdueMissCount(ids, subject){
+  return state.missed.filter(m=>{
+    if((m.subject||'')!==subject || ids.indexOf(m.studentId)===-1) return false;
+    const st = state.students.find(x=>x.id===m.studentId);
+    return isOverdueMissed(m, st);
+  }).length;
 }
 function hasSample(){
   return state.students.some(s=>s.sample) || state.records.some(r=>r.sample) || state.missed.some(m=>m.sample);
@@ -1571,9 +1810,13 @@ function renderToday(){
   let html = '';
 
   // 未交作业：按学生合并成一个卡片，姓名显示一次，框内按科目分列；
-  // 科目按最新未交日期倒序，科目内按日期升序编号（第N次）；逾期标红
+  // 科目按最新未交日期倒序，科目内按日期升序编号（第N次）；
+  // 逾期判定用统一口径 isOverdueMissed（开课时间 + 7 天宽限）；未开课的未交不进今天要处理（提前排课不催办）
   const stuGroups = {};
   state.missed.filter(m=>!m.resolved).forEach(m=>{
+    const st = state.students.find(x=>x.id===m.studentId);
+    const fc = m.subject && st && st.subjFirstClass && st.subjFirstClass[m.subject];
+    if(fc && fc > todayStr()) return;  // 未开课：不进入今天要处理
     (stuGroups[m.studentId] = stuGroups[m.studentId] || []).push(m);
   });
   Object.entries(stuGroups)
@@ -1604,10 +1847,10 @@ function renderToday(){
         html += '<div class="miss-sub">' +
           '<div class="miss-sub-name"><span class="tag mint">' + esc(shortSubject(s.sub || '未指定科目')) + '</span></div>';
         s.arr.forEach((m,i)=>{
-          const overdue = m.date < t;
+          const overdue = isOverdueMissed(m, state.students.find(x=>x.id===m.studentId));
           html += '<div class="todo-item' + (overdue?' overdue':'') + '">' +
             '<div class="grow"><span class="idx-tag">第' + (i+1) + '次</span>' +
-            (overdue ? '<span class="tag red" title="未交日期早于今天，尚未补交">逾期</span>' : '<span class="tag amber" title="今天（或之后）的未交">今日</span>') +
+            (overdue ? '<span class="tag red" title="开课后超过 7 天未补交">逾期</span>' : '<span class="tag amber" title="宽限期内（开课后 7 天内）或未填开课时间的未交">未交</span>') +
             '<span class="miss-date">' + m.date + '</span></div>' +
             (isAdminView() ? '' :  // 教务视角未交提醒只读，不显示补录/删除按钮
               '<button class="btn mint sm" onclick="resolveMissed(\'' + m.id + '\')" title="跳转到该生该科目的打卡面板补录这次作业；填写并保存后，该条未交才算补交完成">去补录</button>' +
@@ -1633,8 +1876,11 @@ function renderToday(){
 
   // 计划停滞提醒：科目已设定应完成次数，但超过 7 天没有任何新作业记录
   // 基准日 = max(计划设定日 subjPlanSetAt, 该科目最近一次作业记录日)；旧数据无 setAt 时以最近记录日为基准（无记录则不提醒）
+  // 未开课（首次课程时间在未来）不提醒
   state.students.filter(s=>!s.archived && s.subjPlans).forEach(st=>{
     Object.keys(st.subjPlans).forEach(sub=>{
+      const fc = st.subjFirstClass && st.subjFirstClass[sub];
+      if(fc && fc > t) return;  // 未开课：不提醒
       const setAt = st.subjPlanSetAt && st.subjPlanSetAt[sub];
       const recs = state.records.filter(r=>r.studentId===st.id && r.subject===sub);
       const lastRec = recs.length ? recs.reduce((a,b)=>a.date>b.date?a:b).date : null;
@@ -1675,22 +1921,57 @@ function resolveMissed(id){
   const m = state.missed.find(x=>x.id===id);
   if(!m) return;
   const stu = state.students.find(s=>s.id===m.studentId);
-  const canJump = stu && !stu.archived && m.subject;  // 现有学生且有科目 → 跳转打卡面板补录
-  if(!canJump) return;  // 历史学生或无科目：不跳转、不标记
-  const items = subjectItems(m.studentId, m.subject);
+  if(!stu || stu.archived) return;  // 历史学生：不跳转、不标记
+  if(!m.subject){
+    // 无科目（「未指定科目」）：先弹三级联动选科目，选后回填到该未交记录再进打卡面板
+    openMissSubjectPicker(m.id);
+    return;
+  }
+  // 同名合并组需解析代表学生（否则打卡面板可能挂在组内非代表条目上不显示）
+  const rep = activeStudents().find(s=>s.name.trim()===stu.name.trim() && (s.ownerId||'')===(stu.ownerId||'')) || stu;
+  const items = subjectItems(rep.id, m.subject);
   const pos = items.findIndex(it=>it.type==='miss' && it.miss.id===id);
   switchTab('stats');
   // 打开该生该科目的「作业打卡」面板（若已是同一面板则不重复切换）
-  if(quickEntry && quickEntry.gid===stu.id && quickEntry.subject===m.subject){
+  if(quickEntry && quickEntry.gid===rep.id && quickEntry.subject===m.subject){
     renderAll();
   } else {
-    toggleQuickEntry(stu.id, m.subject);
+    toggleQuickEntry(rep.id, m.subject);
   }
   // 自动展开补录表单：定位原未交所在格子（表单内日期自动预填为该未交日期）
   if(pos >= 0){
-    slotEdit = {gid: stu.id, subject: m.subject, idx: pos+1};
+    slotEdit = {gid: rep.id, subject: m.subject, idx: pos+1};
     renderAll();
   }
+}
+/* 无科目未交的补录流程：三级联动选科目 → 回填 missed.subject（记审计）→ 进入打卡面板补录 */
+let missPickId = null;  // 当前待选科目的未交记录 id
+function openMissSubjectPicker(missedId){
+  missPickId = missedId;
+  const p = 'as-ms';  // 复用新增科目面板的三级联动（getAddSubjValue/asSub1Change 读取 'as-' + 前缀 的 id）
+  document.getElementById(p + '-s1').innerHTML = '<option value="">选择分类…</option>' +
+    Object.keys(SUBJECT_TREE).map(k=>'<option value="' + k + '">' + k + '</option>').join('') +
+    '<option value="__custom__">自定义…</option>';
+  document.getElementById(p + '-s2').innerHTML = '<option value="">二级科目…</option>';
+  document.getElementById(p + '-s2').disabled = true;
+  document.getElementById(p + '-s3').innerHTML = '<option value="">三级科目…</option>';
+  document.getElementById(p + '-s3').disabled = true; document.getElementById(p + '-s3').style.display = 'none';
+  document.getElementById(p + '-custom').value = ''; document.getElementById(p + '-custom').style.display = 'none';
+  document.getElementById('miss-subj-modal').classList.add('show');
+}
+function confirmMissSubject(){
+  const subj = getAddSubjValue('ms');  // 复用新增科目面板的三级联动取值
+  if(!subj){ alert('请选择科目'); return; }
+  const m = pool.missed.find(x=>x.id===missPickId);
+  document.getElementById('miss-subj-modal').classList.remove('show');
+  missPickId = null;
+  if(!m) return;
+  if(!canWriteOwner(m.ownerId)){ alert('没有权限操作该数据'); return; }
+  m.subject = subj;
+  logAction('补登未交科目', 'missed', auditStuDesc(m.studentId, subj), '原未交日期 ' + m.date, {ownerId: m.ownerId});
+  apiPersist(HttpApi._req('PUT', '/api/missed/' + m.id, {date: m.date, subject: subj}));
+  save();
+  resolveMissed(m.id);  // 回填后走正常补录跳转
 }
 function removeMissed(id){
   const m = pool.missed.find(x=>x.id===id);
@@ -1700,6 +1981,7 @@ function removeMissed(id){
     m.resolution = 'deleted';
     m.resolvedAt = todayStr();
     logAction('删除未交', 'missed', auditStuDesc(m.studentId, m.subject), '原未交日期 ' + m.date, {ownerId: m.ownerId});
+    apiPersist(HttpApi.deleteMissed(id));
     save(); renderAll();
   });
 }
@@ -1762,6 +2044,7 @@ function renderStats(){
     if(chipBoxS) chipBoxS.innerHTML = '';
     document.getElementById('bar-chart').innerHTML = '<p class="hint">输入学生姓名或学校进行查询</p>';
     const listS = document.getElementById('stu-list');
+    if(USE_API){ renderSalesApiList(listS, false); return; }  // API 模式：搜索走服务端
     if(!stuQuery){
       // 无关键字：只展示示例学生（演示用），真实学生仍需搜索——防批量泄露
       const demo = groups.filter(g=>g.sample);
@@ -1777,6 +2060,9 @@ function renderStats(){
     return;
   }
 
+  // 明细按创建时间倒序（uid 为时间戳基底，倒序即最新在前）；教务分组视图组内同序；销售端示例卡顺序不动
+  groups.sort((a,b)=>{ const ma = Math.max(...a.ids.map(id=>parseInt(id,36)||0)); const mb = Math.max(...b.ids.map(id=>parseInt(id,36)||0)); return mb - ma; });
+
   // 柱状图
   const wrap = document.getElementById('bar-chart');
   // 按姓名搜索过滤
@@ -1788,7 +2074,7 @@ function renderStats(){
     if(!isAdminView()){
       chipBox.innerHTML = '';
     } else {
-      const chipTas = Api.listUsers().filter(u=>u.role==='ta');
+      const chipTas = getUsersCache().filter(u=>u.role==='ta');
       chipBox.innerHTML = '<div class="ta-chips">' +
         '<span class="sub-chip' + (stuTaFilter==='all'?' active':'') + '" onclick="setStuTaFilter(\'all\')">全部学生</span>' +
         chipTas.map(u=>'<span class="sub-chip' + (stuTaFilter===u.id?' active':'') + '" onclick="setStuTaFilter(\'' + u.id + '\')">' +
@@ -1955,11 +2241,11 @@ function renderStats(){
       missHtml +
       '</div>';
   };
-  // 教务且选中「全部学生」：按助教分组展示（分组顺序沿用 Api.listUsers() 中助教顺序），
+  // 教务且选中「全部学生」：按助教分组展示（分组顺序沿用 getUsersCache() 中助教顺序），
   // 默认折叠只显示组头，点击组头展开/收起；有搜索词时自动展开含匹配结果的组；
   // 选中某位助教：只显示该助教的学生卡（无分组标题，直接展开）
   if(isAdminView() && stuTaFilter==='all'){
-    const tas = Api.listUsers().filter(u=>u.role==='ta');
+    const tas = getUsersCache().filter(u=>u.role==='ta');
     const renderGroup = (key, label, gs)=>{
       const open = !!stuQuery || !!stuTaExpanded[key];
       return '<div class="ta-group-head" style="cursor:pointer" onclick="toggleTaGroup(\'' + key + '\')" title="点击展开/收起">' +
@@ -2098,6 +2384,112 @@ function salesSubjectPanel(g, subject){
     '</div>' +
     '</div>';
 }
+
+/* ================= 销售端（API 模式）：搜索/详情走服务端接口，本地不拉全量 ================= */
+let salesSubjApi = null;        // {id, subject} 当前展开的科目详情
+const salesDetailCache = {};    // studentId → 详情（接口返回）
+// 列表：GET /api/search/students?q=
+async function renderSalesApiList(listEl, isAlumni){
+  const q = isAlumni ? alumniQuery : stuQuery;
+  if(!q){ listEl.innerHTML = '<p class="hint">输入学生姓名或学校进行查询</p>'; return; }
+  const r = await HttpApi._req('GET', '/api/search/students?q=' + encodeURIComponent(q));
+  if(!r.ok){ listEl.innerHTML = '<p class="hint">查询失败，请重试。</p>'; return; }
+  const items = r.students.filter(s=> isAlumni ? s.archived : !s.archived);
+  listEl.innerHTML = items.length
+    ? items.map(s=>salesApiCard(s, isAlumni)).join('')
+    : '<p class="hint">没有匹配「' + esc(q) + '」的' + (isAlumni ? '历史' : '') + '学生。</p>';
+  // 列表是异步渲染的：若有展开中的科目详情且已缓存，渲染完成后自动回填面板（避免竞态）
+  if(salesSubjApi && salesDetailCache[salesSubjApi.id]) fillSalesApiPanel(salesSubjApi.id);
+}
+function fillSalesApiPanel(id){
+  const el = document.getElementById('sales-api-panel-' + id);
+  if(el && salesSubjApi && salesSubjApi.id===id) el.innerHTML = salesApiPanel(salesDetailCache[id], salesSubjApi.subject);
+}
+function salesApiCard(s, isAlumni){
+  const subHtml = (s.subjects && s.subjects.length) ? '<div class="sub-acc">' + s.subjects.map(sub=>
+    '<span class="sub-chip" onclick="toggleSalesSubjectApi(\'' + s.id + '\',\'' + esc(sub.subject) + '\',' + isAlumni + ')" title="点击查看该科目详情（只读）">' +
+    '<span class="sub-name">' + esc(shortSubject(sub.subject)) + '</span>' +
+    '<span class="acc-badge ' + accClass(sub.avg) + '">' + sub.avg + '%</span>' +
+    '<span class="sub-cnt">' + sub.cnt + ' 次</span></span>').join('') + '</div>' : '';
+  return '<div class="stu-card">' +
+    '<div class="stu-head"><div class="avatar">' + esc(s.name.slice(0,1)) + '</div>' +
+    '<div class="grow"><b>' + esc(s.name) + '</b>' +
+    (s.school ? ' <span style="font-weight:400;font-size:12px;color:var(--ink2)">' + esc(s.school) + '</span>' : '') +
+    (s.gradYear ? ' <span class="tag mint">' + esc(s.gradYear) + ' 届</span>' : '') +
+    ' <span class="tag amber">归属：' + esc(s.ownerName) + '</span></div></div>' +
+    '<div class="stu-nums"><span>' + (isAlumni ? '历史作业' : '作业次数') + ' <b>' + s.recCnt + '</b></span>' +
+    '<span>未交次数 <b style="color:var(--red)">' + s.missCnt + '</b></span>' +
+    (s.lastAcc !== null ? '<span>最近正确率 <b>' + s.lastAcc + '%</b></span>' : '') +
+    '</div>' + subHtml +
+    (salesSubjApi && salesSubjApi.id===s.id ? '<div id="sales-api-panel-' + s.id + '"></div>' : '') +
+    '</div>';
+}
+// 详情：GET /api/search/students/:id（带缓存），展开只读面板
+async function toggleSalesSubjectApi(id, subject, isAlumni){
+  salesSubjApi = (salesSubjApi && salesSubjApi.id===id && salesSubjApi.subject===subject) ? null : {id:id, subject:subject};
+  if(isAlumni) renderAlumni(); else renderStats();
+  if(!salesSubjApi) return;
+  if(!salesDetailCache[id]){
+    const r = await HttpApi._req('GET', '/api/search/students/' + id);
+    if(!r.ok) return;
+    salesDetailCache[id] = r.student;
+  }
+  fillSalesApiPanel(id);  // 面板占位由 renderSalesApiList 渲染；此处先填一次，重绘时由列表末尾自动回填
+}
+/* 只读科目详情面板（数据来自服务端）：打卡格子 + 评语 + 学习计划与建议 + 模考 */
+function salesApiPanel(st, subject){
+  const sub = (st.subjects || []).find(x=>x.subject===subject) || {plan:null, done:0, items:[]};
+  const plan = sub.plan || 0;
+  const cmt = (st.subjComments && st.subjComments[subject]) || '';
+  const adv = (st.subjAdvice && st.subjAdvice[subject]) || '';
+  const mock = (st.mock && st.mock[subject]) || {};
+  const mockDate = mock.date || '';
+  const mockScore = (mock.score!==undefined && mock.score!==null && mock.score!=='') ? mock.score : '';
+  const roBox = t => '<div style="font-size:13px;color:var(--ink2);background:var(--cream2);border-radius:8px;padding:8px 10px;white-space:pre-wrap">' + t + '</div>';
+  const total = Math.max(plan, sub.items.length);
+  let grid = '<span style="font-size:12px;color:var(--ink2)">暂无计划与记录</span>';
+  if(total){
+    grid = Array.from({length: total}, (_,i)=>{
+      const idx = i+1;
+      const it = sub.items[i];
+      if(it && it.type==='miss'){
+        return '<div class="ci-slot miss" title="第 ' + idx + ' 次：' + it.date + ' 未交">' +
+          '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">未交✗</span></div>' +
+          '<div class="ci-date">' + it.date + '</div><div class="ci-acc" style="color:var(--red)">0%</div>' +
+          '<div class="ci-wrongs">错题 0</div></div>';
+      }
+      if(it && it.type==='rec'){
+        const ra = it.acc;
+        const acls = ra>=85?'good':(ra>=60?'mid':'bad');
+        return '<div class="ci-slot done" title="第 ' + idx + ' 次：' + it.date + '，正确率 ' + ra + '%' +
+          (it.wrongs&&it.wrongs.length ? '，错题 ' + esc(it.wrongs.join('、')) : '') + '">' +
+          '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">✓</span></div>' +
+          '<div class="ci-date">' + it.date + '</div>' +
+          '<div class="ci-acc ' + acls + '">' + ra + '%</div>' +
+          '<div class="ci-wrongs">' + (it.wrongs&&it.wrongs.length ? '错 ' + esc(it.wrongs.join('、')) : '无错题') + '</div></div>';
+      }
+      return '<div class="ci-slot miss" title="第 ' + idx + ' 次作业未完成">' +
+        '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span></div>' +
+        '<div class="ci-date">未完成</div><div class="ci-acc" style="color:var(--red)">—</div>' +
+        '<div class="ci-wrongs">未完成</div></div>';
+    }).join('');
+  }
+  return '<div class="qe-panel">' +
+    '<div class="qe-title">「' + esc(shortSubject(subject)) + '」作业打卡（只读）</div>' +
+    '<div class="plan-row"><span style="font-size:14px;font-weight:600">应完成作业次数</span><span class="plan-hint">' +
+      (plan ? '已定 ' + plan + ' 次，已完成 ' + sub.done + ' 次' : '未设置计划') + '</span></div>' +
+    '<div class="ci-title">打卡情况' + (plan ? '（应完成 ' + plan + ' 次，已完成 ' + sub.done + ' 次）' : '') + '</div>' +
+    '<div class="ci-grid">' + grid + '</div>' +
+    '<div class="qe-comment"><div class="qe-title">老师评语（' + esc(shortSubject(subject)) + '）</div>' +
+      roBox(cmt ? esc(cmt) : '<span class="hint">暂无评语</span>') + '</div>' +
+    '<div class="qe-comment"><div class="qe-title">学习计划与建议（' + esc(shortSubject(subject)) + '）</div>' +
+      roBox(adv ? esc(adv) : '<span class="hint">暂无</span>') + '</div>' +
+    '<div class="qe-mock"><div class="qe-title">模考（' + esc(shortSubject(subject)) + '）</div>' +
+      '<div class="mock-row">' + (mockDate ? '<span class="mock-booked">✓ 已预约 ' + esc(mockDate) + ' 模考</span>' : '<span class="hint">未预约模考</span>') + '</div>' +
+      '<div class="mock-row" style="margin-top:8px">' + (mockScore!=='' ? '结课模考分数：<b>' + esc(mockScore) + '</b> 分' : '<span class="hint">未录入模考分数</span>') + '</div>' +
+    '</div>' +
+    '</div>';
+}
 /* ================= 卡内科目 Tab 快速录入 ================= */
 let quickEntry = null;  // {gid: 学生代表id, subject: 科目路径}
 function toggleQuickEntry(gid, subject){
@@ -2138,6 +2530,23 @@ function qePanelHtml(){
       '<button class="btn mint sm" onclick="saveMockScore()">保存模考分数</button>';
   }
   const plan = (st && st.subjPlans && st.subjPlans[quickEntry.subject]) || '';
+  // 首次课程时间（科目级）：首次设定计划时必填；已设后助教可直改（不审批，记审计）
+  const firstClass = (st && st.subjFirstClass && st.subjFirstClass[quickEntry.subject]) || '';
+  const fcEditing = fcEdit && fcEdit.gid===quickEntry.gid && fcEdit.subject===quickEntry.subject;
+  // 首次课程行：教务/历史学生只读展示；助教未设时不显示（随首次设定表单一起填）
+  let firstClassHtml = '';
+  if(plan || firstClass){
+    firstClassHtml = '<div class="plan-row" style="margin-top:-4px"><span style="font-size:14px;font-weight:600">第一次课程时间</span>' +
+      ((!isAdminView() && !isArchived)
+        ? (fcEditing
+            ? '<input id="qe-first-class-edit" type="date" value="' + esc(firstClass) + '">' +
+              '<button class="btn mint sm" onclick="saveFirstClass()">保存</button>' +
+              '<button class="btn ghost sm" onclick="fcEdit=null;renderAll()">取消</button>'
+            : '<span class="plan-hint">' + esc(firstClass || '未填') + '</span>' +
+              '<button class="btn ghost sm" onclick="editFirstClass()" title="修改开课日期（直接生效，不走审批）">修改</button>')
+        : '<span class="plan-hint">' + esc(firstClass || '未填') + '</span>') +
+      '</div>';
+  }
   // 计划次数修改的申请状态：pending 显示「审核中（N→M）+ 撤回」；最近一次被驳回显示提示（有新申请/通过后消失）
   const pendReq = st ? Api.pendingPlanRequest(st.id, quickEntry.subject) : null;
   const lastReq = st ? (pool.planRequests || []).filter(r=>r.studentId===st.id && r.subject===quickEntry.subject && (r.status==='approved' || r.status==='rejected')).slice(-1)[0] : null;
@@ -2153,6 +2562,8 @@ function qePanelHtml(){
           (pendReq ? ' <span class="tag amber">有修改申请待审批（' + pendReq.oldPlan + ' → ' + pendReq.newPlan + '）</span>' : '')
         : '<span style="font-size:14px;font-weight:600">应完成作业次数</span>' +
           '<input id="qe-plan" type="number" min="0" inputmode="numeric" placeholder="如 10" value="' + esc(plan) + '">' +
+          (!plan ? '<input id="qe-first-class" type="date" title="第一次课程时间（必填，允许未来日期——提前排课）">' : '') +
+          (!plan ? '<span class="plan-hint" style="color:var(--red)">* 首次设定需选第一次课程时间</span>' : '') +
           '<button class="btn mint sm" onclick="savePlanCount()">' + (plan ? '修改' : '保存') + '</button>' +
           (plan ? '<span class="plan-hint">已定 ' + plan + ' 次，点击格子录入或查看当次作业</span>' : '<span class="plan-hint">填写次数并保存后，自动生成打卡格子</span>') +
           (pendReq
@@ -2162,6 +2573,7 @@ function qePanelHtml(){
                 ? ' <span class="tag red">上次修改申请已被驳回</span>'
                 : ''))) +
     '</div>' +
+    firstClassHtml +
     '<div class="ci-title">打卡情况' + (plan ? '（应完成 ' + plan + ' 次，已完成 ' + countSubjectRecs(quickEntry.gid, quickEntry.subject) + ' 次）' : '') + '</div>' +
     '<div class="ci-grid">' + checkinGridHtml() + '</div>' +
     (slotEdit && slotEdit.gid===quickEntry.gid && slotEdit.subject===quickEntry.subject ? slotEditHtml() : '') +
@@ -2216,10 +2628,14 @@ function saveQuickEntry(){
   const wrongs = document.getElementById('qe-wrongs').value.split(/[,，、\s]+/).map(s=>s.trim()).filter(Boolean);
   const st = pool.students.find(x=>x.id===quickEntry.gid);
   if(!st || !canWriteOwner(st.ownerId)){ alert('没有权限操作该数据'); return; }
-  pool.records.push({id:uid(), studentId:quickEntry.gid, date:date, total:total, correct:correct,
-    wrongs:wrongs, subject:quickEntry.subject, images:[], pdfs:[], ownerId:st.ownerId});
+  const newRec = {id:uid(), studentId:quickEntry.gid, date:date, total:total, correct:correct,
+    wrongs:wrongs, subject:quickEntry.subject, images:[], pdfs:[], ownerId:st.ownerId};
+  pool.records.push(newRec);
   logAction('录入作业', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject),
     '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: st.ownerId});
+  apiPersist(HttpApi.addRecord({studentId: newRec.studentId, date: date, total: total, correct: correct,
+    wrongs: wrongs, subject: newRec.subject, images: newRec.images, pdfs: newRec.pdfs}),
+    r=>{ if(r.record) newRec.id = r.record.id; });  // 回填服务端记录 id
   quickEntry = null;
   save();
   renderAll();
@@ -2242,12 +2658,14 @@ function savePlanCount(){
   if(!st || !canWriteOwner(st.ownerId)){ alert('没有权限操作该数据'); return; }
   const subject = quickEntry.subject;
   const oldPlan = (st.subjPlans && st.subjPlans[subject] !== undefined) ? st.subjPlans[subject] : null;
+  let firstClassForPersist = null;  // 首次设定时由表单填入的第一次课程时间
   const applyPlan = ()=>{
     st.subjPlans = st.subjPlans || {};
     st.subjPlans[subject] = v;
     st.subjPlanSetAt = st.subjPlanSetAt || {};
     st.subjPlanSetAt[subject] = todayStr();  // 记录设定日期，供「计划停滞提醒」使用
     logAction(isAdminView() ? '教务直改计划次数' : '设定应完成次数', 'plan', auditStuDesc(st.id, subject), '设定为 ' + v + ' 次', {ownerId: st.ownerId});
+    apiPersist(HttpApi.setPlan({studentId: st.id, subject: subject, plan: v, firstClassDate: firstClassForPersist || (st.subjFirstClass && st.subjFirstClass[subject])}));
     save();
     renderAll();
   };
@@ -2264,11 +2682,42 @@ function savePlanCount(){
     applyPlan();
     return;
   }
-  if(oldPlan === null){ applyPlan(); return; }  // 首次设置：直接保存生效
+  if(oldPlan === null){
+    // 首次设定：必须选第一次课程时间（允许未来日期——提前排课）
+    const fcInput = document.getElementById('qe-first-class');
+    const fc = fcInput ? fcInput.value : '';
+    if(!fc){ alert('请选择第一次课程时间'); return; }
+    firstClassForPersist = fc;
+    st.subjFirstClass = st.subjFirstClass || {};
+    st.subjFirstClass[subject] = fc;
+    applyPlan(); return;
+  }
   if(v === oldPlan){ alert('次数未变化，无需修改'); return; }
   const pend = Api.pendingPlanRequest(st.id, subject);
   if(pend){ alert('该科目已有待审核的修改申请（' + pend.oldPlan + ' → ' + pend.newPlan + ' 次），请先撤回或等待教务审批。'); return; }
   openPlanRequest(st, subject, oldPlan, v);  // 二次修改：走审批申请
+}
+/* ---- 第一次课程时间：助教直改（不走审批，记审计） ---- */
+let fcEdit = null;  // {gid, subject} 当前展开的开课日期编辑行
+function editFirstClass(){
+  if(!quickEntry) return;
+  fcEdit = {gid: quickEntry.gid, subject: quickEntry.subject};
+  renderAll();
+}
+function saveFirstClass(){
+  if(!quickEntry || !fcEdit) return;
+  const inp = document.getElementById('qe-first-class-edit');
+  const v = inp ? inp.value : '';
+  if(!v){ alert('请选择第一次课程时间'); return; }
+  const st = state.students.find(x=>x.id===quickEntry.gid);
+  if(!st || !canWriteOwner(st.ownerId)){ alert('没有权限操作该数据'); return; }
+  st.subjFirstClass = st.subjFirstClass || {};
+  st.subjFirstClass[quickEntry.subject] = v;
+  fcEdit = null;
+  logAction('修改开课日期', 'plan', auditStuDesc(st.id, quickEntry.subject), '首次课程 ' + v, {ownerId: st.ownerId});
+  apiPersist(HttpApi.updateSubjFields(st.id, {subjFirstClass: st.subjFirstClass}));
+  save();
+  renderAll();
 }
 /* ================= 计划修改申请弹窗（助教） ================= */
 let planReqCtx = null;  // {gid, subject, oldPlan, newPlan}
@@ -2283,7 +2732,10 @@ function openPlanRequest(st, subject, oldPlan, newPlan){
 function submitPlanRequest(){
   if(!planReqCtx) return;
   const reason = document.getElementById('pr-reason').value.trim();
-  const res = Api.createPlanRequest({studentId: planReqCtx.gid, subject: planReqCtx.subject, newPlan: planReqCtx.newPlan, reason: reason});
+  _submitPlanRequestAsync(planReqCtx, reason);  // mock 同步、API 异步，行为一致
+}
+async function _submitPlanRequestAsync(ctx, reason){
+  const res = await Api.createPlanRequest({studentId: ctx.gid, subject: ctx.subject, newPlan: ctx.newPlan, reason: reason});
   if(!res.ok){ alert(res.msg); return; }
   planReqCtx = null;
   document.getElementById('pr-modal').classList.remove('show');
@@ -2295,10 +2747,15 @@ document.getElementById('pr-cancel').addEventListener('click', ()=>{
   document.getElementById('pr-modal').classList.remove('show');
 });
 document.getElementById('pr-ok').addEventListener('click', submitPlanRequest);
+document.getElementById('ms-cancel').addEventListener('click', ()=>{
+  missPickId = null;
+  document.getElementById('miss-subj-modal').classList.remove('show');
+});
+document.getElementById('ms-ok').addEventListener('click', confirmMissSubject);
 /* 助教撤回待审核申请 */
 function cancelPlanRequest(id){
-  askConfirm('撤回申请', '确定撤回这条计划修改申请吗？撤回后可重新提交。', ()=>{
-    const res = Api.cancelPlanRequest(id);
+  askConfirm('撤回申请', '确定撤回这条计划修改申请吗？撤回后可重新提交。', async ()=>{
+    const res = await Api.cancelPlanRequest(id);  // mock 同步、API 异步，await 兼容
     if(!res.ok){ alert(res.msg); return; }
     renderAll();
   });
@@ -2317,8 +2774,10 @@ function markMissedToday(){
   if(hasRec){ alert('该日期已录入该科目的作业记录，无需登记未交'); return; }
   const dup = state.missed.some(m=>m.studentId===gid && m.date===date && (m.subject||'')===subject && !m.resolved);
   if(dup){ alert('该学生在该日期已有此科目的未交记录'); return; }
-  pool.missed.push({id:uid(), studentId:gid, date:date, subject:subject, resolved:false, ownerId:st.ownerId});
+  const newMiss = {id:uid(), studentId:gid, date:date, subject:subject, resolved:false, ownerId:st.ownerId};
+  pool.missed.push(newMiss);
   logAction('登记未交', 'missed', auditStuDesc(gid, subject), '日期 ' + date, {ownerId: st.ownerId});
+  apiPersist(HttpApi.addMissed({studentId: gid, date: date, subject: subject}), r=>{ if(r.missed) newMiss.id = r.missed.id; });
   save();
   renderAll();
 }
@@ -2493,14 +2952,20 @@ function saveSlot(){
     r.date = date; r.total = total; r.correct = correct; r.wrongs = wrongs;
     logAction('修改作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
       '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: r.ownerId});
+    apiPersist(HttpApi.updateRecord(r.id, {date: date, total: total, correct: correct, wrongs: wrongs, subject: r.subject}));
   } else {
-    pool.records.push({id:uid(), studentId:slotEdit.gid, date:date, total:total, correct:correct,
-      wrongs:wrongs, subject:slotEdit.subject, images:[], pdfs:[], ownerId:st0.ownerId});
+    const newRec = {id:uid(), studentId:slotEdit.gid, date:date, total:total, correct:correct,
+      wrongs:wrongs, subject:slotEdit.subject, images:[], pdfs:[], ownerId:st0.ownerId};
+    pool.records.push(newRec);
     logAction(miss ? '补录作业' : '录入作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
       '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: st0.ownerId});
+    apiPersist(HttpApi.addRecord({studentId: newRec.studentId, date: date, total: total, correct: correct,
+      wrongs: wrongs, subject: newRec.subject, images: newRec.images, pdfs: newRec.pdfs}),
+      rr=>{ if(rr.record) newRec.id = rr.record.id; });
     if(miss){
       miss.resolved = true; miss.resolution = 'made-up'; miss.resolvedAt = todayStr();  // 补录成功：该次未交视为已补交（留痕），不再占用打卡格子
       logAction('补交未交', 'missed', auditStuDesc(miss.studentId, miss.subject), '原未交日期 ' + miss.date, {ownerId: miss.ownerId});
+      apiPersist(HttpApi.resolveMissed(miss.id));
     }
   }
   slotEdit = null;
@@ -2519,6 +2984,7 @@ function deleteSlot(){
       pool.records = pool.records.filter(x=>x.id!==r.id);
       logAction('删除作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
         '日期 ' + r.date + '，总 ' + r.total + ' 对 ' + r.correct, {ownerId: r.ownerId});
+      apiPersist(HttpApi.deleteRecord(r.id));
       slotEdit = null;
       save();
       renderAll();
@@ -2677,6 +3143,7 @@ function saveSubjectComment(){
     st.subjComments = st.subjComments || {};
     st.subjComments[quickEntry.subject] = text.trim();
     logAction('保存评语', 'record', auditStuDesc(st.id, quickEntry.subject), text.trim() ? text.trim().slice(0,50) : '（清空评语）', {ownerId: st.ownerId});
+    apiPersist(HttpApi.updateSubjFields(st.id, {subjComments: st.subjComments}));  // API 模式：整体提交评语列
     save();
   }
   const tip = document.getElementById('qe-comment-tip');
@@ -2692,6 +3159,7 @@ function saveSubjectAdvice(){
     st.subjAdvice = st.subjAdvice || {};
     st.subjAdvice[quickEntry.subject] = text.trim();
     logAction('保存学习计划与建议', 'record', auditStuDesc(st.id, quickEntry.subject), text.trim() ? text.trim().slice(0,50) : '（清空）', {ownerId: st.ownerId});
+    apiPersist(HttpApi.updateSubjFields(st.id, {subjAdvice: st.subjAdvice}));
     save();
   }
   const tip = document.getElementById('qe-advice-tip');
@@ -2722,6 +3190,7 @@ function bookMockExam(){
   slot.date = d;
   const mst = getMockStu();
   logAction('预约模考', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '预约日期 ' + d, {ownerId: mst ? mst.ownerId : undefined});
+  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: mst.mock}));  // API 模式：整体提交模考列
   mockEdit = null;
   save();
   renderAll();
@@ -2733,6 +3202,7 @@ function cancelMockExam(){
     delete st.mock[quickEntry.subject].date;
     if(!Object.keys(st.mock[quickEntry.subject]).length) delete st.mock[quickEntry.subject];
     logAction('取消模考预约', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '', {ownerId: st.ownerId});
+    apiPersist(HttpApi.updateSubjFields(st.id, {mock: st.mock}));
   }
   mockEdit = null;
   save();
@@ -2746,6 +3216,7 @@ function saveMockScore(){
   slot.score = v;
   const mst = getMockStu();
   logAction('保存模考分数', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '结课模考 ' + v + ' 分', {ownerId: mst ? mst.ownerId : undefined});
+  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: mst.mock}));
   mockEdit = null;
   save();
   renderAll();
@@ -2757,6 +3228,7 @@ function clearMockScore(){
     delete st.mock[quickEntry.subject].score;
     if(!Object.keys(st.mock[quickEntry.subject]).length) delete st.mock[quickEntry.subject];
     logAction('清除模考分数', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '', {ownerId: st.ownerId});
+    apiPersist(HttpApi.updateSubjFields(st.id, {mock: st.mock}));
   }
   mockEdit = null;
   save();
@@ -2842,7 +3314,11 @@ function confirmAddSubject(gid){
     }
   });
   addSubjGid = null;
-  if(added) logAction('添加科目', 'student', repStu.name, subj, {ownerId: repStu.ownerId});
+  if(added){
+    logAction('添加科目', 'student', repStu.name, subj, {ownerId: repStu.ownerId});
+    // API 模式：同名组每个学生分别整体提交科目列表
+    state.students.forEach(s=>{ if(!s.archived && s.name.trim()===name) apiPersist(HttpApi.updateSubjFields(s.id, {subjects: s.subjects})); });
+  }
   save();
   renderAll();
   if(!added) alert('该科目已在列表中，无需重复添加。');
@@ -2876,6 +3352,11 @@ function saveRenameSubject(){
     state.missed.some(m=>ids.includes(m.studentId) && m.subject===newName) ||
     ids.some(id=>{ const st = state.students.find(x=>x.id===id); return !!(st && Array.isArray(st.subjects) && st.subjects.includes(newName)); });
   if(dup){ alert('该学生已有科目「' + newName + '」，不能重复命名。'); return; }
+  // API 模式持久化快照（本地乐观更新前捕获受影响行）
+  const snap = {
+    recs: pool.records.filter(x=>ids.includes(x.studentId) && x.subject===oldName).map(r=>({id:r.id, date:r.date, total:r.total, correct:r.correct, wrongs:r.wrongs})),
+    miss: pool.missed.filter(x=>ids.includes(x.studentId) && x.subject===oldName && !x.resolved).map(m=>({id:m.id, date:m.date}))
+  };
   // 同步更新：作业记录、未交记录、手动科目列表
   state.records.forEach(r=>{ if(ids.includes(r.studentId) && r.subject===oldName) r.subject = newName; });
   state.missed.forEach(m=>{ if(ids.includes(m.studentId) && m.subject===oldName) m.subject = newName; });
@@ -2915,8 +3396,48 @@ function saveRenameSubject(){
   }
   renaming = null;
   logAction('重命名科目', 'student', repStu.name, oldName + ' → ' + newName, {ownerId: repStu.ownerId});
+  apiRenameSubjectPersist(repStu, ids, oldName, newName, snap);  // API 模式异步持久化（失败重取回滚）
   save();
   renderAll();
+}
+/* API 模式科目重命名持久化：作业记录/未交逐条改科目 + 学生 JSON 列整体提交（本地已先行乐观更新） */
+async function apiRenameSubjectPersist(repStu, ids, oldName, newName, snap){
+  if(!USE_API) return;
+  try{
+    for(const r of snap.recs){
+      const res = await HttpApi.updateRecord(r.id, {date: r.date, total: r.total, correct: r.correct, wrongs: r.wrongs, subject: newName});
+      if(!res.ok) throw new Error('rec');
+    }
+    for(const m of snap.miss){
+      const res = await HttpApi._req('PUT', '/api/missed/' + m.id, {date: m.date, subject: newName});
+      if(!res.ok) throw new Error('miss');
+    }
+    for(const sid of ids){
+      const st = pool.students.find(x=>x.id===sid);
+      if(st){
+        const res = await HttpApi.updateSubjFields(sid, {subjects: st.subjects || [], subjComments: st.subjComments || {}, subjAdvice: st.subjAdvice || {}, mock: st.mock || {}});
+        if(!res.ok) throw new Error('fields');
+      }
+    }
+  }catch(e){
+    alert('保存失败，请检查网络后重试');
+    resyncState();
+  }
+}
+/* API 模式删除科目持久化：逐条删除该科目作业记录/未交 + 学生 JSON 列整体提交 */
+async function apiDeleteSubjectPersist(ids, snap){
+  if(!USE_API) return;
+  try{
+    for(const r of snap.recs){ const res = await HttpApi.deleteRecord(r.id); if(!res.ok) throw 0; }
+    for(const m of snap.miss){ const res = await HttpApi.deleteMissed(m.id); if(!res.ok) throw 0; }
+    for(const sid of ids){
+      const st = pool.students.find(x=>x.id===sid);
+      if(st){
+        const res = await HttpApi.updateSubjFields(sid, {subjects: st.subjects || [], subjComments: st.subjComments || {}, subjAdvice: st.subjAdvice || {}, mock: st.mock || {}});
+        if(!res.ok) throw 0;
+      }
+    }
+  }catch(e){ alert('保存失败，请检查网络后重试'); resyncState(); }
 }
 /* 删除科目：清除该科目下的全部关联数据（同名组合并处理），带确认 */
 function deleteSubject(){
@@ -2930,6 +3451,11 @@ function deleteSubject(){
   askConfirm('删除科目', '确定删除科目「' + oldName + '」吗？该科目下的 ' + nRecs + ' 条作业记录' +
     (nMiss? '、' + nMiss + ' 条未交记录' : '') +
     '，以及打卡计划、老师评语、模考信息将一并清除，此操作不可恢复。', ()=>{
+    // API 模式持久化快照（本地删除前捕获受影响行）
+    const snap = {
+      recs: pool.records.filter(x=>ids.includes(x.studentId) && x.subject===oldName).map(r=>({id:r.id})),
+      miss: pool.missed.filter(x=>ids.includes(x.studentId) && x.subject===oldName).map(m=>({id:m.id}))
+    };
     pool.records = pool.records.filter(r=>!(ids.includes(r.studentId) && r.subject===oldName));
     pool.missed = pool.missed.filter(m=>!(ids.includes(m.studentId) && m.subject===oldName));
     state.students.forEach(s=>{
@@ -2946,6 +3472,7 @@ function deleteSubject(){
     if(mockEdit && ids.includes(mockEdit.gid) && mockEdit.subject===oldName) mockEdit = null;
     renaming = null;
     logAction('删除科目', 'student', repStu.name, oldName + '（含 ' + nRecs + ' 条作业记录）', {ownerId: repStu.ownerId});
+    apiDeleteSubjectPersist(ids, snap);  // API 模式异步持久化（失败重取回滚）
     save();
     renderAll();
   });
@@ -3000,11 +3527,14 @@ document.getElementById('ns-ok').addEventListener('click', ()=>{
     pool.students.forEach(s=>{ if(editStuIds.includes(s.id)){ s.name = name; s.school = school; s.gradYear = gradYear; } });
     const firstStu = pool.students.find(x=>editStuIds.includes(x.id));
     logAction('修改学生信息', 'student', name, (school || '无学校') + (gradYear ? ' · ' + gradYear + ' 届' : ''), {ownerId: firstStu ? firstStu.ownerId : undefined});
+    apiPersist(HttpApi.updateStudent(editStuIds[0], {name: name, school: school, gradYear: gradYear}));  // 后端会同步同名组
   } else {
     if(!canWriteOwner(writeOwnerId())){ alert('没有权限操作该数据'); return; }  // 销售等只读角色不可新增
     if(activeStudents().some(s=>s.name.trim()===name)){ alert('「' + name + '」已在现有学生中，同名不能重复录入。'); return; }
-    pool.students.push({id:uid(), name, school, gradYear, ownerId:writeOwnerId()});
+    const newStu = {id:uid(), name, school, gradYear, ownerId:writeOwnerId()};
+    pool.students.push(newStu);
     logAction('新增学生', 'student', name, (school || '无学校') + (gradYear ? ' · ' + gradYear + ' 届' : ''));
+    apiPersist(HttpApi.addStudent({name: name, school: school, gradYear: gradYear}), r=>{ if(r.student) newStu.id = r.student.id; });
   }
   save();
   document.getElementById('stu-modal').classList.remove('show');
@@ -3019,6 +3549,7 @@ function archiveGroup(ids){
     pool.students.forEach(s=>{ if(ids.includes(s.id)) s.archived = true; });
     const st0 = pool.students.find(x=>x.id===ids[0]);
     logAction('归档学生', 'student', st0 ? st0.name : '', '转为历史学生', {ownerId: st0 ? st0.ownerId : undefined});
+    apiPersist(HttpApi.setStudentArchived(ids[0], true));  // 后端同步同名组
     save(); renderAll();
   });
 }
@@ -3028,6 +3559,7 @@ function restoreGroup(ids){
   pool.students.forEach(s=>{ if(ids.includes(s.id)) s.archived = false; });
   const st0 = pool.students.find(x=>x.id===ids[0]);
   logAction('恢复学生', 'student', st0 ? st0.name : '', '恢复为现有学生', {ownerId: st0 ? st0.ownerId : undefined});
+  apiPersist(HttpApi.setStudentArchived(ids[0], false));
   save(); renderAll();
 }
 
@@ -3053,6 +3585,7 @@ function renderAlumni(){
   const filtered = alumniQuery ? groups.filter(g=>g.name.indexOf(alumniQuery)!==-1 || (g.school||'').indexOf(alumniQuery)!==-1) : groups;
   // 销售视角：无关键字只展示示例历史学生（演示用），真实学生仍需搜索
   if(isSalesView()){
+    if(USE_API){ renderSalesApiList(list, true); return; }  // API 模式：搜索走服务端
     if(!alumniQuery){
       const demo = groups.filter(g=>g.sample);
       list.innerHTML = demo.length
@@ -3204,6 +3737,7 @@ function clearSamplesOfView(){
   pool.students = pool.students.filter(s=>!(ownerInView(s.ownerId) && s.sample));
 }
 function clearSamples(){
+  if(USE_API){ alert('示例数据功能仅在演示环境（无后端）可用'); return; }
   if(!isAdminView()){ alert('仅教务可清理数据'); return; }
   askConfirm('清空示例数据', '将删除当前数据范围内所有标记为「示例」的学生、作业记录和未交记录，你自己录入的数据不受影响。确定吗？', ()=>{
     clearSamplesOfView();
@@ -3219,7 +3753,7 @@ function doLoadSampleData(){
   clearSamplesOfView();
   let owners;
   if(isAdminView()){
-    owners = Api.listUsers().filter(u=>u.role==='ta' && !u.disabled).map(u=>u.id);
+    owners = getUsersCache().filter(u=>u.role==='ta' && !u.disabled).map(u=>u.id);
     if(!owners.length) owners = [writeOwnerId()];
   } else {
     owners = [writeOwnerId()];
@@ -3230,6 +3764,7 @@ function doLoadSampleData(){
   save(); renderAll();
 }
 function loadSampleData(){
+  if(USE_API){ alert('示例数据功能仅在演示环境（无后端）可用'); return; }
   if(!isAdminView()){ alert('仅教务可清理数据'); return; }
   const adminAll = isAdminView();  // 教务恒为全部数据视角
   askConfirm('重新载入示例数据',
@@ -3243,6 +3778,7 @@ function loadSampleData(){
 }
 document.getElementById('btn-load-sample').addEventListener('click', loadSampleData);
 document.getElementById('btn-clear-all').addEventListener('click', ()=>{
+  if(USE_API){ alert('清空功能仅在演示环境（无后端）可用'); return; }
   if(!isAdminView()){ alert('仅教务可清理数据'); return; }
   askConfirm('清空全部数据', '将删除当前数据范围内的所有学生、作业记录和未交记录（含你自己录入的数据），此操作不可恢复！建议先导出备份。确定继续吗？', ()=>{
     pool.students = pool.students.filter(s=>!ownerInView(s.ownerId));
@@ -3341,12 +3877,29 @@ async function doLogin(u, p, role){
   currentUser = res.user;
   document.getElementById('login-pass').value = '';
   err.textContent = '';
+  if(USE_API && currentUser.role !== 'sales'){
+    const s = await HttpApi.getState();  // 登录成功拉取服务端数据填充 pool（销售无 state 权限，M5.4 走搜索接口）
+    if(s.ok){ pool = s.state; refreshView(); }
+  }
+  if(USE_API) await refreshUsersCache();
   if(currentUser.mustChangePwd){ openPwdModal(true); return; }  // 首登/重置后强制改密
   enterApp();
 }
-function doLogout(){
-  Api.logout();
+/* 401 时强制回登录页（不走 logout 接口，避免递归） */
+function forceLogout(){
+  sessionStorage.removeItem(SS_SESSION);
   currentUser = null;
+  document.getElementById('pwd-modal').classList.remove('show');
+  showLogin();
+}
+function doLogout(){
+  const r = Api.logout();
+  if(r && typeof r.then === 'function') r.catch(()=>{});  // HttpApi 登出为异步，失败不阻塞本地退出
+  currentUser = null;
+  if(USE_API){  // API 模式登出清空服务端快照，避免下个登录用户看到残留数据
+    pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };
+    refreshView();
+  }
   document.getElementById('pwd-modal').classList.remove('show');
   document.getElementById('transfer-modal').classList.remove('show');
   showLogin();
@@ -3389,7 +3942,7 @@ document.getElementById('pwd-ok').addEventListener('click', ()=>doChangePwd());
 function renderAccounts(){
   const el = document.getElementById('accounts-list');
   if(!el) return;
-  const users = Api.listUsers();
+  const users = getUsersCache();
   el.innerHTML = users.map(u=>{
     const stuCnt = pool.students.filter(s=>s.ownerId===u.id).length;
     const isSelf = currentUser && u.id===currentUser.id;
@@ -3413,7 +3966,7 @@ function renderPlanRequests(){
   if(!pendEl) return;
   const reqs = pool.planRequests || [];
   const pending = reqs.filter(r=>r.status==='pending');
-  const users = Api.listUsers();
+  const users = getUsersCache();
   const stuNameOf = sid => { const s = pool.students.find(x=>x.id===sid); return s ? s.name : '（已删除学生）'; };
   const reqUserOf = uid2 => { const u = users.find(x=>x.id===uid2); return u ? u.name : '未知'; };
   pendEl.innerHTML = pending.length ? pending.map(r=>
@@ -3449,7 +4002,7 @@ function renderDoneZone(){
     .forEach(r=>{
       if(!isAdminView() && r.requestedBy !== currentUser.id) return;
       const st = pool.students.find(x=>x.id===r.studentId);
-      const reqUser = Api.listUsers().find(u=>u.id===r.requestedBy);
+      const reqUser = getUsersCache().find(u=>u.id===r.requestedBy);
       items.push({ kind:'req', at:r.reviewedAt, status:r.status,
         name: st ? st.name : '（已删除学生）', subject: r.subject, oldPlan: r.oldPlan, newPlan: r.newPlan,
         reqBy: reqUser ? reqUser.name : '未知' });
@@ -3500,9 +4053,20 @@ function visibleAuditLogs(){
   return logs.filter(l=>l.userId===currentUser.id || (l.ownerId && l.ownerId===currentUser.id));  // 助教
 }
 const AUDIT_TYPE_BADGE = {record:'mint', missed:'red', plan:'amber', student:'sample', account:'sample', auth:'sample', data:'sample'};
+function auditRowHtml(l){
+  return '<div class="audit-row">' +
+    '<span class="audit-ts">' + esc(l.ts.slice(5,16)) + '</span>' +
+    '<span class="audit-user">' + esc(l.userName) + '<span class="role-badge' + (l.role==='admin'?' admin':'') + '">' +
+      ({admin:'教务', ta:'助教', sales:'销售'}[l.role] || l.role) + '</span></span>' +
+    '<span class="tag ' + (AUDIT_TYPE_BADGE[l.targetType] || 'sample') + '">' + esc(l.action) + '</span>' +
+    '<span class="audit-target">' + esc(l.targetDesc) + '</span>' +
+    (l.detail ? '<div class="audit-detail">' + esc(l.detail) + '</div>' : '') +
+    '</div>';
+}
 function renderAudit(){
   const list = document.getElementById('audit-list');
   if(!list) return;
+  if(USE_API){ renderAuditApi(false); return; }  // API 模式：搜索/筛选/分页全部由服务端完成
   const cntEl = document.getElementById('audit-count');
   const moreEl = document.getElementById('audit-more');
   if(!currentUser || currentUser.role==='sales'){ list.innerHTML = ''; cntEl.textContent = ''; moreEl.innerHTML = ''; return; }
@@ -3516,29 +4080,45 @@ function renderAudit(){
   }
   cntEl.textContent = '共 ' + logs.length + ' 条匹配';
   const shown = logs.slice(0, auditShown);
-  list.innerHTML = shown.length ? shown.map(l=>
-    '<div class="audit-row">' +
-    '<span class="audit-ts">' + esc(l.ts.slice(5,16)) + '</span>' +
-    '<span class="audit-user">' + esc(l.userName) + '<span class="role-badge' + (l.role==='admin'?' admin':'') + '">' +
-      ({admin:'教务', ta:'助教', sales:'销售'}[l.role] || l.role) + '</span></span>' +
-    '<span class="tag ' + (AUDIT_TYPE_BADGE[l.targetType] || 'sample') + '">' + esc(l.action) + '</span>' +
-    '<span class="audit-target">' + esc(l.targetDesc) + '</span>' +
-    (l.detail ? '<div class="audit-detail">' + esc(l.detail) + '</div>' : '') +
-    '</div>').join('') : '<p class="hint">暂无匹配的操作记录。</p>';
+  list.innerHTML = shown.length ? shown.map(auditRowHtml).join('') : '<p class="hint">暂无匹配的操作记录。</p>';
   moreEl.innerHTML = logs.length > auditShown
     ? '<button class="btn ghost sm" style="width:100%" onclick="auditLoadMore()">加载更多（已显示 ' + shown.length + '/' + logs.length + ' 条）</button>'
     : '';
 }
-function auditLoadMore(){ auditShown += 50; renderAudit(); }
+/* API 模式：审计查询走服务端（GET /api/audit-logs），搜索/筛选/分页服务端完成；「加载更多」按页累加 */
+let auditApiPage = 1;
+const auditApiItems = [];
+async function renderAuditApi(append){
+  const list = document.getElementById('audit-list');
+  const cntEl = document.getElementById('audit-count');
+  const moreEl = document.getElementById('audit-more');
+  if(!currentUser || currentUser.role==='sales'){ list.innerHTML = ''; cntEl.textContent = ''; moreEl.innerHTML = ''; return; }
+  if(!append){ auditApiPage = 1; auditApiItems.length = 0; }
+  const r = await HttpApi._req('GET', '/api/audit-logs?q=' + encodeURIComponent(auditQuery) +
+    '&type=' + encodeURIComponent(auditType) + '&range=' + auditRange + '&page=' + auditApiPage + '&pageSize=50');
+  if(!r.ok){ cntEl.textContent = r.msg || '加载失败'; return; }
+  auditApiItems.push.apply(auditApiItems, r.items);
+  cntEl.textContent = '共 ' + r.total + ' 条匹配';
+  list.innerHTML = auditApiItems.length ? auditApiItems.map(auditRowHtml).join('') : '<p class="hint">暂无匹配的操作记录。</p>';
+  moreEl.innerHTML = auditApiItems.length < r.total
+    ? '<button class="btn ghost sm" style="width:100%" onclick="auditLoadMore()">加载更多（已显示 ' + auditApiItems.length + '/' + r.total + ' 条）</button>'
+    : '';
+}
+function auditLoadMore(){
+  if(USE_API){ auditApiPage++; renderAuditApi(true); return; }
+  auditShown += 50; renderAudit();
+}
 /* 教务审批：通过直接生效；驳回需确认 */
 function reviewPlanRequest(id, approve){
   if(approve){
-    const res = Api.reviewPlanRequest(id, true);
-    if(!res.ok){ alert(res.msg); return; }
-    renderAll();
+    (async ()=>{
+      const res = await Api.reviewPlanRequest(id, true);  // mock 同步、API 异步，await 兼容
+      if(!res.ok){ alert(res.msg); return; }
+      renderAll();
+    })();
   } else {
-    askConfirm('驳回申请', '确定驳回这条计划修改申请吗？学生的应完成次数将保持不变。', ()=>{
-      const res = Api.reviewPlanRequest(id, false);
+    askConfirm('驳回申请', '确定驳回这条计划修改申请吗？学生的应完成次数将保持不变。', async ()=>{
+      const res = await Api.reviewPlanRequest(id, false);
       if(!res.ok){ alert(res.msg); return; }
       renderAll();
     });
@@ -3554,23 +4134,26 @@ function renderPendingBadges(){
   });
 }
 function resetUserPwd(id){
-  const u = Api.listUsers().find(x=>x.id===id);
+  const u = getUsersCache().find(x=>x.id===id);
   if(!u) return;
   askConfirm('重置密码', '将重置「' + u.name + '」的登录密码，其下次登录需使用新密码并被要求修改。确定吗？', async ()=>{
     const np = 'ta' + Math.random().toString(36).slice(2,8);
     const res = await Api.resetPassword(id, np);
-    if(res.ok) alert('密码已重置为：' + np + '\n请转告该助教，首次登录需修改密码。');
+    if(res.ok) alert('密码已重置为：' + np + '\\n请转告该助教，首次登录需修改密码。');
+    else alert(res.msg || '重置失败');
+    await refreshUsersCache();
     renderAll();
   });
 }
 function toggleUser(id){
-  const u = Api.listUsers().find(x=>x.id===id);
+  const u = getUsersCache().find(x=>x.id===id);
   if(!u) return;
   askConfirm(u.disabled ? '启用账号' : '停用账号',
     u.disabled ? '确定重新启用「' + u.name + '」吗？' : '停用后「' + u.name + '」将无法登录，其名下学生与作业数据完整保留。确定吗？',
-    ()=>{
-      const res = Api.toggleUser(id);
+    async ()=>{
+      const res = await Api.toggleUser(id);  // mock 同步返回、API 异步返回，await 兼容两者
       if(!res.ok){ alert(res.msg); return; }
+      await refreshUsersCache();
       renderAll();
     });
 }
@@ -3584,6 +4167,7 @@ document.getElementById('btn-create-ta').addEventListener('click', async ()=>{
   document.getElementById('ac-name').value = '';
   document.getElementById('ac-username').value = '';
   document.getElementById('ac-password').value = '';
+  await refreshUsersCache();
   renderAll();
   alert('已创建' + (role==='sales' ? '销售' : '助教') + '账号「' + name + '」，首次登录需修改初始密码。');
 });
@@ -3595,7 +4179,7 @@ function openTransfer(ids){
   transferIds = ids;
   const sel = document.getElementById('tf-target');
   const cur = stuOwnerId(ids[0]);
-  const opts = Api.listUsers().filter(u=>u.role==='ta' && !u.disabled && u.id!==cur);
+  const opts = getUsersCache().filter(u=>u.role==='ta' && !u.disabled && u.id!==cur);
   if(!opts.length){ alert('暂无可转移的目标助教'); return; }
   sel.innerHTML = opts.map(u=>'<option value="' + u.id + '">' + esc(u.name) + '（' + esc(u.username) + '）</option>').join('');
   document.getElementById('transfer-modal').classList.add('show');
@@ -3604,8 +4188,8 @@ document.getElementById('tf-cancel').addEventListener('click', ()=>document.getE
 document.getElementById('tf-ok').addEventListener('click', ()=>{
   const target = document.getElementById('tf-target').value;
   document.getElementById('transfer-modal').classList.remove('show');
-  askConfirm('确认转移归属', '该学生的全部作业记录、未交记录将一并转移给「' + ownerName(target) + '」，确定吗？', ()=>{
-    const res = Api.transferStudent(transferIds, target);
+  askConfirm('确认转移归属', '该学生的全部作业记录、未交记录将一并转移给「' + ownerName(target) + '」，确定吗？', async ()=>{
+    const res = await Api.transferStudent(transferIds, target);  // mock 同步、API 异步（本地乐观+逐个调用后端），await 兼容
     if(!res.ok){ alert(res.msg); return; }
     renderAll();
   });
@@ -3621,7 +4205,7 @@ function dashRangeStart(){ return dashRange === 0 ? null : offsetDay(-(dashRange
 /* 看板聚合数据（渲染与测试共用，避免 NaN/除零：所有均值在空数组时给 null） */
 function computeDash(){
   const t = todayStr();
-  const tas = Api.listUsers().filter(u=>u.role==='ta');
+  const tas = getUsersCache().filter(u=>u.role==='ta');
   const recsOwner = pool.records.filter(r=>dashOwner==='all' || r.ownerId===dashOwner);
   const start = dashRangeStart();
   const recs = start ? recsOwner.filter(r=>r.date >= start) : recsOwner;
@@ -3629,7 +4213,7 @@ function computeDash(){
   const students = pool.students.filter(s=>dashOwner==='all' || s.ownerId===dashOwner);
   const avgAcc = recs.length ? Math.round(recs.reduce((s,r)=>s+acc(r),0)/recs.length) : null;
   const openMiss = missed.filter(m=>!m.resolved);
-  const overdue = openMiss.filter(m=>m.date < t);
+  const overdue = openMiss.filter(m=>isOverdueMissed(m, pool.students.find(x=>x.id===m.studentId)));
 
   // 近 30 天录入趋势：始终画 30 天，受助教筛选影响
   const trend = [];
@@ -3650,7 +4234,7 @@ function computeDash(){
       recCnt: rs.length,
       avg: rs.length ? Math.round(rs.reduce((s,r)=>s+acc(r),0)/rs.length) : null,
       missCnt: ms.filter(m=>!m.resolved).length,
-      overdueCnt: ms.filter(m=>!m.resolved && m.date<t).length,
+      overdueCnt: ms.filter(m=>isOverdueMissed(m, pool.students.find(x=>x.id===m.studentId))).length,
       lastDate: lastDate,
       silent: !lastDate || lastDate <= offsetDay(-7) };
   }).sort((a,b)=>b.recCnt-a.recCnt);
@@ -3726,7 +4310,7 @@ function renderDashboard(){
   const d = computeDash();
   // 筛选条：助教下拉 + 时间范围按钮态
   const sel = document.getElementById('dash-owner');
-  const tas = Api.listUsers().filter(u=>u.role==='ta');
+  const tas = getUsersCache().filter(u=>u.role==='ta');
   sel.innerHTML = '<option value="all">全部助教</option>' +
     tas.map(u=>'<option value="' + u.id + '">' + esc(u.name) + (u.disabled ? '（已停用）' : '') + '</option>').join('');
   sel.value = dashOwner;
@@ -3859,6 +4443,28 @@ document.getElementById('today-str').textContent =
   todayStr() + ' · ' + ['周日','周一','周二','周三','周四','周五','周六'][new Date().getDay()];
 
 window.__ready = (async function init(){
+  USE_API = await detectApi();  // 同 origin 探测到后端 → API 模式；否则 mock 演示模式
+  document.getElementById('login-demo').style.display = USE_API ? 'none' : '';  // 演示账号提示仅 mock 模式
+  if(USE_API){
+    apiImpl = HttpApi;
+    const u = await HttpApi.restoreSession();  // 刷新恢复：本地 token → /api/me 校验
+    if(u){
+      currentUser = u;
+      if(u.role !== 'sales'){
+        const s = await HttpApi.getState();
+        if(s.ok){ pool = s.state; }
+      }
+      await refreshUsersCache();
+      refreshView();
+      enterApp();
+      if(u.mustChangePwd) openPwdModal(true);
+      return;
+    }
+    showLogin();
+    return;
+  }
+  // mock 模式：行为与此前完全一致
+  apiImpl = LocalApi;
   await Api._ensureSeed();  // 首次运行播种账号与示例数据
   load();
   const u = Api.currentSession();
@@ -3873,7 +4479,10 @@ window.__ready = (async function init(){
 
 /* 测试钩子：供 node DOM 桩冒烟测试访问内部状态（不影响 UI） */
 window.__wb = {
-  Api,
+  Api, HttpApi, LocalApi,
+  get USE_API(){ return USE_API; },
+  setUseApi(v){ USE_API = v; apiImpl = v ? HttpApi : LocalApi; },  // 测试用：强制切换模式
+  refreshUsersCache,
   doLogin, doChangePwd, doLogout, enterApp, showLogin,
   saveQuickEntry, saveSlot, removeMissed, markMissedToday, buildExport,
   viewState, refreshView, canWriteOwner, writeOwnerId,
@@ -3881,7 +4490,11 @@ window.__wb = {
   savePlanCount, submitPlanRequest, cancelPlanRequest, reviewPlanRequest, renderPlanRequests, renderPendingBadges,
   setStuTaFilter, toggleTaGroup, renderStats, renderAlumni, clearSamplesOfView,
   qePanelHtml, reportHtml, renderToday, saveSubjectAdvice, gotoPlanEntry, doLoadSampleData, renderMotto, toggleSalesSubject,
+  saveSubjectComment, saveMockScore, confirmAddSubject,
   renderDoneZone, doneZoneToggle, resolveMissed,
+  isOverdueMissed, addDays, editFirstClass, saveFirstClass, openMissSubjectPicker, confirmMissSubject,
+  toggleSalesSubjectApi, fileUrl, renderAuditApi, resyncState,
+  get salesSubjApi(){ return salesSubjApi; },
   logAction, visibleAuditLogs, renderAudit, auditLoadMore,
   setAuditQuery(v){ auditQuery = v; auditShown = 50; renderAudit(); },
   setAuditType(v){ auditType = v; auditShown = 50; renderAudit(); },

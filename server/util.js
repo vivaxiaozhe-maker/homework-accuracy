@@ -40,6 +40,7 @@ function stuToJson(s){
     subjects: parseJson(s.subjects, []),
     subjPlans: parseJson(s.subj_plans, {}), subjPlanSetAt: parseJson(s.subj_plan_set_at, {}),
     subjComments: parseJson(s.subj_comments, {}), subjAdvice: parseJson(s.subj_advice, {}),
+    subjFirstClass: parseJson(s.subj_first_class, {}),
     mock: parseJson(s.mock, {}), createdAt: s.created_at };
 }
 function recToJson(r){
