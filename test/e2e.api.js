@@ -119,6 +119,24 @@ function ok(cond, name){
   ok(made.ok && made.user.role === 'ta', 'API 模式创建助教账号（经后端）');
   const dup = await wb.Api.createUser('王助教', 'ta1', 'ta123456', 'ta');
   ok(!dup.ok && dup.msg.indexOf('已存在') !== -1, 'API 模式重复账号被拒');
+
+  /* ---- 账号管理按钮点击路径（resetUserPwd / toggleUser + askConfirm 确认回调） ---- */
+  await vm.runInContext('refreshUsersCache()', ctx);  // 同步账号缓存（上面是直连 Api 创建的，没走 UI 按钮）
+  vm.runInContext('resetUserPwd("' + made.user.id + '")', ctx);
+  const alertsBeforeReset = alerts.length;
+  await vm.runInContext('cfCallback()', ctx);  // 模拟点「确认」
+  await new Promise(r=>setTimeout(r, 400));
+  ok(alerts.length > alertsBeforeReset && alerts[alerts.length-1].indexOf('密码已重置为') !== -1,
+    '重置密码按钮全链路生效（确认弹窗→接口→生成新密码提示）');
+  vm.runInContext('toggleUser("' + made.user.id + '")', ctx);
+  await vm.runInContext('cfCallback()', ctx);
+  await new Promise(r=>setTimeout(r, 400));
+  const ta1After = (await wb.Api.listUsers()).find(u=>u.id===made.user.id);
+  ok(ta1After && ta1After.disabled === true, '停用按钮全链路生效（账号已停用）');
+  vm.runInContext('toggleUser("' + made.user.id + '")', ctx);  // 复位：重新启用，避免影响后续用例
+  await vm.runInContext('cfCallback()', ctx);
+  await new Promise(r=>setTimeout(r, 400));
+  await wb.Api.resetPassword(made.user.id, 'ta123456');  // 复位密码，供后续登录用例使用
   // 教务直接在服务端给 ta1/ta2 各录一名学生（模拟别的助教已有数据）
   const adminToken = wb.HttpApi._token;
   const sreq = (body) => fetch(base + '/api/students', { method: 'POST',
@@ -138,6 +156,7 @@ function ok(cond, name){
   await wb.doLogin('ta1', 'ta123456', 'ta');
   await wb.doChangePwd('ta123456', 'ta654321', 'ta654321');
   ok(wb.currentUser && wb.currentUser.username === 'ta1', '助教改密后进入主界面');
+  ok(wb.currentUser.mustChangePwd === false, '改密成功后本地 mustChangePwd 同步置否');
   ok(wb.state.students.length === 1 && wb.state.students[0].ownerId === wb.currentUser.id,
     '助教登录后只见自己名下学生（服务端过滤）');
 
