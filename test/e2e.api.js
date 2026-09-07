@@ -92,6 +92,7 @@ function ok(cond, name){
   /* ---- 登录 ---- */
   await wb.doLogin('admin', 'wrong-pwd', 'admin');
   ok(!wb.currentUser && documentStub.getElementById('login-err').textContent.length > 0, '错误密码登录失败（错误提示）');
+  ok(documentStub.getElementById('login-err').textContent === '密码错误', '错误密码提示为「密码错误」而非误报会话过期');
   await wb.doLogin('admin', 'admin123', 'admin');
   ok(wb.currentUser && wb.currentUser.username === 'admin' && wb.currentUser.role === 'admin', 'admin 登录成功');
   ok(!!wb.HttpApi._token, '登录后持有 token');

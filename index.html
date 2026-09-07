@@ -385,9 +385,9 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
 }
 #bottombar .tab-btn svg{width:22px;height:22px}
 #bottombar .tab-btn.active{color:var(--mint-d);font-weight:700}
-/* 弹窗 */
+/* 弹窗（z-index 需高于登录屏 #login-screen 的 200，否则首登强制改密弹窗会被登录屏盖住） */
 .modal-mask{
-  display:none;position:fixed;inset:0;background:rgba(40,50,45,.5);z-index:100;
+  display:none;position:fixed;inset:0;background:rgba(40,50,45,.5);z-index:300;
   align-items:center;justify-content:center;padding:20px;
 }
 .modal-mask.show{display:flex}
@@ -1414,13 +1414,17 @@ const HttpApi = {
         headers: { 'Content-Type': 'application/json', ...(this._token ? { Authorization: 'Bearer ' + this._token } : {}) },
         body: body ? JSON.stringify(body) : undefined
       });
-      if(res.status === 401){
-        this._token = null;
-        sessionStorage.removeItem(SS_SESSION);
-        forceLogout();  // 注意：不可调用 doLogout（会递归走 logout 接口）
-        return { ok: false, msg: '未登录或登录已过期' };
-      }
       const data = await res.json().catch(() => null);
+      if(res.status === 401){
+        // 已登录会话里的 401 才是「会话过期」；登录接口自身的 401（密码错误/账号不存在等）要原样展示后端 msg
+        if(currentUser){
+          this._token = null;
+          sessionStorage.removeItem(SS_SESSION);
+          forceLogout();  // 注意：不可调用 doLogout（会递归走 logout 接口）
+          return { ok: false, msg: '未登录或登录已过期' };
+        }
+        return { ok: false, msg: (data && data.msg) || '登录失败' };
+      }
       if(res.ok && data && data.ok) return data;
       return { ok: false, msg: (data && data.msg) || '请求失败' };
     }catch(e){
