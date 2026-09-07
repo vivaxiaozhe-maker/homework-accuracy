@@ -58,6 +58,10 @@ pm2 monit                   # 资源占用
 
 # 代码更新（拉最新代码后重装依赖并重启）
 cd /opt/xueqing && git pull
+# 注意：服务器直连 github.com 不稳定（Empty reply）。拉不动时的备选：
+# 从本地直接传被服务的两个前端文件即可（纯前端改动无需重启服务）：
+#   scp index.html 学生作业正确率.html root@47.113.184.105:/opt/xueqing/
+# 后端文件（server/）变更时才需要 scp 整个 server/ 并 pm2 restart xueqing
 cd server && npm ci --omit=dev
 pm2 restart xueqing
 
