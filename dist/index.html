@@ -396,6 +396,25 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
 .modal p{font-size:14px;color:var(--ink2);margin-bottom:18px}
 .modal .row{display:flex;gap:10px;justify-content:flex-end}
 #img-modal img{max-width:100%;max-height:80vh;border-radius:12px;display:block;margin:0 auto}
+/* 产品内 toast（替代浏览器原生 alert）：顶部居中白底卡片，3 秒自动消失，多条依次向下堆叠；
+   z-index 高于弹窗（300）；支持 \n 多行（pre-line）；移动端宽度自适应 */
+#toast-zone{
+  position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:400;pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;gap:8px;max-width:calc(100vw - 32px);
+}
+.toast{
+  display:flex;align-items:flex-start;gap:8px;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;box-shadow:0 8px 28px rgba(62,90,78,.18);padding:11px 16px;
+  font-size:14px;color:var(--ink);line-height:1.5;white-space:pre-line;text-align:left;
+  max-width:min(420px, calc(100vw - 32px));animation:toast-in .18s ease-out;
+  transition:opacity .25s,transform .25s;
+}
+.toast::before{
+  content:'✓';flex-shrink:0;width:18px;height:18px;border-radius:50%;margin-top:1px;
+  background:var(--mint);color:#fff;font-size:12px;font-weight:700;line-height:18px;text-align:center;
+}
+.toast.out{opacity:0;transform:translateY(-6px)}
+@keyframes toast-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
 /* 页签 */
 .tab-pane{display:none}
 .tab-pane.active{display:block}
@@ -564,7 +583,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot">账号体系 · 演示环境<br>数据暂存本机浏览器</div>
+    <div class="side-foot" id="side-foot">账号体系 · 演示环境<br>数据暂存本机浏览器</div>
   </aside>
 
   <main>
@@ -884,6 +903,9 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
   </div>
 </div>
 
+<!-- 产品内 toast 挂载点（替代浏览器原生 alert，由 toast() 写入） -->
+<div id="toast-zone"></div>
+
 <!-- 图片查看 -->
 <div class="modal-mask" id="img-modal">
   <div class="modal" style="max-width:640px">
@@ -924,7 +946,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.0.2</div>
+    <div class="login-ver" id="login-ver">v1.0.3</div>
   </div>
 </div>
 
@@ -1565,9 +1587,9 @@ const HttpApi = {
 function apiPersist(promise, onOk){
   if(!USE_API || !promise || typeof promise.then !== 'function') return;
   promise.then(r => {
-    if(r && r.ok === false){ alert('保存失败，请检查网络后重试'); resyncState(); return; }
+    if(r && r.ok === false){ toast('保存失败，请检查网络后重试'); resyncState(); return; }
     if(onOk) onOk(r);
-  }).catch(() => { alert('保存失败，请检查网络后重试'); resyncState(); });
+  }).catch(() => { toast('保存失败，请检查网络后重试'); resyncState(); });
 }
 // 从服务端重取全量状态（回滚/同步用）
 async function resyncState(){
@@ -1779,6 +1801,20 @@ document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click', (
 
 /* ================= 确认弹窗 ================= */
 let cfCallback = null;
+/* 产品内 toast（替代浏览器原生 alert）：顶部居中白色卡片 + 薄荷绿点缀，3 秒自动消失，
+   多条依次向下堆叠；\n 多行由 CSS pre-line 支持。DOM 桩环境下 appendChild/removeChild 为空操作或缺失，静默工作不抛错。 */
+function toast(msg){
+  const zone = document.getElementById('toast-zone');
+  if(!zone) return;  // 防御：挂载点缺失时静默
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = String(msg);
+  zone.appendChild(t);
+  setTimeout(()=>{
+    t.classList.add('out');
+    setTimeout(()=>{ if(t.parentNode && t.parentNode.removeChild) t.parentNode.removeChild(t); }, 260);
+  }, 3000);
+}
 function askConfirm(title, text, cb){
   document.getElementById('cf-title').textContent = title;
   document.getElementById('cf-text').textContent = text;
@@ -1970,12 +2006,12 @@ function openMissSubjectPicker(missedId){
 }
 function confirmMissSubject(){
   const subj = getAddSubjValue('ms');  // 复用新增科目面板的三级联动取值
-  if(!subj){ alert('请选择科目'); return; }
+  if(!subj){ toast('请选择科目'); return; }
   const m = pool.missed.find(x=>x.id===missPickId);
   document.getElementById('miss-subj-modal').classList.remove('show');
   missPickId = null;
   if(!m) return;
-  if(!canWriteOwner(m.ownerId)){ alert('没有权限操作该数据'); return; }
+  if(!canWriteOwner(m.ownerId)){ toast('没有权限操作该数据'); return; }
   m.subject = subj;
   logAction('补登未交科目', 'missed', auditStuDesc(m.studentId, subj), '原未交日期 ' + m.date, {ownerId: m.ownerId});
   apiPersist(HttpApi._req('PUT', '/api/missed/' + m.id, {date: m.date, subject: subj}));
@@ -1984,7 +2020,7 @@ function confirmMissSubject(){
 }
 function removeMissed(id){
   const m = pool.missed.find(x=>x.id===id);
-  if(!m || !canWriteOwner(m.ownerId)){ alert('没有权限操作该数据'); return; }
+  if(!m || !canWriteOwner(m.ownerId)){ toast('没有权限操作该数据'); return; }
   askConfirm('删除未交记录', '确定删除这条未交记录吗？删除后可在「已处理事项」中回溯。', ()=>{
     m.resolved = true;          // 软删除：留痕，不从数组移除
     m.resolution = 'deleted';
@@ -2632,11 +2668,11 @@ function saveQuickEntry(){
   const date = document.getElementById('qe-date').value || todayStr();
   const total = parseInt(document.getElementById('qe-total').value, 10);
   const correct = parseInt(document.getElementById('qe-correct').value, 10);
-  if(isNaN(total) || total<=0){ alert('请填写有效的总题数'); return; }
-  if(isNaN(correct) || correct<0 || correct>total){ alert('正确题目数需在 0 到总题数之间'); return; }
+  if(isNaN(total) || total<=0){ toast('请填写有效的总题数'); return; }
+  if(isNaN(correct) || correct<0 || correct>total){ toast('正确题目数需在 0 到总题数之间'); return; }
   const wrongs = document.getElementById('qe-wrongs').value.split(/[,，、\s]+/).map(s=>s.trim()).filter(Boolean);
   const st = pool.students.find(x=>x.id===quickEntry.gid);
-  if(!st || !canWriteOwner(st.ownerId)){ alert('没有权限操作该数据'); return; }
+  if(!st || !canWriteOwner(st.ownerId)){ toast('没有权限操作该数据'); return; }
   const newRec = {id:uid(), studentId:quickEntry.gid, date:date, total:total, correct:correct,
     wrongs:wrongs, subject:quickEntry.subject, images:[], pdfs:[], ownerId:st.ownerId};
   pool.records.push(newRec);
@@ -2662,9 +2698,9 @@ function subjectRecsSorted(gid, subject){
 function savePlanCount(){
   if(!quickEntry) return;
   const v = parseInt(document.getElementById('qe-plan').value, 10);
-  if(isNaN(v) || v<0){ alert('请填写有效的次数（0 或正整数）'); return; }
+  if(isNaN(v) || v<0){ toast('请填写有效的次数（0 或正整数）'); return; }
   const st = state.students.find(x=>x.id===quickEntry.gid);
-  if(!st || !canWriteOwner(st.ownerId)){ alert('没有权限操作该数据'); return; }
+  if(!st || !canWriteOwner(st.ownerId)){ toast('没有权限操作该数据'); return; }
   const subject = quickEntry.subject;
   const oldPlan = (st.subjPlans && st.subjPlans[subject] !== undefined) ? st.subjPlans[subject] : null;
   let firstClassForPersist = null;  // 首次设定时由表单填入的第一次课程时间
@@ -2695,15 +2731,15 @@ function savePlanCount(){
     // 首次设定：必须选第一次课程时间（允许未来日期——提前排课）
     const fcInput = document.getElementById('qe-first-class');
     const fc = fcInput ? fcInput.value : '';
-    if(!fc){ alert('请选择第一次课程时间'); return; }
+    if(!fc){ toast('请选择第一次课程时间'); return; }
     firstClassForPersist = fc;
     st.subjFirstClass = st.subjFirstClass || {};
     st.subjFirstClass[subject] = fc;
     applyPlan(); return;
   }
-  if(v === oldPlan){ alert('次数未变化，无需修改'); return; }
+  if(v === oldPlan){ toast('次数未变化，无需修改'); return; }
   const pend = Api.pendingPlanRequest(st.id, subject);
-  if(pend){ alert('该科目已有待审核的修改申请（' + pend.oldPlan + ' → ' + pend.newPlan + ' 次），请先撤回或等待教务审批。'); return; }
+  if(pend){ toast('该科目已有待审核的修改申请（' + pend.oldPlan + ' → ' + pend.newPlan + ' 次），请先撤回或等待教务审批。'); return; }
   openPlanRequest(st, subject, oldPlan, v);  // 二次修改：走审批申请
 }
 /* ---- 第一次课程时间：助教直改（不走审批，记审计） ---- */
@@ -2717,9 +2753,9 @@ function saveFirstClass(){
   if(!quickEntry || !fcEdit) return;
   const inp = document.getElementById('qe-first-class-edit');
   const v = inp ? inp.value : '';
-  if(!v){ alert('请选择第一次课程时间'); return; }
+  if(!v){ toast('请选择第一次课程时间'); return; }
   const st = state.students.find(x=>x.id===quickEntry.gid);
-  if(!st || !canWriteOwner(st.ownerId)){ alert('没有权限操作该数据'); return; }
+  if(!st || !canWriteOwner(st.ownerId)){ toast('没有权限操作该数据'); return; }
   st.subjFirstClass = st.subjFirstClass || {};
   st.subjFirstClass[quickEntry.subject] = v;
   fcEdit = null;
@@ -2745,11 +2781,11 @@ function submitPlanRequest(){
 }
 async function _submitPlanRequestAsync(ctx, reason){
   const res = await Api.createPlanRequest({studentId: ctx.gid, subject: ctx.subject, newPlan: ctx.newPlan, reason: reason});
-  if(!res.ok){ alert(res.msg); return; }
+  if(!res.ok){ toast(res.msg); return; }
   planReqCtx = null;
   document.getElementById('pr-modal').classList.remove('show');
   renderAll();
-  alert('已提交修改申请，教务审核通过后生效。');
+  toast('已提交修改申请，教务审核通过后生效。');
 }
 document.getElementById('pr-cancel').addEventListener('click', ()=>{
   planReqCtx = null;
@@ -2765,7 +2801,7 @@ document.getElementById('ms-ok').addEventListener('click', confirmMissSubject);
 function cancelPlanRequest(id){
   askConfirm('撤回申请', '确定撤回这条计划修改申请吗？撤回后可重新提交。', async ()=>{
     const res = await Api.cancelPlanRequest(id);  // mock 同步、API 异步，await 兼容
-    if(!res.ok){ alert(res.msg); return; }
+    if(!res.ok){ toast(res.msg); return; }
     renderAll();
   });
 }
@@ -2775,14 +2811,14 @@ function markMissedToday(){
   const gid = quickEntry.gid, subject = quickEntry.subject;
   const st = state.students.find(x=>x.id===gid);
   if(st && st.archived) return;
-  if(!st || !canWriteOwner(st.ownerId)){ alert('没有权限操作该数据'); return; }
+  if(!st || !canWriteOwner(st.ownerId)){ toast('没有权限操作该数据'); return; }
   // 优先取当前录入表单中的日期（补登未交场景），无表单则默认今天
   const dateInput = document.getElementById('sl-date');
   const date = (dateInput && dateInput.value) ? dateInput.value : todayStr();
   const hasRec = state.records.some(r=>r.studentId===gid && r.subject===subject && r.date===date);
-  if(hasRec){ alert('该日期已录入该科目的作业记录，无需登记未交'); return; }
+  if(hasRec){ toast('该日期已录入该科目的作业记录，无需登记未交'); return; }
   const dup = state.missed.some(m=>m.studentId===gid && m.date===date && (m.subject||'')===subject && !m.resolved);
-  if(dup){ alert('该学生在该日期已有此科目的未交记录'); return; }
+  if(dup){ toast('该学生在该日期已有此科目的未交记录'); return; }
   const newMiss = {id:uid(), studentId:gid, date:date, subject:subject, resolved:false, ownerId:st.ownerId};
   pool.missed.push(newMiss);
   logAction('登记未交', 'missed', auditStuDesc(gid, subject), '日期 ' + date, {ownerId: st.ownerId});
@@ -2944,20 +2980,20 @@ function slCalc(){
 function saveSlot(){
   if(!slotEdit) return;
   const st0 = pool.students.find(x=>x.id===slotEdit.gid);
-  if(!st0 || !canWriteOwner(st0.ownerId)){ alert('没有权限操作该数据'); return; }
+  if(!st0 || !canWriteOwner(st0.ownerId)){ toast('没有权限操作该数据'); return; }
   const date = document.getElementById('sl-date').value || todayStr();
   const total = parseInt(document.getElementById('sl-total').value, 10);
   const correct = parseInt(document.getElementById('sl-correct').value, 10);
-  if(isNaN(total) || total<=0){ alert('请填写有效的总题数'); return; }
-  if(isNaN(correct) || correct<0 || correct>total){ alert('正确题目数需在 0 到总题数之间'); return; }
+  if(isNaN(total) || total<=0){ toast('请填写有效的总题数'); return; }
+  if(isNaN(correct) || correct<0 || correct>total){ toast('正确题目数需在 0 到总题数之间'); return; }
   const wrongs = document.getElementById('sl-wrongs').value.split(/[,，、\s]+/).map(s=>s.trim()).filter(Boolean);
-  if(correct < total && wrongs.length === 0){ alert('正确题目数小于总题数，请填写错题号'); return; }
+  if(correct < total && wrongs.length === 0){ toast('正确题目数小于总题数，请填写错题号'); return; }
   const items = subjectItems(slotEdit.gid, slotEdit.subject);
   const it = items[slotEdit.idx-1];
   const r = it && it.type==='rec' ? it.rec : null;
   const miss = it && it.type==='miss' ? it.miss : null;
   if(r){
-    if(!canWriteOwner(r.ownerId)){ alert('没有权限操作该数据'); return; }
+    if(!canWriteOwner(r.ownerId)){ toast('没有权限操作该数据'); return; }
     r.date = date; r.total = total; r.correct = correct; r.wrongs = wrongs;
     logAction('修改作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
       '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: r.ownerId});
@@ -2988,7 +3024,7 @@ function deleteSlot(){
   const it = items[slotEdit.idx-1];
   const r = it && it.type==='rec' ? it.rec : null;
   if(!r) return;
-  if(!canWriteOwner(r.ownerId)){ alert('没有权限操作该数据'); return; }
+  if(!canWriteOwner(r.ownerId)){ toast('没有权限操作该数据'); return; }
     askConfirm('删除作业记录', '确定删除第 ' + slotEdit.idx + ' 次作业记录（' + r.date + '）？此操作不可恢复。', ()=>{
       pool.records = pool.records.filter(x=>x.id!==r.id);
       logAction('删除作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
@@ -3101,7 +3137,7 @@ function reportHtml(st, subject){
 async function genReport(){
   if(!quickEntry) return;
   const st = state.students.find(x=>x.id===quickEntry.gid);
-  if(!st){ alert('未找到学生数据'); return; }
+  if(!st){ toast('未找到学生数据'); return; }
   const subject = quickEntry.subject;
   let area = document.getElementById('reportArea');
   if(!area){ area = document.createElement('div'); area.id = 'reportArea'; document.body.appendChild(area); }
@@ -3110,7 +3146,7 @@ async function genReport(){
   try{
     await Promise.all([loadScript(REPORT_CDN.jspdf), loadScript(REPORT_CDN.html2canvas)]);
   }catch(e){
-    alert('PDF 组件加载失败（可能网络受限），已打开打印窗口，请选择「另存为 PDF」。');
+    toast('PDF 组件加载失败（可能网络受限），已打开打印窗口，请选择「另存为 PDF」。');
     printReport(area); return;
   }
   // 置于屏幕中央截图（遮罩效果），clone 完成后立即隐藏原始 DOM
@@ -3133,7 +3169,7 @@ async function genReport(){
     pdf.save(fileName);
   }catch(e){
     area.style.display='none';
-    alert('PDF 生成失败，已打开打印窗口，请选择「另存为 PDF」。');
+    toast('PDF 生成失败，已打开打印窗口，请选择「另存为 PDF」。');
     printReport(area);
   }
 }
@@ -3194,7 +3230,7 @@ function getMockSlot(st, subject){
 function bookMockExam(){
   if(!quickEntry) return;
   const d = document.getElementById('mock-date').value;
-  if(!d){ alert('请选择模考日期'); return; }
+  if(!d){ toast('请选择模考日期'); return; }
   const slot = getMockSlot(getMockStu(), quickEntry.subject);
   slot.date = d;
   const mst = getMockStu();
@@ -3220,7 +3256,7 @@ function cancelMockExam(){
 function saveMockScore(){
   if(!quickEntry) return;
   const v = parseInt(document.getElementById('mock-score').value, 10);
-  if(isNaN(v) || v<0 || v>100){ alert('请填写 0-100 之间的模考分数'); return; }
+  if(isNaN(v) || v<0 || v>100){ toast('请填写 0-100 之间的模考分数'); return; }
   const slot = getMockSlot(getMockStu(), quickEntry.subject);
   slot.score = v;
   const mst = getMockStu();
@@ -3311,7 +3347,7 @@ function getAddSubjValue(gid){
 }
 function confirmAddSubject(gid){
   const subj = getAddSubjValue(gid);
-  if(!subj){ alert('请选择科目'); return; }
+  if(!subj){ toast('请选择科目'); return; }
   const repStu = state.students.find(s=>s.id===gid);
   if(!repStu) return;
   const name = repStu.name.trim();
@@ -3330,7 +3366,7 @@ function confirmAddSubject(gid){
   }
   save();
   renderAll();
-  if(!added) alert('该科目已在列表中，无需重复添加。');
+  if(!added) toast('该科目已在列表中，无需重复添加。');
 }
 
 /* ================= 科目重命名 ================= */
@@ -3350,7 +3386,7 @@ function saveRenameSubject(){
   if(!renaming) return;
   const oldName = renaming.subject;
   const newName = document.getElementById('ren-input').value.trim();
-  if(!newName){ alert('科目名不能为空'); return; }
+  if(!newName){ toast('科目名不能为空'); return; }
   if(newName === oldName){ renaming = null; renderStats(); return; }
   const repStu = state.students.find(s=>s.id===renaming.gid);
   if(!repStu){ renaming = null; renderStats(); return; }
@@ -3360,7 +3396,7 @@ function saveRenameSubject(){
   const dup = state.records.some(r=>ids.includes(r.studentId) && r.subject===newName) ||
     state.missed.some(m=>ids.includes(m.studentId) && m.subject===newName) ||
     ids.some(id=>{ const st = state.students.find(x=>x.id===id); return !!(st && Array.isArray(st.subjects) && st.subjects.includes(newName)); });
-  if(dup){ alert('该学生已有科目「' + newName + '」，不能重复命名。'); return; }
+  if(dup){ toast('该学生已有科目「' + newName + '」，不能重复命名。'); return; }
   // API 模式持久化快照（本地乐观更新前捕获受影响行）
   const snap = {
     recs: pool.records.filter(x=>ids.includes(x.studentId) && x.subject===oldName).map(r=>({id:r.id, date:r.date, total:r.total, correct:r.correct, wrongs:r.wrongs})),
@@ -3429,7 +3465,7 @@ async function apiRenameSubjectPersist(repStu, ids, oldName, newName, snap){
       }
     }
   }catch(e){
-    alert('保存失败，请检查网络后重试');
+    toast('保存失败，请检查网络后重试');
     resyncState();
   }
 }
@@ -3446,7 +3482,7 @@ async function apiDeleteSubjectPersist(ids, snap){
         if(!res.ok) throw 0;
       }
     }
-  }catch(e){ alert('保存失败，请检查网络后重试'); resyncState(); }
+  }catch(e){ toast('保存失败，请检查网络后重试'); resyncState(); }
 }
 /* 删除科目：清除该科目下的全部关联数据（同名组合并处理），带确认 */
 function deleteSubject(){
@@ -3524,22 +3560,22 @@ document.getElementById('ns-ok').addEventListener('click', ()=>{
   const name = document.getElementById('ns-name').value.trim();
   const school = document.getElementById('ns-school').value.trim();
   const gradYear = document.getElementById('ns-gradyear').value;
-  if(!name){ alert('请输入学生姓名'); return; }
-  if(!gradYear){ alert('请选择毕业年份'); return; }
+  if(!name){ toast('请输入学生姓名'); return; }
+  if(!gradYear){ toast('请选择毕业年份'); return; }
   if(editStuIds){
     // 越权防护：只能编辑可见范围内的学生
     const denied = editStuIds.some(id=>{ const s = pool.students.find(x=>x.id===id); return !s || !canWriteOwner(s.ownerId); });
-    if(denied){ alert('没有权限操作该数据'); return; }
+    if(denied){ toast('没有权限操作该数据'); return; }
     // 编辑模式：同名冲突检查（排除本组）
     const clash = activeStudents().some(s=>!editStuIds.includes(s.id) && s.name.trim()===name);
-    if(clash){ alert('已有另一位同名学生「' + name + '」，不能改成相同姓名。'); return; }
+    if(clash){ toast('已有另一位同名学生「' + name + '」，不能改成相同姓名。'); return; }
     pool.students.forEach(s=>{ if(editStuIds.includes(s.id)){ s.name = name; s.school = school; s.gradYear = gradYear; } });
     const firstStu = pool.students.find(x=>editStuIds.includes(x.id));
     logAction('修改学生信息', 'student', name, (school || '无学校') + (gradYear ? ' · ' + gradYear + ' 届' : ''), {ownerId: firstStu ? firstStu.ownerId : undefined});
     apiPersist(HttpApi.updateStudent(editStuIds[0], {name: name, school: school, gradYear: gradYear}));  // 后端会同步同名组
   } else {
-    if(!canWriteOwner(writeOwnerId())){ alert('没有权限操作该数据'); return; }  // 销售等只读角色不可新增
-    if(activeStudents().some(s=>s.name.trim()===name)){ alert('「' + name + '」已在现有学生中，同名不能重复录入。'); return; }
+    if(!canWriteOwner(writeOwnerId())){ toast('没有权限操作该数据'); return; }  // 销售等只读角色不可新增
+    if(activeStudents().some(s=>s.name.trim()===name)){ toast('「' + name + '」已在现有学生中，同名不能重复录入。'); return; }
     const newStu = {id:uid(), name, school, gradYear, ownerId:writeOwnerId()};
     pool.students.push(newStu);
     logAction('新增学生', 'student', name, (school || '无学校') + (gradYear ? ' · ' + gradYear + ' 届' : ''));
@@ -3553,7 +3589,7 @@ document.getElementById('ns-ok').addEventListener('click', ()=>{
 /* 归档 / 恢复学生（按同名组操作，作业记录保留） */
 function archiveGroup(ids){
   const denied = ids.some(id=>{ const s = pool.students.find(x=>x.id===id); return !s || !canWriteOwner(s.ownerId); });
-  if(denied){ alert('没有权限操作该数据'); return; }
+  if(denied){ toast('没有权限操作该数据'); return; }
   askConfirm('转为历史学生', '该学生将从「现有学生」移到「历史学生」，录入下拉中不再出现；科目、作业记录、打卡、评语、模考等数据完整保留，可在历史板块查看（恢复为现有学生后可继续编辑）。确定吗？', ()=>{
     pool.students.forEach(s=>{ if(ids.includes(s.id)) s.archived = true; });
     const st0 = pool.students.find(x=>x.id===ids[0]);
@@ -3564,7 +3600,7 @@ function archiveGroup(ids){
 }
 function restoreGroup(ids){
   const denied = ids.some(id=>{ const s = pool.students.find(x=>x.id===id); return !s || !canWriteOwner(s.ownerId); });
-  if(denied){ alert('没有权限操作该数据'); return; }
+  if(denied){ toast('没有权限操作该数据'); return; }
   pool.students.forEach(s=>{ if(ids.includes(s.id)) s.archived = false; });
   const st0 = pool.students.find(x=>x.id===ids[0]);
   logAction('恢复学生', 'student', st0 ? st0.name : '', '恢复为现有学生', {ownerId: st0 ? st0.ownerId : undefined});
@@ -3729,9 +3765,9 @@ document.getElementById('f-import').addEventListener('change', function(e){
         });
         logAction('导入恢复', 'data', '', '导入 ' + data.students.length + ' 名学生、' + data.records.length + ' 条作业记录');
         save(); renderAll();
-        alert('导入完成！');
+        toast('导入完成！');
       });
-    }catch(err){ alert('文件格式不正确，请选择本工作台导出的 JSON 备份文件。'); }
+    }catch(err){ toast('文件格式不正确，请选择本工作台导出的 JSON 备份文件。'); }
   };
   reader.readAsText(f);
   e.target.value = '';
@@ -3746,8 +3782,8 @@ function clearSamplesOfView(){
   pool.students = pool.students.filter(s=>!(ownerInView(s.ownerId) && s.sample));
 }
 function clearSamples(){
-  if(USE_API){ alert('示例数据功能仅在演示环境（无后端）可用'); return; }
-  if(!isAdminView()){ alert('仅教务可清理数据'); return; }
+  if(USE_API){ toast('示例数据功能仅在演示环境（无后端）可用'); return; }
+  if(!isAdminView()){ toast('仅教务可清理数据'); return; }
   askConfirm('清空示例数据', '将删除当前数据范围内所有标记为「示例」的学生、作业记录和未交记录，你自己录入的数据不受影响。确定吗？', ()=>{
     clearSamplesOfView();
     logAction('清空示例数据', 'data', '', '');
@@ -3773,8 +3809,8 @@ function doLoadSampleData(){
   save(); renderAll();
 }
 function loadSampleData(){
-  if(USE_API){ alert('示例数据功能仅在演示环境（无后端）可用'); return; }
-  if(!isAdminView()){ alert('仅教务可清理数据'); return; }
+  if(USE_API){ toast('示例数据功能仅在演示环境（无后端）可用'); return; }
+  if(!isAdminView()){ toast('仅教务可清理数据'); return; }
   const adminAll = isAdminView();  // 教务恒为全部数据视角
   askConfirm('重新载入示例数据',
     adminAll
@@ -3782,13 +3818,13 @@ function loadSampleData(){
       : '将在当前数据范围重新生成示例数据（该范围原有示例数据会先清除），你自己录入的数据不受影响。确定继续吗？',
     ()=>{
       doLoadSampleData();
-      alert('已载入最新示例数据（含同名合并演示）！旧数据已自动备份到本机浏览器。');
+      toast('已载入最新示例数据（含同名合并演示）！旧数据已自动备份到本机浏览器。');
     });
 }
 document.getElementById('btn-load-sample').addEventListener('click', loadSampleData);
 document.getElementById('btn-clear-all').addEventListener('click', ()=>{
-  if(USE_API){ alert('清空功能仅在演示环境（无后端）可用'); return; }
-  if(!isAdminView()){ alert('仅教务可清理数据'); return; }
+  if(USE_API){ toast('清空功能仅在演示环境（无后端）可用'); return; }
+  if(!isAdminView()){ toast('仅教务可清理数据'); return; }
   askConfirm('清空全部数据', '将删除当前数据范围内的所有学生、作业记录和未交记录（含你自己录入的数据），此操作不可恢复！建议先导出备份。确定继续吗？', ()=>{
     pool.students = pool.students.filter(s=>!ownerInView(s.ownerId));
     pool.records = pool.records.filter(r=>!ownerInView(r.ownerId));
@@ -3942,7 +3978,7 @@ async function doChangePwd(oldP, newP, newP2){
   if(currentUser) currentUser.mustChangePwd = false;  // 成功后本地同步，防同会话残留状态
   document.getElementById('pwd-modal').classList.remove('show');
   if(pwdForced){ pwdForced = false; enterApp(); }
-  else alert('密码已修改，下次登录请使用新密码。');
+  else toast('密码已修改，下次登录请使用新密码。');
 }
 document.getElementById('btn-chpwd').addEventListener('click', ()=>openPwdModal(false));
 document.getElementById('pwd-cancel').addEventListener('click', ()=>document.getElementById('pwd-modal').classList.remove('show'));
@@ -4128,13 +4164,13 @@ function reviewPlanRequest(id, approve){
   if(approve){
     (async ()=>{
       const res = await Api.reviewPlanRequest(id, true);  // mock 同步、API 异步，await 兼容
-      if(!res.ok){ alert(res.msg); return; }
+      if(!res.ok){ toast(res.msg); return; }
       renderAll();
     })();
   } else {
     askConfirm('驳回申请', '确定驳回这条计划修改申请吗？学生的应完成次数将保持不变。', async ()=>{
       const res = await Api.reviewPlanRequest(id, false);
-      if(!res.ok){ alert(res.msg); return; }
+      if(!res.ok){ toast(res.msg); return; }
       renderAll();
     });
   }
@@ -4154,8 +4190,8 @@ function resetUserPwd(id){
   askConfirm('重置密码', '将重置「' + u.name + '」的登录密码，其下次登录需使用新密码并被要求修改。确定吗？', async ()=>{
     const np = 'ta' + Math.random().toString(36).slice(2,8);
     const res = await Api.resetPassword(id, np);
-    if(res.ok) alert('密码已重置为：' + np + '\n请转告该助教（销售同理），其首次登录需修改密码。');
-    else alert(res.msg || '重置失败');
+    if(res.ok) toast('密码已重置为：' + np + '\n请转告该助教（销售同理），其首次登录需修改密码。');
+    else toast(res.msg || '重置失败');
     await refreshUsersCache();
     renderAll();
   });
@@ -4167,10 +4203,10 @@ function toggleUser(id){
     u.disabled ? '确定重新启用「' + u.name + '」吗？' : '停用后「' + u.name + '」将无法登录，其名下学生与作业数据完整保留。确定吗？',
     async ()=>{
       const res = await Api.toggleUser(id);  // mock 同步返回、API 异步返回，await 兼容两者
-      if(!res.ok){ alert(res.msg); return; }
+      if(!res.ok){ toast(res.msg); return; }
       // 操作反馈闭环：明确告知停用/启用结果（停用数据完整保留）
       const nowDisabled = res.user ? res.user.disabled : !u.disabled;
-      alert(nowDisabled ? '已停用「' + u.name + '」，其名下数据完整保留' : '已启用「' + u.name + '」');
+      toast(nowDisabled ? '已停用「' + u.name + '」，其名下数据完整保留' : '已启用「' + u.name + '」');
       await refreshUsersCache();
       renderAll();
     });
@@ -4181,13 +4217,13 @@ document.getElementById('btn-create-ta').addEventListener('click', async ()=>{
   const pwd = document.getElementById('ac-password').value;
   const role = document.getElementById('ac-role').value;
   const res = await Api.createUser(name, username, pwd, role);
-  if(!res.ok){ alert(res.msg); return; }
+  if(!res.ok){ toast(res.msg); return; }
   document.getElementById('ac-name').value = '';
   document.getElementById('ac-username').value = '';
   document.getElementById('ac-password').value = '';
   await refreshUsersCache();
   renderAll();
-  alert('已创建' + (role==='sales' ? '销售' : '助教') + '账号「' + name + '」，初始密码：' + pwd + '，首次登录需修改。');
+  toast('已创建' + (role==='sales' ? '销售' : '助教') + '账号「' + name + '」，初始密码：' + pwd + '，首次登录需修改。');
 });
 
 /* ================= 教务：转移学生归属 ================= */
@@ -4198,7 +4234,7 @@ function openTransfer(ids){
   const sel = document.getElementById('tf-target');
   const cur = stuOwnerId(ids[0]);
   const opts = getUsersCache().filter(u=>u.role==='ta' && !u.disabled && u.id!==cur);
-  if(!opts.length){ alert('暂无可转移的目标助教'); return; }
+  if(!opts.length){ toast('暂无可转移的目标助教'); return; }
   sel.innerHTML = opts.map(u=>'<option value="' + u.id + '">' + esc(u.name) + '（' + esc(u.username) + '）</option>').join('');
   document.getElementById('transfer-modal').classList.add('show');
 }
@@ -4208,7 +4244,7 @@ document.getElementById('tf-ok').addEventListener('click', ()=>{
   document.getElementById('transfer-modal').classList.remove('show');
   askConfirm('确认转移归属', '该学生的全部作业记录、未交记录将一并转移给「' + ownerName(target) + '」，确定吗？', async ()=>{
     const res = await Api.transferStudent(transferIds, target);  // mock 同步、API 异步（本地乐观+逐个调用后端），await 兼容
-    if(!res.ok){ alert(res.msg); return; }
+    if(!res.ok){ toast(res.msg); return; }
     renderAll();
   });
 });
@@ -4462,6 +4498,9 @@ document.getElementById('today-str').textContent =
 
 window.__ready = (async function init(){
   USE_API = await detectApi();  // 同 origin 探测到后端 → API 模式；否则 mock 演示模式
+  // 侧栏脚注按运行模式区分：mock 保持「演示环境」静态文案，API 模式（正式环境）改为内部系统
+  const sideFoot = document.getElementById('side-foot');
+  if(sideFoot && USE_API) sideFoot.textContent = '学情跟踪平台 · 内部系统';
   document.getElementById('login-demo').style.display = USE_API ? 'none' : '';  // 演示账号提示仅 mock 模式
   const loginTag = document.querySelector('.login-tag');
   if(loginTag) loginTag.textContent = USE_API ? '内部系统' : '内部系统 · 演示环境：数据暂存本机';

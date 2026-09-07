@@ -70,7 +70,8 @@ function ok(cond, name){
     fetch: apiFetch,
     AbortController: globalThis.AbortController,
     TextEncoder: globalThis.TextEncoder,
-    alert: msg => alerts.push(String(msg)),
+    // alert 已全局替换为 toast；ctx 不再提供 alert，残留调用会以 ReferenceError 暴露
+  toast: msg => alerts.push(String(msg)),
     console, setTimeout, clearTimeout,
     Blob: function(){},
     URL: { createObjectURL(){ return 'blob:x'; }, revokeObjectURL(){} },
@@ -81,11 +82,16 @@ function ok(cond, name){
   const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
   const m = html.match(/<script>([\s\S]*?)<\/script>/);
   vm.runInContext(m[1], ctx, { filename: 'inline-script.js' });
+  /* 脚本内顶层 function toast 声明会覆盖 ctx 预置桩；加载后改装为「捕获 + 透传真实实现」，
+     既有断言继续读 alerts 数组，同时验证真实 toast() 在 DOM 桩下静默工作不抛错 */
+  const realToast = ctx.toast;
+  ctx.toast = msg => { alerts.push(String(msg)); realToast(msg); };
   await windowStub.__ready;
   const wb = windowStub.__wb;
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统', 'API 模式侧栏脚注改为「内部系统」文案');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 

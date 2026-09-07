@@ -40,7 +40,7 @@ function makeStorage(){
     clear: () => m.clear()
   };
 }
-const alerts = [];
+const alerts = [];  // toast()（替代浏览器原生 alert）的捕获容器，沿用数组名，既有断言零改动
 const windowStub = { scrollTo(){}, print(){} };
 const ctx = vm.createContext({
   document: documentStub,
@@ -49,7 +49,8 @@ const ctx = vm.createContext({
   sessionStorage: makeStorage(),
   crypto: globalThis.crypto,
   TextEncoder: globalThis.TextEncoder,
-  alert: msg => alerts.push(String(msg)),
+  // alert 已全局替换为 toast；ctx 不再提供 alert，残留调用会以 ReferenceError 暴露
+  toast: msg => alerts.push(String(msg)),
   console, setTimeout, clearTimeout,
   Blob: function(){},
   URL: { createObjectURL(){ return 'blob:x'; }, revokeObjectURL(){} },
@@ -61,6 +62,10 @@ const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.h
 const m = html.match(/<script>([\s\S]*?)<\/script>/);
 if(!m){ console.error('未找到 <script> 块'); process.exit(1); }
 vm.runInContext(m[1], ctx, {filename: 'inline-script.js'});
+/* 脚本内顶层 function toast 声明会覆盖 ctx 预置的捕获桩；加载后改装为「捕获 + 透传真实实现」，
+   既让既有断言继续从 alerts 数组读到提示，也顺带验证真实 toast() 在 DOM 桩下静默工作不抛错。 */
+const realToast = ctx.toast;
+ctx.toast = msg => { alerts.push(String(msg)); realToast(msg); };
 
 /* ---------- 断言工具 ---------- */
 let pass = 0, fail = 0;
@@ -161,7 +166,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.0.2') !== -1, '登录页版本号升至 v1.0.2');
+  ok(html.indexOf('id="login-ver">v1.0.3') !== -1, '登录页版本号升至 v1.0.3');
 
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
@@ -221,6 +226,24 @@ function ok(cond, name){
   const disabledLogin = await Api.login('ta2', 'ta123456', 'ta');
   ok(!disabledLogin.ok, '停用后 ta2 登录被拒');
   ok(wb.pool.students.filter(s=>s.ownerId===ta2.id).length === 7, '停用后 ta2 数据完整保留');
+
+  /* ---- toast 反馈闭环：停用/启用经产品内 toast 提示（UI 全链路：按钮 → 确认弹窗 → toast） ---- */
+  await wb.doLogin('admin', 'admin456', 'admin');
+  const alertsBeforeTg = alerts.length;
+  vm.runInContext('toggleUser("' + ta2.id + '")', ctx);  // ta2 当前已停用 → 本次为启用
+  documentStub.getElementById('cf-ok').onclick();  // 点「确认执行」
+  await new Promise(r=>setTimeout(r, 50));
+  ok(alerts.length > alertsBeforeTg && alerts[alerts.length-1].indexOf('已启用「李助教」') !== -1,
+    '启用账号反馈经 toast 提示（toast 已进入捕获数组）');
+  vm.runInContext('toggleUser("' + ta2.id + '")', ctx);  // 再停用，恢复现场（后续用例假设 ta2 已停用）
+  documentStub.getElementById('cf-ok').onclick();
+  await new Promise(r=>setTimeout(r, 50));
+  ok(alerts[alerts.length-1].indexOf('已停用「李助教」') !== -1, '停用账号反馈经 toast 提示（含数据保留说明）');
+  wb.doLogout();
+
+  /* ---- 侧栏脚注按运行模式区分：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
+  ok(html.indexOf('id="side-foot">账号体系 · 演示环境<br>数据暂存本机浏览器') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注保持演示环境文案（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
