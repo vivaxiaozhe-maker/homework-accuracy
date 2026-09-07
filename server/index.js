@@ -13,11 +13,13 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 // helmet 安全头（其余默认头如 X-Frame-Options/frameguard、nosniff、Referrer-Policy 等保持 helmet 默认）。
 // CSP 说明：前端为单文件零依赖架构（全部 JS/CSS 内联，另按需从 jsdelivr 加载 jsPDF/html2canvas），
 // 默认 CSP（script-src 'self'）会禁掉内联脚本导致整页不执行，故对内联脚本/样式放行——这是该架构的必然选择；
-// script-src-attr 保持 helmet 默认 'none'（事件处理属性仍被禁，缩小注入面），img-src 放行 data:/blob:（示例图与附件预览）。
+// script-src-attr 必须放行 'unsafe-inline'：页面大量交互（科目徽章、账号管理按钮、审批按钮等）使用内联 onclick，
+// helmet 默认 'none' 会导致这些按钮全部无响应（生产已踩过）。
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       'script-src': ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+      'script-src-attr': ["'unsafe-inline'"],
       'style-src': ["'self'", "'unsafe-inline'"],
       'img-src': ["'self'", 'data:', 'blob:']
     }
