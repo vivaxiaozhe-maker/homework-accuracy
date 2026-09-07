@@ -80,11 +80,11 @@
 - [x] M7.2 部署：`git clone` → `npm ci --omit=dev` → 配置环境变量（初始教务密码、上传目录）→ pm2 守护 + 开机自启
 - [x] M7.3 Nginx 反代到 Node，配置 HTTPS 证书、HTTP 强制跳转 HTTPS
 - [x] M7.4 备份：crontab 每日 3 点打包 SQLite + uploads/ 上传对象存储，保留 30 天；写恢复演练步骤
-- [ ] 验收：域名 HTTPS 访问正常；`pm2 restart` / 服务器重启后数据完好；次日备份文件生成
+- [x] 验收：域名 HTTPS 访问正常；`pm2 restart` / 服务器重启后数据完好；次日备份文件生成
 
 ### M8 上线切换（约 0.5 天）——正式地址：https://xueqing.rocketacademy.com.cn
 - [x] M8.1 创建正式教务账号，关闭演示播种（`SEED_DEMO=false`）
-- [ ] M8.2 教务批量创建助教与销售账号（合计 ≤20 个，初始密码首登强制改密——恢复 must_change_pwd 强制逻辑用于正式账号）
+- [x] M8.2 教务批量创建助教与销售账号（合计 ≤20 个，初始密码首登强制改密——恢复 must_change_pwd 强制逻辑用于正式账号）
 - [x] M8.3 mock 期数据不迁移；GitHub Pages 演示站保留作演示（标注演示环境）
 - [ ] 验收：助教手机微信内打开域名 → 登录 → 录入 → 教务审批全链路真实跑通
 

@@ -46,6 +46,10 @@ server/
 
 部署环境：阿里云轻量应用服务器（Alibaba Cloud Linux 3），Node 20 LTS（/usr/local/node，软链至 /usr/local/bin）+ pm2 + Nginx。
 
+**正式域名：`https://xueqing.rocketacademy.com.cn`**（A 记录 → 47.113.184.105）。
+
+HTTPS：Let's Encrypt 证书位于 `/etc/nginx/ssl/xueqing.fullchain.pem` + `xueqing.key`（当前证书有效期至 2026-12-06）。Nginx 配置 `/etc/nginx/conf.d/xueqing.conf`：80 端口强制 301 跳 443；443 反代到 127.0.0.1:3000。**续期注意**：若证书由 acme.sh 管理则自动续期（`/root/.acme.sh/` 有 cron）；若为手工上传，需在到期前重新签发并替换这两个文件后 `systemctl reload nginx`。
+
 ### 常用命令
 
 ```bash
