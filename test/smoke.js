@@ -142,6 +142,27 @@ function ok(cond, name){
   const made = await Api.createUser('张三', 'ta3', 'abcdef');
   ok(made.ok && made.user.mustChangePwd === true, '创建助教成功且标记首次登录需改密');
 
+  /* ---- 账号管理反馈闭环：初始密码副标题（创建 → 重置 → 本人改密后消失） ---- */
+  ok(made.user.tempPassword === 'abcdef', '创建账号返回初始密码 tempPassword（mock 与 API 一致）');
+  vm.runInContext('renderAccounts()', ctx);
+  const accHtml1 = documentStub.getElementById('accounts-list').innerHTML;
+  ok(accHtml1.indexOf('初始密码：abcdef（待本人修改）') !== -1, '创建后副标题显示初始密码（待本人修改）');
+  ok(/创建于 \d{4}-\d{2}-\d{2}</.test(accHtml1) && !/创建于 \d{4}-\d{2}-\d{2}T/.test(accHtml1),
+    '副标题「创建于」格式化为 YYYY-MM-DD（不再显示 ISO 原始串）');
+  const rr3 = await Api.resetPassword(made.user.id, 'ta3new66');
+  ok(rr3.ok && Api.listUsers().find(u=>u.id===made.user.id).tempPassword === 'ta3new66', '重置密码后 tempPassword 更新为新初始密码');
+  vm.runInContext('renderAccounts()', ctx);
+  ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码：ta3new66') !== -1, '重置后副标题更新为新初始密码');
+  wb.doLogout();
+  await wb.doLogin('ta3', 'ta3new66', 'ta');  // 首登强制改密弹窗弹出（不阻塞后续）
+  await wb.doChangePwd('ta3new66', 'ta3pass88', 'ta3pass88');
+  ok(!Api.listUsers().find(u=>u.id===made.user.id).tempPassword, '本人改密后 tempPassword 已清除');
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  vm.runInContext('renderAccounts()', ctx);
+  ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
+  ok(html.indexOf('id="login-ver">v1.0.2') !== -1, '登录页版本号升至 v1.0.2');
+
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
   ok(wb.state.students.length === 14, '教务恒为全部数据视角（14 名学生）');

@@ -58,7 +58,7 @@ router.post('/password', (req, res) => {
   const u = req.user;
   if(!newPwd || newPwd.length < 6) return res.status(400).json({ ok: false, msg: '新密码至少 6 位' });
   if(!bcrypt.compareSync(oldPwd || '', u.pass_hash)) return res.status(401).json({ ok: false, msg: '原密码不正确' });
-  db.prepare('UPDATE users SET pass_hash = ?, must_change_pwd = 0 WHERE id = ?')
+  db.prepare('UPDATE users SET pass_hash = ?, must_change_pwd = 0, temp_password = NULL WHERE id = ?')
     .run(bcrypt.hashSync(newPwd, 10), u.id);
   db.prepare('DELETE FROM sessions WHERE user_id = ? AND token != ?').run(u.id, req.token);  // 其他端全下线
   logAudit(u, '修改密码', 'auth', u.name + '（' + u.username + '）', '');

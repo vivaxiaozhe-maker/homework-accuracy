@@ -9,11 +9,14 @@ const router = express.Router();
 router.use(requireAdmin);
 
 function toJson(u){
-  return {
+  const j = {
     id: u.id, username: u.username, name: u.name, role: u.role,
     disabled: !!u.disabled, mustChangePwd: !!u.must_change_pwd, createdAt: u.created_at,
     stuCnt: u.stu_cnt !== undefined ? u.stu_cnt : undefined
   };
+  // 初始密码仅「待改密」账号返回（供教务在账号管理页副标题持久展示，直到本人改密清除）
+  if(u.must_change_pwd && u.temp_password) j.tempPassword = u.temp_password;
+  return j;
 }
 
 // GET /api/users：全部账号（不含 pass_hash），附学生数统计
@@ -34,11 +37,11 @@ router.post('/', (req, res) => {
   }
   const u = { id: uid('u_'), username, name, role,
     pass_hash: bcrypt.hashSync(password, 10), created_at: new Date().toISOString() };
-  db.prepare(`INSERT INTO users (id, username, name, role, pass_hash, disabled, must_change_pwd, created_at)
-              VALUES (?,?,?,?,?,0,1,?)`)
-    .run(u.id, u.username, u.name, u.role, u.pass_hash, u.created_at);
+  db.prepare(`INSERT INTO users (id, username, name, role, pass_hash, disabled, must_change_pwd, created_at, temp_password)
+              VALUES (?,?,?,?,?,0,1,?,?)`)
+    .run(u.id, u.username, u.name, u.role, u.pass_hash, u.created_at, password);
   logAudit(req.user, '创建账号', 'account', name + '（' + username + '）', '角色：' + (role === 'sales' ? '销售' : '助教'));
-  res.json({ ok: true, user: { id: u.id, username, name, role, mustChangePwd: true, createdAt: u.created_at } });
+  res.json({ ok: true, user: { id: u.id, username, name, role, mustChangePwd: true, createdAt: u.created_at, tempPassword: password } });
 });
 
 // POST /api/users/:id/reset {password}：重置密码，该用户 session 全清
@@ -47,8 +50,8 @@ router.post('/:id/reset', (req, res) => {
   const u = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id);
   if(!u) return res.status(404).json({ ok: false, msg: '账号不存在' });
   if(!password || password.length < 6) return res.status(400).json({ ok: false, msg: '初始密码至少 6 位' });
-  db.prepare('UPDATE users SET pass_hash = ?, must_change_pwd = 1 WHERE id = ?')
-    .run(bcrypt.hashSync(password, 10), u.id);
+  db.prepare('UPDATE users SET pass_hash = ?, must_change_pwd = 1, temp_password = ? WHERE id = ?')
+    .run(bcrypt.hashSync(password, 10), password, u.id);
   db.prepare('DELETE FROM sessions WHERE user_id = ?').run(u.id);
   logAudit(req.user, '重置密码', 'account', u.name + '（' + u.username + '）', '');
   res.json({ ok: true });

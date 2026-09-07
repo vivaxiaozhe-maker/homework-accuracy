@@ -169,5 +169,10 @@ if(!recCols.includes('pdfs')){
 if(!db.prepare("PRAGMA table_info(students)").all().map(c => c.name).includes('subj_first_class')){
   db.exec('ALTER TABLE students ADD COLUMN subj_first_class TEXT');
 }
+/* 初始密码可见性迁移：users 补 temp_password 列（教务创建/重置账号时的初始密码）。
+   安全折中（内部系统可接受）：明文存库，仅教务 GET /api/users 且账号待改密时返回，用户本人改密成功即清除。 */
+if(!db.prepare("PRAGMA table_info(users)").all().map(c => c.name).includes('temp_password')){
+  db.exec('ALTER TABLE users ADD COLUMN temp_password TEXT');
+}
 
 module.exports = db;

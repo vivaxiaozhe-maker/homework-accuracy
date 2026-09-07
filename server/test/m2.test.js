@@ -74,6 +74,15 @@ function ok(cond, name){
   r = await req('POST', '/api/users', { name: '王助教', username: 'ta1', password: 'ta123456', role: 'ta' }, adminTok);
   ok(r.status === 200 && r.data.ok === true && r.data.user.mustChangePwd === true, '创建助教账号成功（mustChangePwd=1）');
   const ta1Id = r.data.user.id;
+  ok(r.data.user.tempPassword === 'ta123456', '创建账号响应带回初始密码 tempPassword');
+
+  /* ---- 初始密码可见性：待改密账号返回 tempPassword，其余不返回 ---- */
+  r = await req('GET', '/api/users', null, adminTok);
+  const ta1Row0 = r.data.users.find(u => u.id === ta1Id);
+  const adminRow0 = r.data.users.find(u => u.username === 'admin');
+  ok(ta1Row0 && ta1Row0.tempPassword === 'ta123456', '待改密账号列表返回 tempPassword');
+  ok(adminRow0 && adminRow0.mustChangePwd === true && adminRow0.tempPassword === undefined,
+    '待改密但无 temp_password 的账号（种子 admin）不返回 tempPassword');
 
   r = await req('POST', '/api/users', { name: '重复', username: 'ta1', password: 'abcdef', role: 'ta' }, adminTok);
   ok(r.status === 400 && r.data.ok === false, '重复 username 被拒（400）');
@@ -97,6 +106,9 @@ function ok(cond, name){
   r = await req('POST', '/api/password', { oldPwd: 'ta123456', newPwd: 'ta654321' }, taTokA);
   ok(r.status === 200 && r.data.ok === true, '改密成功');
 
+  r = await req('GET', '/api/users', null, adminTok);
+  ok(r.data.users.find(u => u.id === ta1Id).tempPassword === undefined, '本人改密后 tempPassword 已清除且不再返回');
+
   r = await req('POST', '/api/login', { username: 'ta1', password: 'ta123456' });
   ok(r.status === 401 && r.data.ok === false, '改密后旧密码失效');  // 限流计数 3
   r = await req('POST', '/api/login', { username: 'ta1', password: 'ta654321' });
@@ -110,6 +122,8 @@ function ok(cond, name){
   /* ---- 重置密码 ---- */
   r = await req('POST', '/api/users/' + ta1Id + '/reset', { password: 'ta123456' }, adminTok);
   ok(r.status === 200 && r.data.ok === true, '教务重置助教密码成功');
+  r = await req('GET', '/api/users', null, adminTok);
+  ok(r.data.users.find(u => u.id === ta1Id).tempPassword === 'ta123456', '重置后 tempPassword 更新为新初始密码');
   r = await req('GET', '/api/users', null, taTokA);
   ok(r.status === 401, '重置密码后该用户 session 全清（token 401）');
   r = await req('POST', '/api/login', { username: 'ta1', password: 'ta123456' });

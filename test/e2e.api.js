@@ -122,20 +122,31 @@ function ok(cond, name){
 
   /* ---- 账号管理按钮点击路径（resetUserPwd / toggleUser + askConfirm 确认回调） ---- */
   await vm.runInContext('refreshUsersCache()', ctx);  // 同步账号缓存（上面是直连 Api 创建的，没走 UI 按钮）
+  ok(made.user.tempPassword === 'ta123456', '创建账号响应带回初始密码 tempPassword');
+  await vm.runInContext('renderAccounts()', ctx);
+  const accHtmlA = documentStub.getElementById('accounts-list').innerHTML;
+  ok(accHtmlA.indexOf('初始密码：ta123456（待本人修改）') !== -1, '创建后副标题显示初始密码（待本人修改）');
+  ok(/创建于 \d{4}-\d{2}-\d{2}</.test(accHtmlA) && !/创建于 \d{4}-\d{2}-\d{2}T/.test(accHtmlA),
+    '副标题「创建于」格式化为 YYYY-MM-DD（不再显示 ISO 原始串）');
   vm.runInContext('resetUserPwd("' + made.user.id + '")', ctx);
   const alertsBeforeReset = alerts.length;
   await vm.runInContext('cfCallback()', ctx);  // 模拟点「确认」
   await new Promise(r=>setTimeout(r, 400));
   ok(alerts.length > alertsBeforeReset && alerts[alerts.length-1].indexOf('密码已重置为') !== -1,
     '重置密码按钮全链路生效（确认弹窗→接口→生成新密码提示）');
+  const resetPwd = (alerts[alerts.length-1].match(/密码已重置为：([a-z0-9]+)/) || [])[1];
+  const accHtmlB = documentStub.getElementById('accounts-list').innerHTML;
+  ok(resetPwd && accHtmlB.indexOf('初始密码：' + resetPwd) !== -1, '重置后副标题更新为新初始密码（持久显示）');
   vm.runInContext('toggleUser("' + made.user.id + '")', ctx);
   await vm.runInContext('cfCallback()', ctx);
   await new Promise(r=>setTimeout(r, 400));
   const ta1After = (await wb.Api.listUsers()).find(u=>u.id===made.user.id);
   ok(ta1After && ta1After.disabled === true, '停用按钮全链路生效（账号已停用）');
+  ok(alerts[alerts.length-1].indexOf('已停用「王助教」，其名下数据完整保留') !== -1, '停用成功后 alert 反馈（数据保留说明）');
   vm.runInContext('toggleUser("' + made.user.id + '")', ctx);  // 复位：重新启用，避免影响后续用例
   await vm.runInContext('cfCallback()', ctx);
   await new Promise(r=>setTimeout(r, 400));
+  ok(alerts[alerts.length-1].indexOf('已启用「王助教」') !== -1, '启用成功后 alert 反馈');
   await wb.Api.resetPassword(made.user.id, 'ta123456');  // 复位密码，供后续登录用例使用
   // 教务直接在服务端给 ta1/ta2 各录一名学生（模拟别的助教已有数据）
   const adminToken = wb.HttpApi._token;
@@ -237,6 +248,11 @@ function ok(cond, name){
   st1 = await apiGetState();
   ok(st1.students.find(s=>s.id===sid).subjPlans[subj] === 12, '教务审批通过后计划次数生效');
   ok(st1.planRequests.find(r=>r.id===pendReq.id).status === 'approved', '申请状态已更新 approved');
+
+  /* ---- 初始密码副标题消失：ta1 此前已自行改密（ta654321），其账号行不再展示初始密码 ---- */
+  await vm.runInContext('renderAccounts()', ctx);  // 此时仅 admin/ta1 两个账号且均已改密
+  ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1,
+    '本人改密后副标题初始密码行消失（tempPassword 已清除）');
 
   /* ---- 转移归属 ---- */
   const ta2Made = await wb.Api.createUser('李助教', 'ta2', 'ta123456', 'ta');

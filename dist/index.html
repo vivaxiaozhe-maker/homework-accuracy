@@ -924,7 +924,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px}
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.0.1</div>
+    <div class="login-ver" id="login-ver">v1.0.2</div>
   </div>
 </div>
 
@@ -1224,6 +1224,7 @@ const LocalApi = {
     u.salt = makeSalt();
     u.passHash = await hashPwd(u.salt, newPwd);
     u.mustChangePwd = false;
+    delete u.tempPassword;  // 本人改密成功即清除初始密码（账号管理副标题随之消失）
     this._saveUsers();
     logAction('修改密码', 'auth', u.name + '（' + u.username + '）', '');
     return {ok:true};
@@ -1241,8 +1242,9 @@ const LocalApi = {
     if(password.length < 6) return {ok:false, msg:'初始密码至少 6 位'};
     if(this._loadUsers().some(x=>x.username===username)) return {ok:false, msg:'该登录账号已存在'};
     const salt = makeSalt();
+    // tempPassword：初始密码明文（仅教务账号管理页副标题展示用，待本人改密后清除）
     const u = {id:uid(), username, name, role, salt, passHash:await hashPwd(salt, password),
-      disabled:false, createdAt:todayStr(), mustChangePwd:true};
+      disabled:false, createdAt:todayStr(), mustChangePwd:true, tempPassword:password};
     this._users.push(u); this._saveUsers();
     logAction('创建账号', 'account', name + '（' + username + '）', '角色：' + (role==='sales' ? '销售' : '助教'));
     return {ok:true, user:u};
@@ -1254,6 +1256,7 @@ const LocalApi = {
     u.salt = makeSalt();
     u.passHash = await hashPwd(u.salt, newPwd);
     u.mustChangePwd = true;
+    u.tempPassword = newPwd;  // 重置后的初始密码在账号管理副标题持久显示，直到本人改密
     this._saveUsers();
     logAction('重置密码', 'account', u.name + '（' + u.username + '）', '');
     return {ok:true};
@@ -3959,7 +3962,12 @@ function renderAccounts(){
       (u.disabled ? ' <span class="tag red">已停用</span>' : '') +
       (u.mustChangePwd ? ' <span class="tag sample">待改密</span>' : '') +
       (isSelf ? ' <span class="tag sample">当前登录</span>' : '') +
-      '<div class="hint" style="margin-top:2px">账号 ' + esc(u.username) + ' · 学生 ' + stuCnt + ' 人 · 创建于 ' + esc(u.createdAt||'-') + '</div></div>' +
+      '<div class="hint" style="margin-top:2px">账号 ' + esc(u.username) + ' · 学生 ' + stuCnt + ' 人 · 创建于 ' + esc((u.createdAt||'-').slice(0,10)) + '</div>' +
+      // 待改密且有初始密码：琥珀色持久展示（创建/重置写入，本人改密后由后端/本地清除）
+      (u.mustChangePwd && u.tempPassword
+        ? '<div class="hint" style="margin-top:2px;color:#B9802A;font-weight:600">初始密码：' + esc(u.tempPassword) + '（待本人修改）</div>'
+        : '') +
+      '</div>' +
       (u.role==='ta' || u.role==='sales'
         ? '<button class="btn ghost sm" onclick="resetUserPwd(\'' + u.id + '\')">重置密码</button>' +
           '<button class="btn ' + (u.disabled?'mint':'danger') + ' sm" onclick="toggleUser(\'' + u.id + '\')">' + (u.disabled?'启用':'停用') + '</button>'
@@ -4146,7 +4154,7 @@ function resetUserPwd(id){
   askConfirm('重置密码', '将重置「' + u.name + '」的登录密码，其下次登录需使用新密码并被要求修改。确定吗？', async ()=>{
     const np = 'ta' + Math.random().toString(36).slice(2,8);
     const res = await Api.resetPassword(id, np);
-    if(res.ok) alert('密码已重置为：' + np + '\\n请转告该助教，首次登录需修改密码。');
+    if(res.ok) alert('密码已重置为：' + np + '\n请转告该助教（销售同理），其首次登录需修改密码。');
     else alert(res.msg || '重置失败');
     await refreshUsersCache();
     renderAll();
@@ -4160,6 +4168,9 @@ function toggleUser(id){
     async ()=>{
       const res = await Api.toggleUser(id);  // mock 同步返回、API 异步返回，await 兼容两者
       if(!res.ok){ alert(res.msg); return; }
+      // 操作反馈闭环：明确告知停用/启用结果（停用数据完整保留）
+      const nowDisabled = res.user ? res.user.disabled : !u.disabled;
+      alert(nowDisabled ? '已停用「' + u.name + '」，其名下数据完整保留' : '已启用「' + u.name + '」');
       await refreshUsersCache();
       renderAll();
     });
@@ -4176,7 +4187,7 @@ document.getElementById('btn-create-ta').addEventListener('click', async ()=>{
   document.getElementById('ac-password').value = '';
   await refreshUsersCache();
   renderAll();
-  alert('已创建' + (role==='sales' ? '销售' : '助教') + '账号「' + name + '」，首次登录需修改初始密码。');
+  alert('已创建' + (role==='sales' ? '销售' : '助教') + '账号「' + name + '」，初始密码：' + pwd + '，首次登录需修改。');
 });
 
 /* ================= 教务：转移学生归属 ================= */
