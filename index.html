@@ -4445,6 +4445,8 @@ document.getElementById('today-str').textContent =
 window.__ready = (async function init(){
   USE_API = await detectApi();  // 同 origin 探测到后端 → API 模式；否则 mock 演示模式
   document.getElementById('login-demo').style.display = USE_API ? 'none' : '';  // 演示账号提示仅 mock 模式
+  const loginTag = document.querySelector('.login-tag');
+  if(loginTag) loginTag.textContent = USE_API ? '内部系统' : '内部系统 · 演示环境：数据暂存本机';
   if(USE_API){
     apiImpl = HttpApi;
     const u = await HttpApi.restoreSession();  // 刷新恢复：本地 token → /api/me 校验
