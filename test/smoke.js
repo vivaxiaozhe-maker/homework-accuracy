@@ -166,11 +166,18 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.0.5') !== -1, '登录页版本号升至 v1.0.5');
+  ok(html.indexOf('id="login-ver">v1.0.6') !== -1, '登录页版本号升至 v1.0.6');
 
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
   ok(wb.state.students.length === 14, '教务恒为全部数据视角（14 名学生）');
+  /* ---- topbar 主标题 = 当前页签名称（随 switchTab 联动；桩元素赋值静默安全） ---- */
+  wb.switchTab('stats');
+  ok(documentStub.getElementById('page-title').textContent === '现有学生', '切到现有学生，topbar 标题联动');
+  wb.switchTab('accounts');
+  ok(documentStub.getElementById('page-title').textContent === '账号管理', '切到账号管理，topbar 标题联动');
+  wb.switchTab('today');
+  ok(documentStub.getElementById('page-title').textContent === '今日概览', '切回今日概览，topbar 标题联动');
 
   /* ---- 助教数据隔离 ---- */
   wb.doLogout();
@@ -241,9 +248,9 @@ function ok(cond, name){
   ok(alerts[alerts.length-1].indexOf('已停用「李助教」') !== -1, '停用账号反馈经 toast 提示（含数据保留说明）');
   wb.doLogout();
 
-  /* ---- 侧栏脚注按运行模式区分：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">账号体系 · 演示环境<br>数据暂存本机浏览器') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注保持演示环境文案（未被覆盖）');
+  /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.0.6') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.0.6」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -476,10 +483,14 @@ function ok(cond, name){
   await wb.doLogin('ta1', 'ta123456', 'ta');
   ok(documentStub.getElementById('stu-ta-filter').innerHTML === '', '助教端不渲染助教筛选 chips 行');
 
-  /* ---- 批次一：改名 / 停滞提醒 / 次数按钮形态 / subjAdvice / 清理区块显隐 ---- */
-  ok(html.indexOf('<title>学情跟踪平台 · 个人工作台</title>') !== -1, '浏览器 title 已改名「学情跟踪平台」');
-  ok(html.indexOf('学生作业正确率') === -1 && (html.match(/学情跟踪平台/g) || []).length >= 5,
-    '品牌区/登录页/topbar/报告落款均已改名，旧名无残留');
+  /* ---- 批次一：品牌层级（火箭学院 > 学情跟踪平台）/ 停滞提醒 / 次数按钮形态 / subjAdvice / 清理区块显隐 ---- */
+  ok(html.indexOf('<title>火箭学院 · 学情跟踪平台</title>') !== -1, '浏览器 title 为「火箭学院 · 学情跟踪平台」');
+  // 品牌层级新结构：侧栏品牌区（主名+副标）、登录页（主名+副标）、title、报告落款，共 ≥4 处「火箭学院」
+  ok(html.indexOf('学生作业正确率') === -1 && (html.match(/火箭学院/g) || []).length >= 4,
+    '品牌层级新结构：侧栏/登录页/title/报告落款均为「火箭学院」主品牌，旧名无残留');
+  ok(html.indexOf('<div><b>火箭学院</b><span>学情跟踪平台</span></div>') !== -1, '侧栏品牌区 = 火箭学院主名 + 学情跟踪平台副标');
+  ok(html.indexOf('<div><b>火箭学院</b><span>学情跟踪平台 · 内部工作台</span></div>') !== -1, '登录页品牌 = 火箭学院主名 + 学情跟踪平台副标');
+  ok(html.indexOf('<h1 id="page-title">今日概览</h1>') !== -1, 'topbar 主标题改为当前页签名称（默认今日概览）');
   // 首次设置已写 subjPlanSetAt（plan-flow 段落中首次设置 10 次）
   const todayS = offDay(0);
   ok(planStu.subjPlanSetAt && planStu.subjPlanSetAt[planSubj] === todayS, '首次设置应完成次数写入 subjPlanSetAt');
@@ -543,7 +554,18 @@ function ok(cond, name){
   ok(planStu.subjAdvice && planStu.subjAdvice[planSubj] === '每周三次错题复盘', '学习计划与建议按学生×科目保存（subjAdvice）');
   const rpt = wb.reportHtml(planStu, planSubj);
   ok(rpt.indexOf('四、学习计划与建议') !== -1 && rpt.indexOf('每周三次错题复盘') !== -1
-    && rpt.indexOf('本报告由「学情跟踪平台」自动生成') !== -1, '报告含第四节「学习计划与建议」与新落款');
+    && rpt.indexOf('本报告由「火箭学院 · 学情跟踪平台」自动生成') !== -1, '报告含第四节「学习计划与建议」与新落款');
+  /* ---- 报告先预览后下载：genReport 只开预览弹窗（不加载 CDN），点「下载 PDF」才走 PDF 流程 ---- */
+  let headAppends = 0;
+  const origHeadAppend = documentStub.head.appendChild;
+  documentStub.head.appendChild = ()=>{ headAppends++; };
+  vm.runInContext('genReport()', ctx);  // quickEntry 已指向 planStu/planSubj
+  ok(documentStub.getElementById('report-modal').classList.contains('show'), '生成报告改为打开预览弹窗');
+  ok(documentStub.getElementById('report-preview').innerHTML.indexOf('作业打卡报告') !== -1, '预览弹窗渲染报告内容（结构复用 reportHtml）');
+  ok(headAppends === 0, '预览不触发 CDN 组件加载');
+  vm.runInContext('downloadReport()', ctx);  // 模拟点「⬇ 下载 PDF」
+  ok(headAppends === 2, '点下载才按需加载 jsPDF/html2canvas 两个组件');
+  documentStub.head.appendChild = origHeadAppend;
   // 清理区块与横幅按钮显隐
   ok(documentStub.getElementById('data-clean-zone').style.display === 'none', '助教端「数据管理」清理数据区块隐藏');
   ok(html.indexOf('id="btn-import"') < html.indexOf('id="data-clean-zone"'), '导出/导入保留在清理区块之外（助教可见）');

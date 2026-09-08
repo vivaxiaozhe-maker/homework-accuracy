@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>学情跟踪平台 · 个人工作台</title>
+<title>火箭学院 · 学情跟踪平台</title>
 <!-- 本工作台为单文件版本（v2 账号体系）：全部 CSS/JS/图标内联，双击即可运行；演示环境账号与数据暂存于浏览器 localStorage/sessionStorage，后端就绪后仅需替换 Api 层 -->
 <style>
 :root{
@@ -428,6 +428,13 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .modal p{font-size:14px;color:var(--ink2);margin-bottom:18px}
 .modal .row{display:flex;gap:10px;justify-content:flex-end}
 #img-modal img{max-width:100%;max-height:80vh;border-radius:12px;display:block;margin:0 auto}
+/* 报告预览弹窗：宽版 modal + A4 白底可滚动预览区（块级 + margin:auto，避免 flex 居中裁切左缘） */
+.report-modal{max-width:860px}
+.report-preview{
+  max-height:62vh;overflow:auto;background:#E9E2D0;border-radius:12px;padding:16px;
+  margin-bottom:16px;
+}
+.report-preview > div{box-shadow:0 4px 18px rgba(62,90,78,.18);margin:0 auto}
 /* 产品内 toast（替代浏览器原生 alert）：顶部居中白底卡片，3 秒自动消失，多条依次向下堆叠；
    z-index 高于弹窗（300）；支持 \n 多行（pre-line）；移动端宽度自适应 */
 #toast-zone{
@@ -627,7 +634,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
   <aside id="sidebar">
     <div class="brand">
       <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="6" width="40" height="36" rx="6" fill="#E4F3EC"/><path d="M14 30l6-8 5 5 8-11" stroke="#3E9B7F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="14" r="4" fill="#F3DFA9"/></svg>
-      <div><b>学情跟踪平台</b><span>个人工作台</span></div>
+      <div><b>火箭学院</b><span>学情跟踪平台</span></div>
     </div>
     <button class="nav-btn active" data-tab="today" id="nav-today">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
@@ -658,7 +665,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">账号体系 · 演示环境<br>数据暂存本机浏览器</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.0.6</div>
   </aside>
 
   <main>
@@ -676,7 +683,8 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
         <path d="M140 40l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z" fill="#F3DFA9"/>
       </svg>
       <div>
-        <h1>学情跟踪平台</h1>
+        <!-- 顶部标题显示当前页签名称（随 switchTab 联动），产品名只在侧栏品牌区出现，避免重复 -->
+        <h1 id="page-title">今日概览</h1>
         <div class="date-pill">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
           <span id="today-str"></span>
@@ -981,6 +989,19 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 <!-- 产品内 toast 挂载点（替代浏览器原生 alert，由 toast() 写入） -->
 <div id="toast-zone"></div>
 
+<!-- 报告预览弹窗（宽版 modal：A4 比例白底可滚动预览，下载 PDF 走单独按钮按需加载 CDN） -->
+<div class="modal-mask" id="report-modal">
+  <div class="modal report-modal">
+    <h3>报告预览</h3>
+    <div class="report-preview" id="report-preview"></div>
+    <div class="row">
+      <button class="btn ghost sm" id="rp-close">关闭</button>
+      <button class="btn ghost sm" id="rp-print">打印/另存为</button>
+      <button class="btn mint sm" id="rp-download">⬇ 下载 PDF</button>
+    </div>
+  </div>
+</div>
+
 <!-- 图片查看 -->
 <div class="modal-mask" id="img-modal">
   <div class="modal" style="max-width:640px">
@@ -998,7 +1019,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
   <div class="login-card">
     <div class="brand">
       <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="6" width="40" height="36" rx="6" fill="#E4F3EC"/><path d="M14 30l6-8 5 5 8-11" stroke="#3E9B7F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="14" r="4" fill="#F3DFA9"/></svg>
-      <div><b>学情跟踪平台</b><span>内部工作台</span></div>
+      <div><b>火箭学院</b><span>学情跟踪平台 · 内部工作台</span></div>
       <!-- 品牌区小铅笔装饰（纯装饰，与 topbar 插画呼应） -->
       <svg class="brand-deco" viewBox="0 0 24 24" fill="none" stroke="#E8A94C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 013 3L8 19z"/><path d="M13.5 6.5l3 3"/></svg>
     </div>
@@ -1027,7 +1048,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.0.5</div>
+    <div class="login-ver" id="login-ver">v1.0.6</div>
   </div>
 </div>
 
@@ -1127,6 +1148,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
+const APP_VERSION = 'v1.0.6';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -1862,6 +1884,8 @@ function activeStudents(){ return state.students.filter(s=>!s.archived); }
 function archivedStudents(){ return state.students.filter(s=>s.archived); }
 
 /* ================= 页签切换 ================= */
+/* topbar 主标题 = 当前页签名称（产品名只在侧栏品牌区出现，顶部不再重复） */
+const TAB_TITLES = { today:'今日概览', dashboard:'数据看板', stats:'现有学生', alumni:'历史学生', accounts:'账号管理', data:'数据管理', audit:'操作记录' };
 function switchTab(name){
   // 角色页签守卫：教务=全部 6 个；助教=今日/现有/历史/数据；销售=仅现有/历史
   const role = currentUser ? currentUser.role : null;
@@ -1871,6 +1895,8 @@ function switchTab(name){
   if(allowed.indexOf(name) === -1) name = role==='sales' ? 'stats' : 'today';
   document.querySelectorAll('.nav-btn,.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active', p.id==='pane-'+name));
+  const pt = document.getElementById('page-title');  // DOM 桩下为桩元素，赋值静默安全
+  if(pt) pt.textContent = TAB_TITLES[name] || TAB_TITLES.today;
   if(name==='stats') renderStats();
   if(name==='alumni') renderAlumni();
   if(name==='accounts') renderAccounts();
@@ -3236,10 +3262,19 @@ function reportHtml(st, subject){
     (advice
       ? '<div style="background:#F8FAF9;border-left:4px solid #2FBF8F;padding:12px 14px;font-size:13px;color:#374151;line-height:1.7;white-space:pre-wrap;margin-bottom:20px">' + esc(advice) + '</div>'
       : '<div style="padding:12px 14px;font-size:13px;color:#9CA3AF;background:#F8FAF9;margin-bottom:20px">暂无</div>') +
-    '<div style="margin-top:26px;text-align:right;font-size:11px;color:#9CA3AF">本报告由「学情跟踪平台」自动生成</div>' +
+    '<div style="margin-top:26px;text-align:right;font-size:11px;color:#9CA3AF">本报告由「火箭学院 · 学情跟踪平台」自动生成</div>' +
     '</div>';
 }
-async function genReport(){
+/* 点「生成报告」→ 先打开预览弹窗（A4 白底可滚动，复用 reportHtml 输出，内容结构不动） */
+function genReport(){
+  if(!quickEntry) return;
+  const st = state.students.find(x=>x.id===quickEntry.gid);
+  if(!st){ toast('未找到学生数据'); return; }
+  document.getElementById('report-preview').innerHTML = reportHtml(st, quickEntry.subject);
+  document.getElementById('report-modal').classList.add('show');
+}
+/* 「⬇ 下载 PDF」：点击时才加载 CDN 组件，走既有生成流程；CDN 失败兜底打印窗口 */
+async function downloadReport(){
   if(!quickEntry) return;
   const st = state.students.find(x=>x.id===quickEntry.gid);
   if(!st){ toast('未找到学生数据'); return; }
@@ -3278,6 +3313,19 @@ async function genReport(){
     printReport(area);
   }
 }
+/* 「打印/另存为」：不加载 CDN，直接用打印兜底路径 */
+function printReportDirect(){
+  if(!quickEntry) return;
+  const st = state.students.find(x=>x.id===quickEntry.gid);
+  if(!st){ toast('未找到学生数据'); return; }
+  let area = document.getElementById('reportArea');
+  if(!area){ area = document.createElement('div'); area.id = 'reportArea'; document.body.appendChild(area); }
+  area.innerHTML = reportHtml(st, quickEntry.subject);
+  printReport(area);
+}
+document.getElementById('rp-close').addEventListener('click', ()=>document.getElementById('report-modal').classList.remove('show'));
+document.getElementById('rp-download').addEventListener('click', ()=>{ downloadReport(); });
+document.getElementById('rp-print').addEventListener('click', ()=>{ printReportDirect(); });
 function printReport(area){
   area.style.cssText = 'position:absolute;left:0;top:0;width:100%;background:#fff;z-index:99999;';
   window.print();
@@ -4606,7 +4654,7 @@ window.__ready = (async function init(){
   USE_API = await detectApi();  // 同 origin 探测到后端 → API 模式；否则 mock 演示模式
   // 侧栏脚注按运行模式区分：mock 保持「演示环境」静态文案，API 模式（正式环境）改为内部系统
   const sideFoot = document.getElementById('side-foot');
-  if(sideFoot && USE_API) sideFoot.textContent = '学情跟踪平台 · 内部系统';
+  if(sideFoot && USE_API) sideFoot.textContent = '学情跟踪平台 · 内部系统 · ' + APP_VERSION;
   document.getElementById('login-demo').style.display = USE_API ? 'none' : '';  // 演示账号提示仅 mock 模式
   const loginTag = document.querySelector('.login-tag');
   if(loginTag) loginTag.textContent = USE_API ? '内部系统' : '内部系统 · 演示环境：数据暂存本机';
