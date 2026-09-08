@@ -22,7 +22,11 @@
 html{font-size:16px}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
-  background:var(--cream); color:var(--ink); line-height:1.55;
+  color:var(--ink); line-height:1.55;
+  /* 奶油底 + 3~5% 透明度薄荷圆点阵（radial-gradient 平铺，零图片请求）：远看纯色、近看细腻质感 */
+  background:var(--cream);
+  background-image:radial-gradient(rgba(95,184,154,.05) 1.1px, transparent 1.2px);
+  background-size:22px 22px;
 }
 /* 滚动条细化：8px 半透明薄荷灰 */
 ::-webkit-scrollbar{width:8px;height:8px}
@@ -63,6 +67,11 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .topbar h1{font-size:22px}
 /* 顶部温暖短句：账号名下方一行，右对齐淡色小字 */
 .motto{flex-basis:100%;text-align:right;font-size:12px;color:var(--ink2);line-height:1.6;margin-top:-4px;min-height:19px}
+/* topbar 底部极淡波浪线装饰（纯氛围层，data-uri SVG 平铺，零外部资源） */
+.topbar::after{
+  content:'';flex-basis:100%;height:12px;margin-top:2px;opacity:.55;pointer-events:none;
+  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='12' viewBox='0 0 120 12'><path d='M0 6 Q 15 0 30 6 T 60 6 T 90 6 T 120 6' fill='none' stroke='%235FB89A' stroke-opacity='.35' stroke-width='2' stroke-linecap='round'/></svg>") repeat-x left center/auto 12px;
+}
 .topbar .date-pill{
   background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 14px;
   font-size:13px;color:var(--ink2);display:inline-flex;align-items:center;gap:6px;margin-top:6px;
@@ -459,7 +468,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 }
 /* ---------- 登录屏与账号体系 ---------- */
 #login-screen{
-  display:none;position:fixed;inset:0;z-index:200;
+  display:none;position:fixed;inset:0;z-index:200;overflow:hidden;
   align-items:center;justify-content:center;padding:20px;
   background:linear-gradient(160deg,#FAF5E9 0%,#F4EDD9 55%,#E9F3EC 100%);  /* 极淡奶油→薄荷渐变装饰 */
 }
@@ -578,6 +587,30 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 /* 超宽屏：内容柱再收窄一点，保持阅读舒适 */
 @media (min-width:1600px){
   main{max-width:960px}
+}
+/* ---------- 装饰与动效（克制版：只做氛围层/奖励感时刻） ---------- */
+/* 登录页背景装饰圆斑（薄荷/琥珀，大幅模糊，角落绝对定位，卡片浮于其上） */
+.login-blob{position:absolute;border-radius:50%;pointer-events:none;filter:blur(70px);z-index:0}
+.login-blob.b1{width:340px;height:340px;background:rgba(95,184,154,.26);top:-90px;left:-70px}
+.login-blob.b2{width:300px;height:300px;background:rgba(232,169,76,.22);bottom:-80px;right:-60px}
+.login-blob.b3{width:200px;height:200px;background:rgba(95,184,154,.16);bottom:12%;left:8%}
+.login-card{z-index:1}  /* 浮于装饰圆斑之上 */
+/* 登录页品牌区小铅笔装饰（与 topbar 插画呼应） */
+.login-card .brand-deco{width:22px;height:22px;margin-left:auto;flex-shrink:0;opacity:.85}
+/* 空状态小插画（对勾气泡/空书本，纯装饰） */
+.empty-tip{display:flex !important;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:20px 0}
+.empty-tip svg{width:44px;height:44px;flex-shrink:0}
+/* 打卡格子 ✓ 内联 SVG 尺寸 */
+.ci-mark svg{width:15px;height:15px;vertical-align:-2px}
+@keyframes pop-in{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+@keyframes grow-x{from{width:0}}
+@keyframes draw-check{to{stroke-dashoffset:0}}
+@keyframes modal-in{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: no-preference){
+  .tag{animation:pop-in .2s ease-out}                                  /* 徽章弹入 */
+  .subj-fill{animation:grow-x .6s ease-out}                            /* 正确率条从 0 生长到目标宽度 */
+  .ci-slot.done .ci-mark path{stroke-dasharray:20;stroke-dashoffset:20;animation:draw-check .4s ease-out .05s forwards}  /* ✓ 描边动画（仅首次渲染） */
+  .modal-mask.show .modal{animation:modal-in .15s ease-out}            /* 弹窗 scale 弹入 */
 }
 /* 克制微动效：卡片进入 fade-up、页签切换淡入；系统开减动效时自动关闭 */
 @keyframes fade-up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -958,10 +991,16 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 
 <!-- 登录屏（未登录时全屏显示） -->
 <div id="login-screen">
+  <!-- 背景装饰圆斑（纯氛围层，不承载内容） -->
+  <span class="login-blob b1" aria-hidden="true"></span>
+  <span class="login-blob b2" aria-hidden="true"></span>
+  <span class="login-blob b3" aria-hidden="true"></span>
   <div class="login-card">
     <div class="brand">
       <svg viewBox="0 0 48 48" fill="none"><rect x="4" y="6" width="40" height="36" rx="6" fill="#E4F3EC"/><path d="M14 30l6-8 5 5 8-11" stroke="#3E9B7F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="36" cy="14" r="4" fill="#F3DFA9"/></svg>
       <div><b>学情跟踪平台</b><span>内部工作台</span></div>
+      <!-- 品牌区小铅笔装饰（纯装饰，与 topbar 插画呼应） -->
+      <svg class="brand-deco" viewBox="0 0 24 24" fill="none" stroke="#E8A94C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 013 3L8 19z"/><path d="M13.5 6.5l3 3"/></svg>
     </div>
     <div class="login-tag">内部系统 · 演示环境：数据暂存本机</div>
     <div class="field">
@@ -988,7 +1027,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.0.4</div>
+    <div class="login-ver" id="login-ver">v1.0.5</div>
   </div>
 </div>
 
@@ -1857,6 +1896,29 @@ function toast(msg){
     setTimeout(()=>{ if(t.parentNode && t.parentNode.removeChild) t.parentNode.removeChild(t); }, 260);
   }, 3000);
 }
+/* 统计数字滚动动画（克制奖励感，0.6s ease-out）：先写终值再从 0 滚动，动画结束值与静态渲染完全一致；
+   测试桩环境（元素无 querySelectorAll）/无 requestAnimationFrame/系统减动效时直接保留终值，防断言抖动。
+   仅处理纯数字（可带 % 后缀）；「2/2」「—」等格式直接跳过。 */
+function animateNums(scopeEl){
+  if(!scopeEl || typeof scopeEl.querySelectorAll !== 'function') return;  // DOM 桩元素无此方法 → 保持终值
+  if(typeof requestAnimationFrame !== 'function') return;
+  if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  scopeEl.querySelectorAll('.quick .num').forEach(el=>{
+    const m = el.textContent.match(/^(\d+)(%?)$/);
+    if(!m) return;
+    const target = parseInt(m[1], 10), suffix = m[2];
+    if(!target) return;  // 0 无需滚动
+    const t0 = Date.now();
+    const step = ()=>{
+      const k = Math.min(1, (Date.now() - t0) / 600);
+      const eased = 1 - Math.pow(1 - k, 3);  // ease-out cubic
+      el.textContent = (k === 1 ? target : Math.round(target * eased)) + suffix;
+      if(k < 1) requestAnimationFrame(step);
+    };
+    el.textContent = '0' + suffix;
+    requestAnimationFrame(step);
+  });
+}
 function askConfirm(title, text, cb){
   document.getElementById('cf-title').textContent = title;
   document.getElementById('cf-text').textContent = text;
@@ -2000,6 +2062,7 @@ function renderToday(){
     '<div class="quick"><div class="num">' + todayRecs + '</div><div class="lbl">今日已录入</div></div>' +
     '<div class="quick"><div class="num">' + (avgAcc===null?'—':avgAcc+'%') + '</div><div class="lbl">近7天平均正确率</div></div>' +
     '<div class="quick"><div class="num" style="color:' + (unresolved?'var(--red)':'var(--mint-d)') + '">' + unresolved + '</div><div class="lbl">未补交作业</div></div>';
+  animateNums(document.getElementById('quick-grid'));  // 数字滚动动画（桩环境/减动效直接终值）
 }
 /* 今日概览「去补录」：跳转到该生该科目的打卡面板，并直接打开这次未交的补录表单。
    注意：这里不立即标记补交——只有保存了作业记录（saveSlot）才视为补交完成；
@@ -2197,7 +2260,7 @@ function renderStats(){
   if(!stats.length){
     wrap.innerHTML = stuQuery
       ? '<p class="hint">没有匹配「' + esc(stuQuery) + '」的作业记录。</p>'
-      : '<p class="hint">暂无作业记录，录入后即可看到图表。</p>';
+      : '<p class="hint empty-tip"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="5" y="7" width="38" height="34" rx="6" fill="#F0F8F4"/><path d="M24 15v21M24 15c-2.5-2.8-6-3.8-10-3.8v21c4 0 7.5 1 10 3.8 2.5-2.8 6-3.8 10-3.8v-21c-4 0-7.5 1-10 3.8z" stroke="#5FB89A" stroke-width="2.2" stroke-linejoin="round"/></svg>暂无作业记录，录入后即可看到图表。</p>';
   } else {
     // 横向条形列表：分组标题 + 每行一个科目（名称/进度条/正确率/次数），长标签不再重叠
     let html = '', lastCat = '';
@@ -2220,7 +2283,7 @@ function renderStats(){
   // 学生明细
   const list = document.getElementById('stu-list');
   if(!activeStudents().length){
-    list.innerHTML = '<p class="hint">暂无在服务学生，点右上角「新增学生」录入。</p>';
+    list.innerHTML = '<p class="hint empty-tip"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="5" y="7" width="38" height="34" rx="6" fill="#F0F8F4"/><path d="M24 15v21M24 15c-2.5-2.8-6-3.8-10-3.8v21c4 0 7.5 1 10 3.8 2.5-2.8 6-3.8 10-3.8v-21c-4 0-7.5 1-10 3.8z" stroke="#5FB89A" stroke-width="2.2" stroke-linejoin="round"/></svg>暂无在服务学生，点右上角「新增学生」录入。</p>';
     return;
   }
   // 教务的助教维度筛选与姓名搜索叠加生效
@@ -2430,7 +2493,7 @@ function salesCheckinGrid(g, subject){
       const acls = ra>=85?'good':(ra>=60?'mid':'bad');
       return '<div class="ci-slot done" title="第 ' + idx + ' 次：' + r.date + '，正确率 ' + ra + '%' +
         (r.wrongs&&r.wrongs.length ? '，错题 ' + esc(r.wrongs.join('、')) : '') + '">' +
-        '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">✓</span></div>' +
+        '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 4.8"/></svg></span></div>' +
         '<div class="ci-date">' + r.date + '</div>' +
         '<div class="ci-acc ' + acls + '">' + ra + '%</div>' +
         '<div class="ci-wrongs">' + (r.wrongs&&r.wrongs.length ? '错 ' + esc(r.wrongs.join('、')) : '无错题') + '</div>' +
@@ -2550,7 +2613,7 @@ function salesApiPanel(st, subject){
         const acls = ra>=85?'good':(ra>=60?'mid':'bad');
         return '<div class="ci-slot done" title="第 ' + idx + ' 次：' + it.date + '，正确率 ' + ra + '%' +
           (it.wrongs&&it.wrongs.length ? '，错题 ' + esc(it.wrongs.join('、')) : '') + '">' +
-          '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">✓</span></div>' +
+          '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 4.8"/></svg></span></div>' +
           '<div class="ci-date">' + it.date + '</div>' +
           '<div class="ci-acc ' + acls + '">' + ra + '%</div>' +
           '<div class="ci-wrongs">' + (it.wrongs&&it.wrongs.length ? '错 ' + esc(it.wrongs.join('、')) : '无错题') + '</div></div>';
@@ -2902,7 +2965,7 @@ function checkinGridHtml(){
       const acls = ra>=85?'good':(ra>=60?'mid':'bad');
       return '<div class="ci-slot done" onclick="openSlot(' + idx + ')" title="第 ' + idx + ' 次：' + r.date + '，正确率 ' + ra + '%' +
         (r.wrongs&&r.wrongs.length ? '，错题 ' + esc(r.wrongs.join('、')) : '') + '（点击查看/修改）">' +
-        '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">✓</span></div>' +
+        '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 4.8"/></svg></span></div>' +
         '<div class="ci-date">' + r.date + '</div>' +
         '<div class="ci-acc ' + acls + '">' + ra + '%</div>' +
         '<div class="ci-wrongs">' + (r.wrongs&&r.wrongs.length ? '错 ' + esc(r.wrongs.join('、')) : '无错题') + '</div>' +
@@ -3686,7 +3749,7 @@ function renderAlumni(){
     return;
   }
   if(!groups.length){
-    list.innerHTML = '<p class="hint">暂无历史学生。学生毕业或结课后，可在「现有学生」明细卡中转为历史学生。</p>';
+    list.innerHTML = '<p class="hint empty-tip"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="5" y="7" width="38" height="34" rx="6" fill="#F0F8F4"/><path d="M24 15v21M24 15c-2.5-2.8-6-3.8-10-3.8v21c4 0 7.5 1 10 3.8 2.5-2.8 6-3.8 10-3.8v-21c-4 0-7.5 1-10 3.8z" stroke="#5FB89A" stroke-width="2.2" stroke-linejoin="round"/></svg>暂无历史学生。学生毕业或结课后，可在「现有学生」明细卡中转为历史学生。</p>';
     return;
   }
   if(!filtered.length){
@@ -4420,6 +4483,7 @@ function renderDashboard(){
     '<div class="quick"><div class="num" style="color:' + (d.overdueCnt?'var(--red)':'var(--mint-d)') + '">' + d.missCnt + '</div><div class="lbl">未交次数（逾期 ' + d.overdueCnt + '）</div></div>' +
     '<div class="quick"><div class="num">' + d.taWithRecs + '/' + d.taTotal + '</div><div class="lbl">有录入助教/助教总数</div></div>' +
     '<div class="quick"><div class="num">' + d.todayRecs + '</div><div class="lbl">今日已录入</div></div>';
+  animateNums(document.getElementById('dash-overview'));  // 数字滚动动画（桩环境/减动效直接终值）
 
   // 2. 近 30 天录入趋势柱（纯 div；柱高=次数，柱色=当天平均正确率）
   const maxCnt = d.trend.reduce((m,x)=>Math.max(m,x.cnt),0);
