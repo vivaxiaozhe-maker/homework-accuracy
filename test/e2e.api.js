@@ -324,6 +324,18 @@ function ok(cond, name){
   st1 = await apiGetState();
   ok(st1.students.find(s=>s.id===sid).subjFirstClass[subj] === '2026-08-25', '开课日期直改经 subj-fields 白名单持久化');
 
+  /* ---- 家长分享：报告预览弹窗生成免登录 H5 报告链接（API 模式全链路） ---- */
+  vm.runInContext('genReport()', ctx);  // quickEntry 仍指向 sid/subj
+  ok(documentStub.getElementById('report-modal').classList.contains('show'), '报告预览弹窗打开（分享入口所在）');
+  await vm.runInContext('shareReportToParent()', ctx);
+  const shareLink = documentStub.getElementById('rp-share-link').value;
+  ok(documentStub.getElementById('rp-share-row').style.display === '' && /^\/r\/[0-9a-f]{32}$/.test(shareLink),
+    '「分享给家长」生成 /r/<token> 链接并显示链接框');
+  const sharePageResp = await fetch(base + shareLink);  // 桩环境无 location.origin，链接为相对路径
+  const shareHtml = await sharePageResp.text();
+  ok(sharePageResp.status === 200 && shareHtml.indexOf('作业打卡报告') !== -1 && shareHtml.indexOf('林小满') !== -1,
+    '公开报告页免登录可访问且含该学生报告内容');
+
   console.log('\ne2e 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();
   try{ fs.unlinkSync(TEST_DB); fs.unlinkSync(TEST_DB + '-wal'); fs.unlinkSync(TEST_DB + '-shm'); }catch(e){}

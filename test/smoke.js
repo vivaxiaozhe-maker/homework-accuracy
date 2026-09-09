@@ -566,6 +566,9 @@ function ok(cond, name){
   vm.runInContext('downloadReport()', ctx);  // 模拟点「⬇ 下载 PDF」
   ok(headAppends === 2, '点下载才按需加载 jsPDF/html2canvas 两个组件');
   documentStub.head.appendChild = origHeadAppend;
+  /* ---- 分享给家长：mock 模式提示不支持（正式环境全链路见 e2e） ---- */
+  vm.runInContext('shareReportToParent()', ctx);
+  ok(alerts[alerts.length-1].indexOf('演示环境暂不支持分享') !== -1, 'mock 模式「分享给家长」提示演示环境不支持');
   // 清理区块与横幅按钮显隐
   ok(documentStub.getElementById('data-clean-zone').style.display === 'none', '助教端「数据管理」清理数据区块隐藏');
   ok(html.indexOf('id="btn-import"') < html.indexOf('id="data-clean-zone"'), '导出/导入保留在清理区块之外（助教可见）');

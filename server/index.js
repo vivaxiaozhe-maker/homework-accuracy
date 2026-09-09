@@ -47,6 +47,11 @@ app.use((req, res, next) => {
 // 健康检查（公开）
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
+/* 家长 H5 报告页（公开，/api 全局守卫之外；静态白名单中间件对 /r/* 一律放行到此处）。
+   页面零 JS、样式内联，helmet CSP（style-src 含 'unsafe-inline'）天然兼容 */
+const reports = require('./routes/reports');
+app.get('/r/:token', reports.sharePage);
+
 // /api 全局守卫：除登录/健康检查外，一律先过 auth（登录校验 + 挂载 req.user / req.token）
 app.use('/api', (req, res, next) => {
   if(req.path === '/login' || req.path === '/health') return next();
@@ -63,6 +68,7 @@ app.use('/api', require('./routes/planreq'));      // /api/plan/set + /api/plan-
 app.use('/api/search', require('./routes/search'));
 app.use('/api/audit-logs', require('./routes/audit'));
 app.use('/api/files', require('./routes/files'));
+app.use('/api/reports', reports.router);  // 分享链接生成/撤销（登录 + 助教/教务）
 
 // 未匹配的 /api 路由 → 404 JSON（避免落到静态页）
 app.use('/api', (req, res) => res.status(404).json({ ok: false, msg: '接口不存在' }));

@@ -174,5 +174,20 @@ if(!db.prepare("PRAGMA table_info(students)").all().map(c => c.name).includes('s
 if(!db.prepare("PRAGMA table_info(users)").all().map(c => c.name).includes('temp_password')){
   db.exec('ALTER TABLE users ADD COLUMN temp_password TEXT');
 }
+/* 家长分享（docs/parent-push-plan.md 第 1 步）：share_tokens 表。
+   token = 32 位 hex 随机（不可猜测）；30 天有效期；revoked=1 撤销；同学生同科目复用未过期链接。
+   CREATE TABLE IF NOT EXISTS 幂等，老库启动自动补建。 */
+db.exec(`
+CREATE TABLE IF NOT EXISTS share_tokens (
+  token TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  revoked INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_share_student ON share_tokens(student_id);
+`);
 
 module.exports = db;

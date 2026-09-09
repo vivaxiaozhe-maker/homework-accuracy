@@ -994,9 +994,18 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
   <div class="modal report-modal">
     <h3>报告预览</h3>
     <div class="report-preview" id="report-preview"></div>
+    <!-- 分享给家长：生成 30 天有效的免登录 H5 报告链接（仅正式环境；销售端无此弹窗入口） -->
+    <div id="rp-share-row" style="display:none;margin-bottom:12px">
+      <div style="display:flex;gap:8px">
+        <input id="rp-share-link" readonly style="flex:1;min-width:0;font-size:13px;padding:9px 12px;border:1.5px solid var(--line);border-radius:10px;background:#FDFCF8;color:var(--ink);font-family:inherit">
+        <button class="btn mint sm" id="rp-copy">复制链接</button>
+      </div>
+      <p class="hint" style="margin-top:6px">链接 30 天内有效，家长微信点开即可查看，无需登录。</p>
+    </div>
     <div class="row">
       <button class="btn ghost sm" id="rp-close">关闭</button>
       <button class="btn ghost sm" id="rp-print">打印/另存为</button>
+      <button class="btn ghost sm" id="rp-share">分享给家长</button>
       <button class="btn mint sm" id="rp-download">⬇ 下载 PDF</button>
     </div>
   </div>
@@ -1611,6 +1620,10 @@ const HttpApi = {
   // POST /api/users/:id/toggle
   async toggleUser(id){
     return this._req('POST', '/api/users/' + id + '/toggle');
+  },
+  // POST /api/reports/share（家长 H5 报告分享链接，30 天有效；mock 模式无此能力，前端拦截提示）
+  shareReport(studentId, subject){
+    return this._req('POST', '/api/reports/share', { studentId: studentId, subject: subject });
   },
   // 计划申请的 pending 查询是纯前端过滤（pool 已从服务端同步），两种模式一致
   pendingPlanRequest(studentId, subject){ return LocalApi.pendingPlanRequest(studentId, subject); },
@@ -3271,7 +3284,36 @@ function genReport(){
   const st = state.students.find(x=>x.id===quickEntry.gid);
   if(!st){ toast('未找到学生数据'); return; }
   document.getElementById('report-preview').innerHTML = reportHtml(st, quickEntry.subject);
+  const shareRow = document.getElementById('rp-share-row');  // 每次打开重置分享区（防残留上一次链接）
+  if(shareRow) shareRow.style.display = 'none';
+  const shareInp = document.getElementById('rp-share-link');
+  if(shareInp) shareInp.value = '';
   document.getElementById('report-modal').classList.add('show');
+}
+/* 「分享给家长」：API 模式调 share 接口生成 30 天免登录 H5 链接；mock 演示环境提示不支持 */
+async function shareReportToParent(){
+  if(!quickEntry) return;
+  if(!USE_API){ toast('演示环境暂不支持分享（正式环境可用）'); return; }
+  const r = await HttpApi.shareReport(quickEntry.gid, quickEntry.subject);
+  if(!r.ok){ toast(r.msg || '生成分享链接失败'); return; }
+  const origin = (typeof location !== 'undefined' && location.origin) ? location.origin : '';  // 桩环境无 location → 相对路径
+  document.getElementById('rp-share-link').value = origin + r.url;
+  document.getElementById('rp-share-row').style.display = '';
+  toast('分享链接已生成，点「复制链接」发给家长');
+}
+/* 「复制链接」：clipboard API，老浏览器 execCommand 兜底 */
+async function copyShareLink(){
+  const inp = document.getElementById('rp-share-link');
+  if(!inp || !inp.value) return;
+  try{
+    if(typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(inp.value);
+    } else {
+      if(inp.select) inp.select();
+      if(typeof document.execCommand === 'function') document.execCommand('copy');
+    }
+    toast('已复制，去微信粘贴给家长吧');
+  }catch(e){ toast('复制失败，请手动长按链接复制'); }
 }
 /* 「⬇ 下载 PDF」：点击时才加载 CDN 组件，走既有生成流程；CDN 失败兜底打印窗口 */
 async function downloadReport(){
@@ -3326,6 +3368,8 @@ function printReportDirect(){
 document.getElementById('rp-close').addEventListener('click', ()=>document.getElementById('report-modal').classList.remove('show'));
 document.getElementById('rp-download').addEventListener('click', ()=>{ downloadReport(); });
 document.getElementById('rp-print').addEventListener('click', ()=>{ printReportDirect(); });
+document.getElementById('rp-share').addEventListener('click', ()=>{ shareReportToParent(); });
+document.getElementById('rp-copy').addEventListener('click', ()=>{ copyShareLink(); });
 function printReport(area){
   area.style.cssText = 'position:absolute;left:0;top:0;width:100%;background:#fff;z-index:99999;';
   window.print();
