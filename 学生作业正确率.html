@@ -459,11 +459,13 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .tab-pane.active{display:block}
 .hint{font-size:12px;color:var(--ink2);margin-top:8px}
 .divider{height:1px;background:var(--line);margin:16px 0}
-/* 科目管理树编辑（仅教务，数据管理页）：一级为分区卡片，二级一行一个系列（名居左按钮居右），三级标签流 */
+/* 科目管理树编辑（仅教务，数据管理页）：一级为分区卡片（标题行右侧操作按钮，与二级系列行同款排布），
+   二级一行一个系列（名居左按钮居右），三级标签流 */
 .st-cat{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px;background:#FDFCF8}
-.st-cat-title{font-size:15px;font-weight:700;color:var(--mint-d);margin-bottom:4px}
+.st-l1row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 2px 7px}
+.st-l1row b{font-size:15px;font-weight:700;color:var(--mint-d)}
 .st-l2{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 2px;border-top:1px dashed var(--line)}
-.st-cat-title + .st-l2{border-top:none}
+.st-l1row + .st-l2{border-top:none}
 .st-l2 b{font-size:14px;font-weight:600}
 .st-l3s{display:flex;flex-wrap:wrap;gap:6px;padding:2px 2px 8px}
 .st-ops{display:inline-flex;gap:6px;margin-left:auto;flex-shrink:0}
@@ -678,7 +680,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.1.1</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.1.2</div>
   </aside>
 
   <main>
@@ -1094,7 +1096,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.1.1</div>
+    <div class="login-ver" id="login-ver">v1.1.2</div>
   </div>
 </div>
 
@@ -1195,7 +1197,7 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
-const APP_VERSION = 'v1.1.1';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.1.2';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -3674,7 +3676,7 @@ function confirmAddSubject(gid){
 }
 
 /* ================= 科目管理（教务；数据管理页） =================
-   一级分类锁定（学科/竞赛/语培等现状分类只读，不提供一级增删）；管理集中在二级系列与三级科目。
+   一级分类可增删改（分区卡片标题行右侧按钮）；管理集中在三个级别。
    编辑在内存草稿 subjTreeDraft 上进行，「保存科目树」整体提交（API：PUT /api/subjects；mock：localStorage 覆盖值）。
    删除保护：该路径下已有作业记录时确认文案提示数量，删除仅移出菜单、历史数据保留。 */
 let subjTreeDraft = null;
@@ -3686,7 +3688,10 @@ function renderSubjectMgmt(){
   if(!subjTreeDraft) subjTreeDraft = JSON.parse(JSON.stringify(subjectTree()));
   let html = '';
   Object.keys(subjTreeDraft).forEach(l1=>{
-    html += '<div class="st-cat"><div class="st-cat-title">' + esc(l1) + '</div>';
+    // 一级：分区卡片，标题行右侧操作按钮（重命名/删除，与二级系列行同款排布）
+    html += '<div class="st-cat"><div class="st-l1row"><b>' + esc(l1) + '</b><span class="st-ops">' +
+      '<button class="btn ghost sm st-edit" onclick="subjUiRenameL1(\'' + esc(l1) + '\')">重命名</button>' +
+      '<button class="btn danger sm" onclick="subjDelete([\'' + esc(l1) + '\'])">删除</button></span></div>';
     Object.keys(subjTreeDraft[l1]).forEach(l2=>{
       const kids = subjTreeDraft[l1][l2];
       // 二级：一行一个系列——名居左，操作按钮右对齐同行
@@ -3704,6 +3709,7 @@ function renderSubjectMgmt(){
     // 每个一级分区底部「+ 系列」
     html += '<div class="st-add"><button class="btn ghost sm" onclick="subjUiAddSeries(\'' + esc(l1) + '\')">+ 系列</button></div></div>';
   });
+  html += '<div style="margin-top:4px"><button class="btn ghost sm" onclick="subjUiAddCategory()">+ 新增一级分类</button></div>';
   document.getElementById('subj-tree-editor').innerHTML = html;
 }
 /* 该路径（前缀）下已有作业记录数：删除保护用 */
@@ -3711,6 +3717,13 @@ function subjRefCount(prefix){
   return pool.records.filter(r=>r.subject===prefix || (r.subject||'').indexOf(prefix + ' / ')===0).length;
 }
 /* ---- 增（UI 走统一输入弹窗 askInput；逻辑函数可被测试直接调用） ---- */
+function subjAddL1(name){
+  name = (name||'').trim();
+  if(!name){ toast('请输入分类名称'); return; }
+  if(subjTreeDraft[name]){ toast('该分类已存在'); return; }
+  subjTreeDraft[name] = {};
+  renderSubjectMgmt();
+}
 function subjAddL2(l1, name){
   name = (name||'').trim();
   if(!name){ toast('请输入系列名称'); return; }
@@ -3734,7 +3747,19 @@ function subjUiAddSeries(l1){
 function subjUiAddSubject(l1, l2){
   askInput('在「' + l2 + '」下新增科目', '', name=>subjAddL3(l1, l2, name));
 }
-/* ---- 重命名（仅二级系列；保持顺序） ---- */
+function subjUiAddCategory(){
+  askInput('新增一级分类', '', name=>subjAddL1(name));
+}
+/* ---- 重命名（一级分类/二级系列；保持顺序） ---- */
+function subjRenameL1(l1, nn){
+  nn = (nn||'').trim();
+  if(!nn || nn===l1){ if(!nn) toast('名称不能为空'); return; }
+  if(subjTreeDraft[nn]){ toast('该名称已存在'); return; }
+  const rebuilt = {};
+  Object.keys(subjTreeDraft).forEach(k=>{ rebuilt[k===l1 ? nn : k] = subjTreeDraft[k]; });  // 保持顺序
+  subjTreeDraft = rebuilt;
+  renderSubjectMgmt();
+}
 function subjRenameL2(l1, l2, nn){
   nn = (nn||'').trim();
   if(!nn || nn===l2){ if(!nn) toast('名称不能为空'); return; }
@@ -3747,16 +3772,20 @@ function subjRenameL2(l1, l2, nn){
 function subjUiRenameSeries(l1, l2){
   askInput('重命名系列「' + l2 + '」', l2, nn=>subjRenameL2(l1, l2, nn));
 }
+function subjUiRenameL1(l1){
+  askInput('重命名分类「' + l1 + '」', l1, nn=>subjRenameL1(l1, nn));
+}
 /* ---- 删（二次确认；已有记录时提示数量，历史数据保留） ---- */
 function subjDelete(path){
   const prefix = path.join(' / ');
   const n = subjRefCount(prefix);
-  const label = path.length===2 ? '系列' : '科目';
+  const label = path.length===1 ? '分类' : (path.length===2 ? '系列' : '科目');
   askConfirm('删除' + label,
     '确定删除「' + prefix + '」吗？' +
     (n > 0 ? '该科目已有 ' + n + ' 条记录，删除后仅不再出现在菜单，历史数据保留。' : '删除后不再出现在科目菜单。'),
     ()=>{
-      if(path.length===2) delete subjTreeDraft[path[0]][path[1]];
+      if(path.length===1) delete subjTreeDraft[path[0]];
+      else if(path.length===2) delete subjTreeDraft[path[0]][path[1]];
       else { const arr = subjTreeDraft[path[0]][path[1]]; const i = arr.indexOf(path[2]); if(i>=0) arr.splice(i,1); }
       renderSubjectMgmt();
     });

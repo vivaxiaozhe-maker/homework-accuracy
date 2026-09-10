@@ -166,7 +166,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.1.1') !== -1, '登录页版本号升至 v1.1.1');
+  ok(html.indexOf('id="login-ver">v1.1.2') !== -1, '登录页版本号升至 v1.1.2');
 
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
@@ -179,13 +179,32 @@ function ok(cond, name){
   wb.switchTab('today');
   ok(documentStub.getElementById('page-title').textContent === '今日概览', '切回今日概览，topbar 标题联动');
 
-  /* ---- 科目管理（mock）：教务可见、一级锁定、内部输入弹窗、整体保存→localStorage 覆盖、联动更新、删除二次确认 ---- */
+  /* ---- 科目管理（mock）：教务可见、一级可增删改、内部输入弹窗、整体保存→localStorage 覆盖、联动更新、删除二次确认 ---- */
   ok(documentStub.getElementById('subj-mgmt-card').style.display !== 'none', '教务端显示科目管理卡片');
   ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('微积分BC') !== -1, '科目树编辑器渲染默认三级科目');
-  ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('新增一级分类') === -1, '一级分类锁定（无一级增删入口）');
-  // 新增/重命名走统一内部输入弹窗（替代原生 prompt）
+  ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('新增一级分类') !== -1, '一级分类恢复可增（末尾新增入口）');
+  ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf("subjUiRenameL1('学科')") !== -1, '一级分区标题行带重命名/删除按钮（与二级系列行同款）');
+  // 新增一级分类（经内部输入弹窗）
+  vm.runInContext('subjUiAddCategory()', ctx);
+  ok(documentStub.getElementById('input-modal').classList.contains('show'), '新增一级分类弹内部输入弹窗（非原生 prompt）');
+  documentStub.getElementById('in-value').value = '测试分类';
+  documentStub.getElementById('in-ok').onclick();
+  ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('测试分类') !== -1, '弹窗确认后新增一级分类进入草稿');
+  // 一级重命名（经输入弹窗）
+  vm.runInContext("subjUiRenameL1('测试分类')", ctx);
+  documentStub.getElementById('in-value').value = '测试分类B';
+  documentStub.getElementById('in-ok').onclick();
+  ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('>测试分类B<') !== -1
+    && documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('>测试分类<') === -1, '一级分类重命名生效');
+  // 删除一级分类：有记录的分类提示记录总数（取消不删）
+  vm.runInContext("subjDelete(['竞赛'])", ctx);
+  ok(/已有 \d+ 条记录/.test(documentStub.getElementById('cf-text').textContent), '删除一级分类时确认文案提示该分类记录总数');
+  documentStub.getElementById('cf-cancel').onclick();
+  vm.runInContext("subjDelete(['测试分类B'])", ctx);
+  documentStub.getElementById('cf-ok').onclick();  // 二次确认
+  ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('测试分类B') === -1, '删除一级分类经二次确认后从草稿移除');
+  // 新增二级系列（同样走内部输入弹窗）
   vm.runInContext("subjUiAddSeries('学科')", ctx);
-  ok(documentStub.getElementById('input-modal').classList.contains('show'), '新增系列弹内部输入弹窗（非原生 prompt）');
   documentStub.getElementById('in-value').value = '测试系列';
   documentStub.getElementById('in-ok').onclick();
   ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('测试系列') !== -1, '弹窗确认后新增系列进入草稿');
@@ -293,8 +312,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.1.1') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.1.1」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.1.2') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.1.2」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
