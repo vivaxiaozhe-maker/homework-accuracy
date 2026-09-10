@@ -69,6 +69,7 @@ app.use('/api/search', require('./routes/search'));
 app.use('/api/audit-logs', require('./routes/audit'));
 app.use('/api/files', require('./routes/files'));
 app.use('/api/reports', reports.router);  // 分享链接生成/撤销（登录 + 助教/教务）
+app.use('/api/subjects', require('./routes/subjects'));  // 科目树（GET 全角色可读，PUT 仅教务）
 
 // 未匹配的 /api 路由 → 404 JSON（避免落到静态页）
 app.use('/api', (req, res) => res.status(404).json({ ok: false, msg: '接口不存在' }));

@@ -459,6 +459,15 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .tab-pane.active{display:block}
 .hint{font-size:12px;color:var(--ink2);margin-top:8px}
 .divider{height:1px;background:var(--line);margin:16px 0}
+/* 科目管理树编辑（仅教务，数据管理页） */
+.st-l1{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 2px 4px;font-size:15px}
+.st-l2{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 2px 2px 18px;font-size:14px;color:var(--ink)}
+.st-l3s{display:flex;flex-wrap:wrap;gap:6px;padding:4px 2px 6px 18px}
+.st-ops{display:inline-flex;gap:6px;margin-left:auto;flex-shrink:0}
+.st-x{cursor:pointer;opacity:.55;font-style:normal;padding:0 2px}
+.st-x:hover{opacity:1;color:var(--red)}
+.st-edit{color:var(--mint-d)}
+.st-edit:hover{color:var(--mint-d)}
 /* ---------- 响应式 ---------- */
 @media (max-width:900px){
   .quick-grid{grid-template-columns:repeat(2,1fr)}
@@ -854,6 +863,16 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
         <p class="hint">「清空示例数据」只删除标记为示例的内容，不影响你自己录入的数据。所有清空操作都会二次确认。</p>
         </div>
       </div>
+      <!-- 科目管理（仅教务可见）：三级科目树维护，编辑草稿整体保存 -->
+      <div class="card" id="subj-mgmt-card" style="display:none">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20V4H6.5A2.5 2.5 0 004 6.5v13z"/><path d="M8 8h8M8 12h5"/></svg>科目管理</h2>
+        <p class="hint" style="margin-top:0">维护三级科目树（分类 → 系列 → 科目），保存后录入、统计、看板即时使用新树。删除仅移出菜单，历史作业数据保留。</p>
+        <div id="subj-tree-editor"></div>
+        <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn mint sm" id="btn-subj-save">保存科目树</button>
+          <button class="btn ghost sm" id="btn-subj-reset">恢复默认</button>
+        </div>
+      </div>
     </section>
 
     <!-- 账号管理（仅教务可见） -->
@@ -1057,7 +1076,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.0.6</div>
+    <div class="login-ver" id="login-ver">v1.1.0</div>
   </div>
 </div>
 
@@ -1157,7 +1176,8 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
-const APP_VERSION = 'v1.0.6';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
+const APP_VERSION = 'v1.1.0';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -1410,6 +1430,19 @@ const LocalApi = {
     logAction(act, 'account', u.name + '（' + u.username + '）', '');
     return {ok:true, user:u};
   },
+  // GET /api/subjects：mock 模式读 localStorage 覆盖值，无则 tree:null（调用方回落默认树）
+  getSubjects(){
+    try{
+      const s = localStorage.getItem(LS_SUBJECTS);
+      return { ok:true, tree: s ? JSON.parse(s) : null };
+    }catch(e){ return { ok:true, tree:null }; }
+  },
+  // PUT /api/subjects：mock 模式写 localStorage 覆盖值（仅教务的校验由 UI 层保证，与 API 一致整体替换）
+  saveSubjects(tree){
+    localStorage.setItem(LS_SUBJECTS, JSON.stringify(tree));
+    logAction('更新科目树', 'data', '科目管理', '一级分类 ' + Object.keys(tree).length + ' 个');
+    return { ok:true };
+  },
   // POST /api/students/:id/owner（学生 + 其作业记录 + 未交记录一并改 ownerId）
   transferStudent(ids, newOwnerId){
     const t = this._loadUsers().find(x=>x.id===newOwnerId);
@@ -1625,6 +1658,10 @@ const HttpApi = {
   shareReport(studentId, subject){
     return this._req('POST', '/api/reports/share', { studentId: studentId, subject: subject });
   },
+  // GET /api/subjects（科目树，全局共享，全角色可读）
+  getSubjects(){ return this._req('GET', '/api/subjects'); },
+  // PUT /api/subjects（仅教务，整体替换）
+  saveSubjects(tree){ return this._req('PUT', '/api/subjects', { tree: tree }); },
   // 计划申请的 pending 查询是纯前端过滤（pool 已从服务端同步），两种模式一致
   pendingPlanRequest(studentId, subject){ return LocalApi.pendingPlanRequest(studentId, subject); },
   /* ---- M5b：业务写路径（乐观本地更新 + 异步持久化 + 失败重取回滚） ---- */
@@ -2139,7 +2176,7 @@ function openMissSubjectPicker(missedId){
   missPickId = missedId;
   const p = 'as-ms';  // 复用新增科目面板的三级联动（getAddSubjValue/asSub1Change 读取 'as-' + 前缀 的 id）
   document.getElementById(p + '-s1').innerHTML = '<option value="">选择分类…</option>' +
-    Object.keys(SUBJECT_TREE).map(k=>'<option value="' + k + '">' + k + '</option>').join('') +
+    Object.keys(subjectTree()).map(k=>'<option value="' + k + '">' + k + '</option>').join('') +
     '<option value="__custom__">自定义…</option>';
   document.getElementById(p + '-s2').innerHTML = '<option value="">二级科目…</option>';
   document.getElementById(p + '-s2').disabled = true;
@@ -2194,6 +2231,7 @@ function gotoPlanEntry(studentId, subject){
 }
 
 /* ================= 科目树（三级联动） ================= */
+/* 内置默认科目树（与后端 DEFAULT_SUBJECT_TREE 保持一致；无覆盖值时的兜底） */
 const SUBJECT_TREE = {
   '学科': {
     'AP': ['微积分AB','微积分BC','物理1','物理2','物理力学','物理电磁','化学','生物','宏观','微观','统计','心理学','人文地理','环境科学','欧洲史','世界史','美国历史','语言与写作','文学与写作','艺术史','计算机A','计算机原理'],
@@ -2203,6 +2241,23 @@ const SUBJECT_TREE = {
   '竞赛': {'AMC10':null,'AMC12':null,'ABO':null,'BPHO':null,'BBO':null,'UKCHO':null,'物理碗':null},
   '语培': {'托福':null,'雅思':null,'SAT':null,'ACT':null}
 };
+/* 科目树数据源：API 模式 = 启动时 GET /api/subjects 的内存缓存；mock 模式 = localStorage 覆盖值或内置默认。
+   所有用到科目树的地方（三级联动/图表分组/看板类目）统一走 subjectTree()，保存后即时生效 */
+let subjectTreeCache = null;
+function subjectTree(){
+  if(USE_API) return subjectTreeCache || SUBJECT_TREE;
+  try{
+    const s = localStorage.getItem(LS_SUBJECTS);
+    if(s){ const t = JSON.parse(s); if(t && typeof t === 'object' && !Array.isArray(t)) return t; }
+  }catch(e){}
+  return SUBJECT_TREE;
+}
+// API 模式：登录/恢复会话后拉取科目树缓存
+async function refreshSubjectTree(){
+  if(!USE_API) return;
+  const r = await HttpApi.getSubjects();
+  if(r && r.ok && r.tree) subjectTreeCache = r.tree;
+}
 /* ================= 学生统计 ================= */
 let stuQuery = '';
 let stuTaFilter = 'all';  // 学生明细助教维度筛选（仅教务可见）：'all' 或助教 id
@@ -2281,9 +2336,10 @@ function renderStats(){
   });
   // 按科目树顺序规整排列（学科 → 竞赛 → 语培 → 其他/未指定）
   const ordered = [];
-  Object.keys(SUBJECT_TREE).forEach(cat=>{
-    Object.keys(SUBJECT_TREE[cat]).forEach(l2=>{
-      const kids = SUBJECT_TREE[cat][l2];
+  const tree = subjectTree();
+  Object.keys(tree).forEach(cat=>{
+    Object.keys(tree[cat]).forEach(l2=>{
+      const kids = tree[cat][l2];
       if(kids){ kids.forEach(l3=>ordered.push(cat + ' / ' + l2 + ' / ' + l3)); }
       else { ordered.push(cat + ' / ' + l2); }
     });
@@ -2291,7 +2347,7 @@ function renderStats(){
   Object.keys(subjMap).forEach(k=>{ if(ordered.indexOf(k)===-1) ordered.push(k); });
   const stats = ordered.filter(k=>subjMap[k]).map(k=>{
     const arr = subjMap[k];
-    const cat = SUBJECT_TREE[k.split(' / ')[0]] ? k.split(' / ')[0] : '其他';
+    const cat = tree[k.split(' / ')[0]] ? k.split(' / ')[0] : '其他';
     return {key:k, cat:cat, name:shortSubject(k), cnt:arr.length,
       avg:Math.round(arr.reduce((x,r)=>x+acc(r),0)/arr.length)};
   });
@@ -3486,7 +3542,7 @@ function toggleAddSubject(gid){
 function addSubjPanelHtml(gid){
   const p = 'as-' + gid;
   const s1opts = '<option value="">选择分类…</option>' +
-    Object.keys(SUBJECT_TREE).map(k=>'<option value="' + k + '">' + k + '</option>').join('') +
+    Object.keys(subjectTree()).map(k=>'<option value="' + k + '">' + k + '</option>').join('') +
     '<option value="__custom__">自定义…</option>';
   return '<div class="add-subj-panel">' +
     '<div class="add-subj-title">选择该学生的学习科目</div>' +
@@ -3512,9 +3568,10 @@ function asSub1Change(gid){
   s3.innerHTML = '<option value="">三级科目…</option>'; s3.disabled = true; s3.style.display = 'none';
   custom.style.display = 'none';
   if(v === '__custom__'){ custom.style.display = 'block'; return; }
-  if(v && SUBJECT_TREE[v]){
+  const tree = subjectTree();
+  if(v && tree[v]){
     s2.innerHTML = '<option value="">二级科目…</option>' +
-      Object.keys(SUBJECT_TREE[v]).map(k=>'<option value="' + k + '">' + k + '</option>').join('');
+      Object.keys(tree[v]).map(k=>'<option value="' + k + '">' + k + '</option>').join('');
     s2.disabled = false;
   }
 }
@@ -3524,7 +3581,8 @@ function asSub2Change(gid){
   const v2 = document.getElementById(p + '-s2').value;
   const s3 = document.getElementById(p + '-s3');
   s3.innerHTML = '<option value="">三级科目…</option>'; s3.disabled = true; s3.style.display = 'none';
-  const children = (v1 && SUBJECT_TREE[v1]) ? SUBJECT_TREE[v1][v2] : null;
+  const tree = subjectTree();
+  const children = (v1 && tree[v1]) ? tree[v1][v2] : null;
   if(children){
     s3.innerHTML = '<option value="">三级科目…</option>' +
       children.map(k=>'<option value="' + k + '">' + k + '</option>').join('');
@@ -3565,6 +3623,141 @@ function confirmAddSubject(gid){
   renderAll();
   if(!added) toast('该科目已在列表中，无需重复添加。');
 }
+
+/* ================= 科目管理（教务；数据管理页） =================
+   编辑在内存草稿 subjTreeDraft 上进行，「保存科目树」整体提交（API：PUT /api/subjects；mock：localStorage 覆盖值）。
+   删除保护：该路径下已有作业记录时确认文案提示数量，删除仅移出菜单、历史数据保留。 */
+let subjTreeDraft = null;
+function renderSubjectMgmt(){
+  const card = document.getElementById('subj-mgmt-card');
+  if(!card) return;
+  if(!isAdminView()){ card.style.display = 'none'; return; }
+  card.style.display = '';
+  if(!subjTreeDraft) subjTreeDraft = JSON.parse(JSON.stringify(subjectTree()));
+  let html = '';
+  Object.keys(subjTreeDraft).forEach(l1=>{
+    html += '<div class="st-l1"><b>' + esc(l1) + '</b><span class="st-ops">' +
+      '<button class="btn ghost sm" onclick="subjUiAdd(1,\'' + esc(l1) + '\')">+ 系列</button>' +
+      '<button class="btn ghost sm st-edit" onclick="subjUiRename(1,\'' + esc(l1) + '\')">重命名</button>' +
+      '<button class="btn danger sm" onclick="subjDelete([\'' + esc(l1) + '\'])">删除</button></span></div>';
+    Object.keys(subjTreeDraft[l1]).forEach(l2=>{
+      const kids = subjTreeDraft[l1][l2];
+      html += '<div class="st-l2">' + esc(l2) + '<span class="st-ops">' +
+        '<button class="btn ghost sm" onclick="subjUiAdd(2,\'' + esc(l1) + '\',\'' + esc(l2) + '\')">+ 科目</button>' +
+        '<button class="btn ghost sm st-edit" onclick="subjUiRename(2,\'' + esc(l1) + '\',\'' + esc(l2) + '\')">重命名</button>' +
+        '<button class="btn danger sm" onclick="subjDelete([\'' + esc(l1) + '\',\'' + esc(l2) + '\'])">删除</button></span></div>';
+      if(kids && kids.length){
+        html += '<div class="st-l3s">' + kids.map(l3=>
+          '<span class="tag sample">' + esc(l3) +
+          ' <i class="st-x st-edit" onclick="subjUiRename(3,\'' + esc(l1) + '\',\'' + esc(l2) + '\',\'' + esc(l3) + '\')">✎</i>' +
+          ' <i class="st-x" onclick="subjDelete([\'' + esc(l1) + '\',\'' + esc(l2) + '\',\'' + esc(l3) + '\'])">✕</i></span>').join('') + '</div>';
+      }
+    });
+  });
+  html += '<div style="margin-top:10px"><button class="btn ghost sm" onclick="subjUiAdd(0)">+ 新增一级分类</button></div>';
+  document.getElementById('subj-tree-editor').innerHTML = html;
+}
+/* 该路径（前缀）下已有作业记录数：删除保护用 */
+function subjRefCount(prefix){
+  return pool.records.filter(r=>r.subject===prefix || (r.subject||'').indexOf(prefix + ' / ')===0).length;
+}
+/* ---- 增（逻辑与 UI 分离：UI 层用 prompt 取名，测试直接调逻辑函数） ---- */
+function subjAddL1(name){
+  name = (name||'').trim();
+  if(!name){ toast('请输入分类名称'); return; }
+  if(subjTreeDraft[name]){ toast('该分类已存在'); return; }
+  subjTreeDraft[name] = {};
+  renderSubjectMgmt();
+}
+function subjAddL2(l1, name){
+  name = (name||'').trim();
+  if(!name){ toast('请输入系列名称'); return; }
+  if(!subjTreeDraft[l1]) return;
+  if(subjTreeDraft[l1][name] !== undefined){ toast('该系列已存在'); return; }
+  subjTreeDraft[l1][name] = null;  // 无三级科目的系列为 null
+  renderSubjectMgmt();
+}
+function subjAddL3(l1, l2, name){
+  name = (name||'').trim();
+  if(!name){ toast('请输入科目名称'); return; }
+  if(!subjTreeDraft[l1] || subjTreeDraft[l1][l2] === undefined) return;
+  if(subjTreeDraft[l1][l2] === null) subjTreeDraft[l1][l2] = [];
+  if(subjTreeDraft[l1][l2].indexOf(name) !== -1){ toast('该科目已存在'); return; }
+  subjTreeDraft[l1][l2].push(name);
+  renderSubjectMgmt();
+}
+function subjUiAdd(level, l1, l2){
+  if(typeof prompt !== 'function') return;  // 桩环境无 prompt，静默（测试直接调逻辑函数）
+  const name = prompt(level===0 ? '新增一级分类名称：' : (level===1 ? '在「' + l1 + '」下新增系列名称：' : '在「' + l2 + '」下新增科目名称：'));
+  if(name === null || name === undefined) return;
+  if(level===0) subjAddL1(name); else if(level===1) subjAddL2(l1, name); else subjAddL3(l1, l2, name);
+}
+/* ---- 重命名 ---- */
+function subjRenameL1(l1, nn){
+  nn = (nn||'').trim();
+  if(!nn || nn===l1){ if(!nn) toast('名称不能为空'); return; }
+  if(subjTreeDraft[nn]){ toast('该名称已存在'); return; }
+  const rebuilt = {};
+  Object.keys(subjTreeDraft).forEach(k=>{ rebuilt[k===l1 ? nn : k] = subjTreeDraft[k]; });  // 保持顺序
+  subjTreeDraft = rebuilt;
+  renderSubjectMgmt();
+}
+function subjRenameL2(l1, l2, nn){
+  nn = (nn||'').trim();
+  if(!nn || nn===l2){ if(!nn) toast('名称不能为空'); return; }
+  if(subjTreeDraft[l1][nn] !== undefined){ toast('该名称已存在'); return; }
+  const rebuilt = {};
+  Object.keys(subjTreeDraft[l1]).forEach(k=>{ rebuilt[k===l2 ? nn : k] = subjTreeDraft[l1][k]; });
+  subjTreeDraft[l1] = rebuilt;
+  renderSubjectMgmt();
+}
+function subjRenameL3(l1, l2, l3, nn){
+  nn = (nn||'').trim();
+  if(!nn || nn===l3){ if(!nn) toast('名称不能为空'); return; }
+  const arr = subjTreeDraft[l1][l2];
+  if(arr.indexOf(nn) !== -1){ toast('该名称已存在'); return; }
+  arr[arr.indexOf(l3)] = nn;
+  renderSubjectMgmt();
+}
+function subjUiRename(level, l1, l2, l3){
+  if(typeof prompt !== 'function') return;
+  const cur = level===1 ? l1 : (level===2 ? l2 : l3);
+  const nn = prompt('重命名为：', cur);
+  if(nn === null || nn === undefined) return;
+  if(level===1) subjRenameL1(l1, nn); else if(level===2) subjRenameL2(l1, l2, nn); else subjRenameL3(l1, l2, l3, nn);
+}
+/* ---- 删（二次确认；已有记录时提示数量，历史数据保留） ---- */
+function subjDelete(path){
+  const prefix = path.join(' / ');
+  const n = subjRefCount(prefix);
+  const label = path.length===1 ? '分类' : (path.length===2 ? '系列' : '科目');
+  askConfirm('删除' + label,
+    '确定删除「' + prefix + '」吗？' +
+    (n > 0 ? '该科目已有 ' + n + ' 条记录，删除后仅不再出现在菜单，历史数据保留。' : '删除后不再出现在科目菜单。'),
+    ()=>{
+      if(path.length===1) delete subjTreeDraft[path[0]];
+      else if(path.length===2) delete subjTreeDraft[path[0]][path[1]];
+      else { const arr = subjTreeDraft[path[0]][path[1]]; const i = arr.indexOf(path[2]); if(i>=0) arr.splice(i,1); }
+      renderSubjectMgmt();
+    });
+}
+/* ---- 保存：整体提交；成功后缓存更新，三级联动/图表/看板立即用新树 ---- */
+async function saveSubjectsDraft(){
+  const tree = subjTreeDraft || subjectTree();
+  const r = await Api.saveSubjects(tree);  // mock 同步返回、API 异步，await 兼容
+  if(r && r.ok === false){ toast(r.msg || '保存失败'); return; }
+  subjectTreeCache = JSON.parse(JSON.stringify(tree));  // API 模式缓存立即生效
+  subjTreeDraft = JSON.parse(JSON.stringify(tree));
+  toast('科目树已保存，录入与统计即时生效');
+  renderAll();
+}
+document.getElementById('btn-subj-save').addEventListener('click', ()=>{ saveSubjectsDraft(); });
+document.getElementById('btn-subj-reset').addEventListener('click', ()=>{
+  askConfirm('恢复默认科目树', '确定恢复为内置默认科目树吗？自定义的分类/系列/科目将被移除（历史数据保留）。', async ()=>{
+    subjTreeDraft = JSON.parse(JSON.stringify(SUBJECT_TREE));
+    await saveSubjectsDraft();
+  });
+});
 
 /* ================= 科目重命名 ================= */
 let renaming = null;  // {gid: 学生代表id, subject: 科目路径}
@@ -4124,6 +4317,7 @@ async function doLogin(u, p, role){
     if(s.ok){ pool = s.state; refreshView(); }
   }
   if(USE_API) await refreshUsersCache();
+  if(USE_API) await refreshSubjectTree();  // 科目树缓存（录入/统计用）
   if(currentUser.mustChangePwd){ openPwdModal(true); return; }  // 首登/重置后强制改密
   enterApp();
 }
@@ -4138,6 +4332,7 @@ function doLogout(){
   const r = Api.logout();
   if(r && typeof r.then === 'function') r.catch(()=>{});  // HttpApi 登出为异步，失败不阻塞本地退出
   currentUser = null;
+  subjTreeDraft = null;  // 科目管理草稿随会话清空（下次登录从当前树重新初始化）
   if(USE_API){  // API 模式登出清空服务端快照，避免下个登录用户看到残留数据
     pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };
     refreshView();
@@ -4495,7 +4690,7 @@ function computeDash(){
   recs.forEach(r=>{
     const sub = r.subject || '未指定';
     const head = sub.split(' / ')[0];
-    const cat = SUBJECT_TREE[head] ? head : '其他';
+    const cat = subjectTree()[head] ? head : '其他';
     (catMap[cat] = catMap[cat] || []).push(r);
     (subMapD[sub] = subMapD[sub] || []).push(r);
   });
@@ -4689,6 +4884,7 @@ function renderAll(){
   if(isAdminView()){ renderAccounts(); renderPlanRequests(); }
   renderDashboard();  // 内部含教务守卫，助教端自动清空看板内容
   renderAudit();      // 内部含角色守卫（销售/未登录不产出）
+  renderSubjectMgmt();  // 科目管理卡片（内部含教务守卫）
   renderPendingBadges();  // 待审批红点（仅教务显示）
 }
 document.getElementById('today-str').textContent =
@@ -4712,6 +4908,7 @@ window.__ready = (async function init(){
         if(s.ok){ pool = s.state; }
       }
       await refreshUsersCache();
+      await refreshSubjectTree();
       refreshView();
       enterApp();
       if(u.mustChangePwd) openPwdModal(true);

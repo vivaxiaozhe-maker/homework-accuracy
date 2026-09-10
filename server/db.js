@@ -189,5 +189,12 @@ CREATE TABLE IF NOT EXISTS share_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_share_student ON share_tokens(student_id);
 `);
+/* 全局配置表（key-value）：目前存科目树 subject_tree（教务可改，全体可读） */
+db.exec(`
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+`);
 
 module.exports = db;

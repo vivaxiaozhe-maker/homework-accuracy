@@ -166,7 +166,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.0.6') !== -1, '登录页版本号升至 v1.0.6');
+  ok(html.indexOf('id="login-ver">v1.1.0') !== -1, '登录页版本号升至 v1.1.0');
 
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
@@ -179,10 +179,28 @@ function ok(cond, name){
   wb.switchTab('today');
   ok(documentStub.getElementById('page-title').textContent === '今日概览', '切回今日概览，topbar 标题联动');
 
+  /* ---- 科目管理（mock）：教务可见、编辑→整体保存→localStorage 覆盖、联动下拉更新、删除二次确认 ---- */
+  ok(documentStub.getElementById('subj-mgmt-card').style.display !== 'none', '教务端显示科目管理卡片');
+  ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('微积分BC') !== -1, '科目树编辑器渲染默认三级科目');
+  vm.runInContext("subjAddL1('测试分类')", ctx);
+  ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('测试分类') !== -1, '新增一级分类立即出现在编辑器（草稿）');
+  await vm.runInContext('saveSubjectsDraft()', ctx);
+  ok(JSON.parse(ctx.localStorage.getItem('wb_ha_v2_subjects'))['测试分类'] !== undefined, 'mock 模式保存写入 localStorage 覆盖值');
+  ok(vm.runInContext("addSubjPanelHtml('g1')", ctx).indexOf('测试分类') !== -1, '保存后新增科目三级联动立即使用新树');
+  vm.runInContext("subjDelete(['学科','AP','微积分BC'])", ctx);
+  ok(/已有 \d+ 条记录/.test(documentStub.getElementById('cf-text').textContent), '删除有记录的科目时确认文案提示记录数（历史保留）');
+  documentStub.getElementById('cf-cancel').onclick();  // 取消，不真正删除
+  vm.runInContext("subjDelete(['测试分类'])", ctx);
+  documentStub.getElementById('cf-ok').onclick();  // 二次确认
+  ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('测试分类') === -1, '删除分类经二次确认后从草稿移除');
+  await vm.runInContext('saveSubjectsDraft()', ctx);  // 保存回默认树，避免影响后续用例
+  ok(vm.runInContext("addSubjPanelHtml('g1')", ctx).indexOf('测试分类') === -1, '删除保存后联动菜单恢复默认');
+
   /* ---- 助教数据隔离 ---- */
   wb.doLogout();
   await wb.doLogin('ta1', 'ta123456', 'ta');
   ok(wb.currentUser.username === 'ta1', 'ta1 登录成功');
+  ok(documentStub.getElementById('subj-mgmt-card').style.display === 'none', '助教端不显示科目管理卡片');
   ok(wb.state.students.length === 7 && wb.state.students.every(s=>s.ownerId===ta1.id), 'ta1 只见自己的学生');
   ok(wb.state.records.length > 0 && wb.state.records.every(r=>r.ownerId===ta1.id), 'ta1 的记录全部归属自己');
   ok(!wb.state.students.some(s=>s.ownerId===ta2.id) && !wb.state.records.some(r=>r.ownerId===ta2.id), 'ta1 视图中不含 ta2 的数据');

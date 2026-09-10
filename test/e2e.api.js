@@ -91,7 +91,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.0.6', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.1.0', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -335,6 +335,21 @@ function ok(cond, name){
   const shareHtml = await sharePageResp.text();
   ok(sharePageResp.status === 200 && shareHtml.indexOf('作业打卡报告') !== -1 && shareHtml.indexOf('林小满') !== -1,
     '公开报告页免登录可访问且含该学生报告内容');
+
+  /* ---- 科目树接口：助教可读不可写；教务可改且 GET 回读生效 ---- */
+  const treeTa = await wb.HttpApi._req('GET', '/api/subjects');
+  ok(treeTa.ok && treeTa.tree && treeTa.tree['学科'], '助教 GET /api/subjects 可读');
+  const putTa = await wb.HttpApi._req('PUT', '/api/subjects', { tree: {} });
+  ok(!putTa.ok, '助教 PUT /api/subjects 被拒（403）');
+  await wb.doLogin('admin', 'admin456', 'admin');
+  const treeAdm = await wb.HttpApi._req('GET', '/api/subjects');
+  ok(treeAdm.ok && treeAdm.tree['学科']['AP'].indexOf('微积分BC') !== -1, '教务 GET /api/subjects 返回默认科目树');
+  const newTree = JSON.parse(JSON.stringify(treeAdm.tree));
+  newTree['测试分类'] = { '测试系列': ['测试科目'] };
+  ok((await wb.HttpApi._req('PUT', '/api/subjects', { tree: newTree })).ok, '教务 PUT /api/subjects 保存成功');
+  const treeBack = await wb.HttpApi._req('GET', '/api/subjects');
+  ok(treeBack.tree['测试分类'] && treeBack.tree['测试分类']['测试系列'][0] === '测试科目', 'GET 回读新科目树（教务改动生效）');
+  await wb.HttpApi._req('PUT', '/api/subjects', { tree: treeAdm.tree });  // 恢复默认树，避免影响其他用例
 
   console.log('\ne2e 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();
