@@ -459,15 +459,19 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .tab-pane.active{display:block}
 .hint{font-size:12px;color:var(--ink2);margin-top:8px}
 .divider{height:1px;background:var(--line);margin:16px 0}
-/* 科目管理树编辑（仅教务，数据管理页） */
-.st-l1{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 2px 4px;font-size:15px}
-.st-l2{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 2px 2px 18px;font-size:14px;color:var(--ink)}
-.st-l3s{display:flex;flex-wrap:wrap;gap:6px;padding:4px 2px 6px 18px}
+/* 科目管理树编辑（仅教务，数据管理页）：一级为分区卡片，二级一行一个系列（名居左按钮居右），三级标签流 */
+.st-cat{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px;background:#FDFCF8}
+.st-cat-title{font-size:15px;font-weight:700;color:var(--mint-d);margin-bottom:4px}
+.st-l2{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 2px;border-top:1px dashed var(--line)}
+.st-cat-title + .st-l2{border-top:none}
+.st-l2 b{font-size:14px;font-weight:600}
+.st-l3s{display:flex;flex-wrap:wrap;gap:6px;padding:2px 2px 8px}
 .st-ops{display:inline-flex;gap:6px;margin-left:auto;flex-shrink:0}
 .st-x{cursor:pointer;opacity:.55;font-style:normal;padding:0 2px}
 .st-x:hover{opacity:1;color:var(--red)}
 .st-edit{color:var(--mint-d)}
 .st-edit:hover{color:var(--mint-d)}
+.st-add{padding:8px 0 2px;border-top:1px dashed var(--line);margin-top:4px}
 /* ---------- 响应式 ---------- */
 @media (max-width:900px){
   .quick-grid{grid-template-columns:repeat(2,1fr)}
@@ -674,7 +678,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.0.6</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.1.1</div>
   </aside>
 
   <main>
@@ -1005,6 +1009,20 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
   </div>
 </div>
 
+<!-- 单行输入弹窗（科目管理新增/重命名等场景，替代浏览器原生 prompt） -->
+<div class="modal-mask" id="input-modal">
+  <div class="modal">
+    <h3 id="in-title">输入</h3>
+    <div class="field" style="margin-bottom:16px">
+      <input id="in-value" placeholder="请输入">
+    </div>
+    <div class="row">
+      <button class="btn ghost sm" id="in-cancel">取消</button>
+      <button class="btn mint sm" id="in-ok">确认</button>
+    </div>
+  </div>
+</div>
+
 <!-- 产品内 toast 挂载点（替代浏览器原生 alert，由 toast() 写入） -->
 <div id="toast-zone"></div>
 
@@ -1076,7 +1094,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.1.0</div>
+    <div class="login-ver" id="login-ver">v1.1.1</div>
   </div>
 </div>
 
@@ -1177,7 +1195,7 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
-const APP_VERSION = 'v1.1.0';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.1.1';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -1943,6 +1961,7 @@ function switchTab(name){
     : role==='sales' ? ['stats','alumni']
     : ['today','stats','alumni','data','audit'];
   if(allowed.indexOf(name) === -1) name = role==='sales' ? 'stats' : 'today';
+  addSubjGid = null;  // 切页 = 取消未确认的「新增科目」面板（回来时重新展开）
   document.querySelectorAll('.nav-btn,.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active', p.id==='pane-'+name));
   const pt = document.getElementById('page-title');  // DOM 桩下为桩元素，赋值静默安全
@@ -2005,6 +2024,27 @@ document.getElementById('cf-cancel').onclick = ()=>document.getElementById('conf
 document.getElementById('cf-ok').onclick = ()=>{
   document.getElementById('confirm-modal').classList.remove('show');
   if(cfCallback) cfCallback();
+};
+/* 单行输入弹窗（替代浏览器原生 prompt）：askInput(标题, 默认值, 回调)。
+   确认/取消用 onclick 属性挂接（与确认弹窗一致），DOM 桩环境测试可直接驱动 */
+let inCallback = null;
+function askInput(title, def, cb){
+  document.getElementById('in-title').textContent = title;
+  const inp = document.getElementById('in-value');
+  inp.value = def || '';
+  inCallback = cb;
+  document.getElementById('input-modal').classList.add('show');
+  if(inp.focus) inp.focus();
+}
+document.getElementById('in-cancel').onclick = ()=>{
+  document.getElementById('input-modal').classList.remove('show');
+  inCallback = null;
+};
+document.getElementById('in-ok').onclick = ()=>{
+  const v = document.getElementById('in-value').value;
+  document.getElementById('input-modal').classList.remove('show');
+  const cb = inCallback; inCallback = null;
+  if(cb) cb(String(v).trim());
 };
 
 /* ================= 横幅 ================= */
@@ -2304,8 +2344,17 @@ function renderStats(){
     return;
   }
 
-  // 明细按创建时间倒序（uid 为时间戳基底，倒序即最新在前）；教务分组视图组内同序；销售端示例卡顺序不动
-  groups.sort((a,b)=>{ const ma = Math.max(...a.ids.map(id=>parseInt(id,36)||0)); const mb = Math.max(...b.ids.map(id=>parseInt(id,36)||0)); return mb - ma; });
+  // 明细按创建时间倒序：排序键用学生 createdAt（ISO 解析；服务端 id 非时间戳格式，用 id 解析会退化为 0 导致跳动）。
+  // createdAt 缺失（旧 mock 数据）时回落 id 的时间戳解析，mock 模式行为不变
+  const stuSortKey = s => {
+    const t = s.createdAt ? Date.parse(s.createdAt) : NaN;
+    return isNaN(t) ? (parseInt(s.id, 36) || 0) : t;
+  };
+  groups.sort((a,b)=>{
+    const ma = Math.max(...a.ids.map(id=>{ const s = pool.students.find(x=>x.id===id); return s ? stuSortKey(s) : 0; }));
+    const mb = Math.max(...b.ids.map(id=>{ const s = pool.students.find(x=>x.id===id); return s ? stuSortKey(s) : 0; }));
+    return mb - ma;
+  });
 
   // 柱状图
   const wrap = document.getElementById('bar-chart');
@@ -3625,6 +3674,7 @@ function confirmAddSubject(gid){
 }
 
 /* ================= 科目管理（教务；数据管理页） =================
+   一级分类锁定（学科/竞赛/语培等现状分类只读，不提供一级增删）；管理集中在二级系列与三级科目。
    编辑在内存草稿 subjTreeDraft 上进行，「保存科目树」整体提交（API：PUT /api/subjects；mock：localStorage 覆盖值）。
    删除保护：该路径下已有作业记录时确认文案提示数量，删除仅移出菜单、历史数据保留。 */
 let subjTreeDraft = null;
@@ -3636,39 +3686,31 @@ function renderSubjectMgmt(){
   if(!subjTreeDraft) subjTreeDraft = JSON.parse(JSON.stringify(subjectTree()));
   let html = '';
   Object.keys(subjTreeDraft).forEach(l1=>{
-    html += '<div class="st-l1"><b>' + esc(l1) + '</b><span class="st-ops">' +
-      '<button class="btn ghost sm" onclick="subjUiAdd(1,\'' + esc(l1) + '\')">+ 系列</button>' +
-      '<button class="btn ghost sm st-edit" onclick="subjUiRename(1,\'' + esc(l1) + '\')">重命名</button>' +
-      '<button class="btn danger sm" onclick="subjDelete([\'' + esc(l1) + '\'])">删除</button></span></div>';
+    html += '<div class="st-cat"><div class="st-cat-title">' + esc(l1) + '</div>';
     Object.keys(subjTreeDraft[l1]).forEach(l2=>{
       const kids = subjTreeDraft[l1][l2];
-      html += '<div class="st-l2">' + esc(l2) + '<span class="st-ops">' +
-        '<button class="btn ghost sm" onclick="subjUiAdd(2,\'' + esc(l1) + '\',\'' + esc(l2) + '\')">+ 科目</button>' +
-        '<button class="btn ghost sm st-edit" onclick="subjUiRename(2,\'' + esc(l1) + '\',\'' + esc(l2) + '\')">重命名</button>' +
+      // 二级：一行一个系列——名居左，操作按钮右对齐同行
+      html += '<div class="st-l2"><b>' + esc(l2) + '</b><span class="st-ops">' +
+        '<button class="btn ghost sm" onclick="subjUiAddSubject(\'' + esc(l1) + '\',\'' + esc(l2) + '\')">+ 科目</button>' +
+        '<button class="btn ghost sm st-edit" onclick="subjUiRenameSeries(\'' + esc(l1) + '\',\'' + esc(l2) + '\')">重命名</button>' +
         '<button class="btn danger sm" onclick="subjDelete([\'' + esc(l1) + '\',\'' + esc(l2) + '\'])">删除</button></span></div>';
+      // 三级：标签流（仅名称 + 小 ×），自动换行
       if(kids && kids.length){
         html += '<div class="st-l3s">' + kids.map(l3=>
           '<span class="tag sample">' + esc(l3) +
-          ' <i class="st-x st-edit" onclick="subjUiRename(3,\'' + esc(l1) + '\',\'' + esc(l2) + '\',\'' + esc(l3) + '\')">✎</i>' +
           ' <i class="st-x" onclick="subjDelete([\'' + esc(l1) + '\',\'' + esc(l2) + '\',\'' + esc(l3) + '\'])">✕</i></span>').join('') + '</div>';
       }
     });
+    // 每个一级分区底部「+ 系列」
+    html += '<div class="st-add"><button class="btn ghost sm" onclick="subjUiAddSeries(\'' + esc(l1) + '\')">+ 系列</button></div></div>';
   });
-  html += '<div style="margin-top:10px"><button class="btn ghost sm" onclick="subjUiAdd(0)">+ 新增一级分类</button></div>';
   document.getElementById('subj-tree-editor').innerHTML = html;
 }
 /* 该路径（前缀）下已有作业记录数：删除保护用 */
 function subjRefCount(prefix){
   return pool.records.filter(r=>r.subject===prefix || (r.subject||'').indexOf(prefix + ' / ')===0).length;
 }
-/* ---- 增（逻辑与 UI 分离：UI 层用 prompt 取名，测试直接调逻辑函数） ---- */
-function subjAddL1(name){
-  name = (name||'').trim();
-  if(!name){ toast('请输入分类名称'); return; }
-  if(subjTreeDraft[name]){ toast('该分类已存在'); return; }
-  subjTreeDraft[name] = {};
-  renderSubjectMgmt();
-}
+/* ---- 增（UI 走统一输入弹窗 askInput；逻辑函数可被测试直接调用） ---- */
 function subjAddL2(l1, name){
   name = (name||'').trim();
   if(!name){ toast('请输入系列名称'); return; }
@@ -3686,22 +3728,13 @@ function subjAddL3(l1, l2, name){
   subjTreeDraft[l1][l2].push(name);
   renderSubjectMgmt();
 }
-function subjUiAdd(level, l1, l2){
-  if(typeof prompt !== 'function') return;  // 桩环境无 prompt，静默（测试直接调逻辑函数）
-  const name = prompt(level===0 ? '新增一级分类名称：' : (level===1 ? '在「' + l1 + '」下新增系列名称：' : '在「' + l2 + '」下新增科目名称：'));
-  if(name === null || name === undefined) return;
-  if(level===0) subjAddL1(name); else if(level===1) subjAddL2(l1, name); else subjAddL3(l1, l2, name);
+function subjUiAddSeries(l1){
+  askInput('在「' + l1 + '」下新增系列', '', name=>subjAddL2(l1, name));
 }
-/* ---- 重命名 ---- */
-function subjRenameL1(l1, nn){
-  nn = (nn||'').trim();
-  if(!nn || nn===l1){ if(!nn) toast('名称不能为空'); return; }
-  if(subjTreeDraft[nn]){ toast('该名称已存在'); return; }
-  const rebuilt = {};
-  Object.keys(subjTreeDraft).forEach(k=>{ rebuilt[k===l1 ? nn : k] = subjTreeDraft[k]; });  // 保持顺序
-  subjTreeDraft = rebuilt;
-  renderSubjectMgmt();
+function subjUiAddSubject(l1, l2){
+  askInput('在「' + l2 + '」下新增科目', '', name=>subjAddL3(l1, l2, name));
 }
+/* ---- 重命名（仅二级系列；保持顺序） ---- */
 function subjRenameL2(l1, l2, nn){
   nn = (nn||'').trim();
   if(!nn || nn===l2){ if(!nn) toast('名称不能为空'); return; }
@@ -3711,32 +3744,19 @@ function subjRenameL2(l1, l2, nn){
   subjTreeDraft[l1] = rebuilt;
   renderSubjectMgmt();
 }
-function subjRenameL3(l1, l2, l3, nn){
-  nn = (nn||'').trim();
-  if(!nn || nn===l3){ if(!nn) toast('名称不能为空'); return; }
-  const arr = subjTreeDraft[l1][l2];
-  if(arr.indexOf(nn) !== -1){ toast('该名称已存在'); return; }
-  arr[arr.indexOf(l3)] = nn;
-  renderSubjectMgmt();
-}
-function subjUiRename(level, l1, l2, l3){
-  if(typeof prompt !== 'function') return;
-  const cur = level===1 ? l1 : (level===2 ? l2 : l3);
-  const nn = prompt('重命名为：', cur);
-  if(nn === null || nn === undefined) return;
-  if(level===1) subjRenameL1(l1, nn); else if(level===2) subjRenameL2(l1, l2, nn); else subjRenameL3(l1, l2, l3, nn);
+function subjUiRenameSeries(l1, l2){
+  askInput('重命名系列「' + l2 + '」', l2, nn=>subjRenameL2(l1, l2, nn));
 }
 /* ---- 删（二次确认；已有记录时提示数量，历史数据保留） ---- */
 function subjDelete(path){
   const prefix = path.join(' / ');
   const n = subjRefCount(prefix);
-  const label = path.length===1 ? '分类' : (path.length===2 ? '系列' : '科目');
+  const label = path.length===2 ? '系列' : '科目';
   askConfirm('删除' + label,
     '确定删除「' + prefix + '」吗？' +
     (n > 0 ? '该科目已有 ' + n + ' 条记录，删除后仅不再出现在菜单，历史数据保留。' : '删除后不再出现在科目菜单。'),
     ()=>{
-      if(path.length===1) delete subjTreeDraft[path[0]];
-      else if(path.length===2) delete subjTreeDraft[path[0]][path[1]];
+      if(path.length===2) delete subjTreeDraft[path[0]][path[1]];
       else { const arr = subjTreeDraft[path[0]][path[1]]; const i = arr.indexOf(path[2]); if(i>=0) arr.splice(i,1); }
       renderSubjectMgmt();
     });

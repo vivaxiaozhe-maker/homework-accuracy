@@ -166,7 +166,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.1.0') !== -1, '登录页版本号升至 v1.1.0');
+  ok(html.indexOf('id="login-ver">v1.1.1') !== -1, '登录页版本号升至 v1.1.1');
 
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
@@ -179,22 +179,48 @@ function ok(cond, name){
   wb.switchTab('today');
   ok(documentStub.getElementById('page-title').textContent === '今日概览', '切回今日概览，topbar 标题联动');
 
-  /* ---- 科目管理（mock）：教务可见、编辑→整体保存→localStorage 覆盖、联动下拉更新、删除二次确认 ---- */
+  /* ---- 科目管理（mock）：教务可见、一级锁定、内部输入弹窗、整体保存→localStorage 覆盖、联动更新、删除二次确认 ---- */
   ok(documentStub.getElementById('subj-mgmt-card').style.display !== 'none', '教务端显示科目管理卡片');
   ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('微积分BC') !== -1, '科目树编辑器渲染默认三级科目');
-  vm.runInContext("subjAddL1('测试分类')", ctx);
-  ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('测试分类') !== -1, '新增一级分类立即出现在编辑器（草稿）');
+  ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('新增一级分类') === -1, '一级分类锁定（无一级增删入口）');
+  // 新增/重命名走统一内部输入弹窗（替代原生 prompt）
+  vm.runInContext("subjUiAddSeries('学科')", ctx);
+  ok(documentStub.getElementById('input-modal').classList.contains('show'), '新增系列弹内部输入弹窗（非原生 prompt）');
+  documentStub.getElementById('in-value').value = '测试系列';
+  documentStub.getElementById('in-ok').onclick();
+  ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('测试系列') !== -1, '弹窗确认后新增系列进入草稿');
   await vm.runInContext('saveSubjectsDraft()', ctx);
-  ok(JSON.parse(ctx.localStorage.getItem('wb_ha_v2_subjects'))['测试分类'] !== undefined, 'mock 模式保存写入 localStorage 覆盖值');
-  ok(vm.runInContext("addSubjPanelHtml('g1')", ctx).indexOf('测试分类') !== -1, '保存后新增科目三级联动立即使用新树');
+  ok(JSON.parse(ctx.localStorage.getItem('wb_ha_v2_subjects'))['学科']['测试系列'] === null, 'mock 模式保存写入 localStorage 覆盖值');
+  documentStub.getElementById('as-g1-s1').value = '学科';
+  vm.runInContext("asSub1Change('g1')", ctx);
+  ok(documentStub.getElementById('as-g1-s2').innerHTML.indexOf('测试系列') !== -1, '保存后三级联动下拉立即使用新树');
   vm.runInContext("subjDelete(['学科','AP','微积分BC'])", ctx);
   ok(/已有 \d+ 条记录/.test(documentStub.getElementById('cf-text').textContent), '删除有记录的科目时确认文案提示记录数（历史保留）');
   documentStub.getElementById('cf-cancel').onclick();  // 取消，不真正删除
-  vm.runInContext("subjDelete(['测试分类'])", ctx);
+  vm.runInContext("subjDelete(['学科','测试系列'])", ctx);
   documentStub.getElementById('cf-ok').onclick();  // 二次确认
-  ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('测试分类') === -1, '删除分类经二次确认后从草稿移除');
+  ok(documentStub.getElementById('subj-tree-editor').innerHTML.indexOf('测试系列') === -1, '删除系列经二次确认后从草稿移除');
   await vm.runInContext('saveSubjectsDraft()', ctx);  // 保存回默认树，避免影响后续用例
-  ok(vm.runInContext("addSubjPanelHtml('g1')", ctx).indexOf('测试分类') === -1, '删除保存后联动菜单恢复默认');
+  ok(vm.runInContext("subjectTree()['学科']['测试系列']", ctx) === undefined, '删除保存后科目树恢复默认');
+
+  /* ---- 学生排序键改为 createdAt：服务端风格 id（非时间戳）下不跳动 ---- */
+  wb.pool.students.push({id:'srv_old', name:'旧生甲', ownerId:ta1.id, createdAt:'2026-09-01T08:00:00.000Z'});
+  wb.pool.students.push({id:'srv_new', name:'新生乙', ownerId:ta1.id, createdAt:'2026-09-05T08:00:00.000Z'});
+  wb.refreshView();
+  wb.toggleTaGroup(ta1.id);  // 教务分组视图默认折叠，展开 ta1 组才能看到学生姓名
+  const stuListSort = documentStub.getElementById('stu-list').innerHTML;
+  ok(stuListSort.indexOf('新生乙') !== -1 && stuListSort.indexOf('新生乙') < stuListSort.indexOf('旧生甲'),
+    'API 风格 id 下按 createdAt 排序，新增学生稳定在前不跳动');
+  wb.pool.students = wb.pool.students.filter(s=>s.id!=='srv_old' && s.id!=='srv_new');  // 清理，避免影响后续用例
+  wb.toggleTaGroup(ta1.id);  // 恢复折叠
+  wb.refreshView();
+
+  /* ---- 切页 = 取消未确认的新增科目面板 ---- */
+  vm.runInContext("toggleAddSubject('g-x')", ctx);
+  ok(vm.runInContext('addSubjGid', ctx) === 'g-x', '新增科目面板展开中');
+  wb.switchTab('stats');
+  ok(vm.runInContext('addSubjGid', ctx) === null, '切页后新增科目面板状态被清空');
+  wb.switchTab('today');
 
   /* ---- 助教数据隔离 ---- */
   wb.doLogout();
@@ -267,8 +293,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.0.6') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.0.6」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.1.1') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.1.1」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
