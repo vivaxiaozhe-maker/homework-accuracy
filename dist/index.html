@@ -387,6 +387,10 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
   background:#FDFCF8;min-height:48px;font-family:inherit;color:var(--ink);
 }
 .search-box input:focus{outline:none;border-color:var(--mint)}
+/* 首字母筛选条：A–Z + # 横排可横滚（沿用 sub-chip 风格），有选中时末尾「清除筛选」 */
+.letter-bar{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 6px;margin-top:10px}
+.letter-bar .sub-chip{flex-shrink:0;min-width:30px;justify-content:center;padding:5px 0;text-align:center;font-weight:600}
+.letter-bar .letter-clear{min-width:0;padding:5px 12px;color:var(--red);border-color:#F0C6C2}
 /* 三级联动科目 */
 .subject-row{display:flex;gap:10px;flex-wrap:wrap}
 .subject-row select,.subject-row input{flex:1;min-width:130px}
@@ -680,7 +684,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.1.3</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.1.4</div>
   </aside>
 
   <main>
@@ -805,6 +809,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input id="stu-search" placeholder="按学生姓名搜索，支持部分匹配，如：林">
         </div>
+        <div id="stu-letter-bar"></div>
       </div>
       <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2"/><circle cx="10" cy="7" r="4"/></svg>学生明细<span style="flex:1"></span>
@@ -825,6 +830,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input id="alumni-search" placeholder="按学生姓名或学校搜索，支持部分匹配">
         </div>
+        <div id="alumni-letter-bar"></div>
       </div>
       <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>历史学生（已毕业 / 已结课）</h2>
@@ -1096,7 +1102,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.1.3</div>
+    <div class="login-ver" id="login-ver">v1.1.4</div>
   </div>
 </div>
 
@@ -1197,7 +1203,7 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
-const APP_VERSION = 'v1.1.3';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.1.4';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -1925,6 +1931,86 @@ function shortSubject(s){
   return s;
 }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ================= 拼音首字母筛选（零依赖） =================
+   内置「姓氏 → 拼音首字母」映射（百家姓 + 常见姓氏，普通对象，缺字随时加一行）；
+   英文名取首字符大写 A–Z；未收录的字归「#」（其他）。 */
+const SURNAME_LETTER = {
+  // A
+  '阿':'A','艾':'A','安':'A','敖':'A','昂':'A','爱':'A',
+  // B
+  '白':'B','巴':'B','柏':'B','班':'B','包':'B','鲍':'B','贝':'B','贲':'B','毕':'B','卞':'B','边':'B','卜':'B','步':'B','薄':'B','保':'B','暴':'B','邴':'B','宾':'B','别':'B','波':'B','布':'B','伯':'B','摆':'B',
+  // C
+  '蔡':'C','曹':'C','岑':'C','柴':'C','昌':'C','常':'C','车':'C','陈':'C','成':'C','程':'C','池':'C','迟':'C','褚':'C','储':'C','楚':'C','崔':'C','丛':'C','才':'C','操':'C','晁':'C','谌':'C','承':'C','初':'C','崇':'C','苍':'C','充':'C','从':'C',
+  // D
+  '戴':'D','邓':'D','刁':'D','丁':'D','董':'D','杜':'D','段':'D','狄':'D','窦':'D','堵':'D','都':'D','党':'D','东':'D','豆':'D','刀':'D','达':'D','笪':'D',
+  // E
+  '鄂':'E','尔':'E','耳':'E',
+  // F
+  '樊':'F','范':'F','方':'F','房':'F','费':'F','丰':'F','封':'F','冯':'F','凤':'F','伏':'F','符':'F','傅':'F','富':'F','付':'F','法':'F','凡':'F','扶':'F','福':'F',
+  // G
+  '干':'G','甘':'G','高':'G','戈':'G','葛':'G','耿':'G','弓':'G','公':'G','宫':'G','龚':'G','巩':'G','勾':'G','古':'G','谷':'G','顾':'G','关':'G','管':'G','桂':'G','郭':'G','国':'G','盖':'G','归':'G','广':'G','缑':'G','郜':'G',
+  // H
+  '哈':'H','海':'H','韩':'H','杭':'H','郝':'H','何':'H','和':'H','贺':'H','赫':'H','洪':'H','侯':'H','胡':'H','扈':'H','花':'H','华':'H','滑':'H','怀':'H','桓':'H','黄':'H','惠':'H','霍':'H','宦':'H','衡':'H','弘':'H','红':'H','后':'H','郈':'H',
+  // J
+  '姬':'J','吉':'J','嵇':'J','纪':'J','季':'J','计':'J','冀':'J','郏':'J','家':'J','贾':'J','简':'J','江':'J','姜':'J','蒋':'J','焦':'J','金':'J','靳':'J','晋':'J','荆':'J','景':'J','井':'J','居':'J','鞠':'J','暨':'J','汲':'J','蓟':'J','籍':'J',
+  // K
+  '康':'K','柯':'K','孔':'K','寇':'K','匡':'K','况':'K','蒯':'K','夔':'K','邝':'K','空':'K','隗':'K','阚':'K','亢':'K',
+  // L
+  '赖':'L','蓝':'L','郎':'L','劳':'L','雷':'L','黎':'L','李':'L','厉':'L','利':'L','连':'L','廉':'L','梁':'L','廖':'L','林':'L','蔺':'L','凌':'L','刘':'L','柳':'L','龙':'L','娄':'L','卢':'L','鲁':'L','陆':'L','路':'L','逯':'L','吕':'L','栾':'L','罗':'L','骆':'L','冷':'L','兰':'L','栗':'L','励':'L','练':'L',
+  // M
+  '麻':'M','马':'M','麦':'M','满':'M','茅':'M','毛':'M','梅':'M','蒙':'M','孟':'M','糜':'M','米':'M','宓':'M','苗':'M','缪':'M','闵':'M','明':'M','莫':'M','牟':'M','牧':'M','慕':'M','穆':'M','母':'M','门':'M','墨':'M',
+  // N
+  '那':'N','南':'N','倪':'N','聂':'N','宁':'N','牛':'N','钮':'N','农':'N','乜':'N','年':'N',
+  // O
+  '欧':'O','区':'O',
+  // P
+  '潘':'P','庞':'P','逄':'P','裴':'P','彭':'P','皮':'P','平':'P','蒲':'P','濮':'P','朴':'P','浦':'P','普':'P','盘':'P',
+  // Q
+  '戚':'Q','祁':'Q','齐':'Q','钱':'Q','强':'Q','乔':'Q','秦':'Q','钦':'Q','丘':'Q','邱':'Q','仇':'Q','裘':'Q','屈':'Q','瞿':'Q','权':'Q','全':'Q','阙':'Q','璩':'Q','琴':'Q','覃':'Q','青':'Q','卿':'Q',
+  // R
+  '冉':'R','饶':'R','任':'R','戎':'R','荣':'R','容':'R','茹':'R','阮':'R','芮':'R','汝':'R','融':'R',
+  // S
+  '桑':'S','沙':'S','山':'S','单':'S','商':'S','尚':'S','邵':'S','佘':'S','申':'S','沈':'S','慎':'S','盛':'S','师':'S','施':'S','石':'S','时':'S','史':'S','舒':'S','束':'S','双':'S','水':'S','司':'S','松':'S','宋':'S','苏':'S','宿':'S','隋':'S','孙':'S','索':'S','寿':'S','殳':'S','厍':'S','韶':'S','莘':'S','绳':'S','帅':'S',
+  // T
+  '邰':'T','谈':'T','谭':'T','汤':'T','唐':'T','陶':'T','滕':'T','田':'T','童':'T','通':'T','佟':'T','屠':'T','涂':'T','钭':'T','檀':'T','泰':'T',
+  // W
+  '万':'W','汪':'W','王':'W','危':'W','韦':'W','卫':'W','尉':'W','魏':'W','温':'W','文':'W','闻':'W','翁':'W','邬':'W','巫':'W','吴':'W','伍':'W','武':'W','乌':'W','沃':'W','蔚':'W','毋':'W','完':'W',
+  // X
+  '郗':'X','习':'X','席':'X','夏':'X','冼':'X','咸':'X','相':'X','向':'X','项':'X','萧':'X','解':'X','谢':'X','辛':'X','邢':'X','幸':'X','熊':'X','胥':'X','徐':'X','许':'X','宣':'X','薛':'X','荀':'X','肖':'X','奚':'X','西':'X','郤':'X','须':'X','修':'X',
+  // Y
+  '燕':'Y','严':'Y','言':'Y','阎':'Y','颜':'Y','晏':'Y','羊':'Y','阳':'Y','杨':'Y','仰':'Y','养':'Y','姚':'Y','叶':'Y','伊':'Y','衣':'Y','易':'Y','殷':'Y','尹':'Y','印':'Y','应':'Y','雍':'Y','尤':'Y','游':'Y','于':'Y','余':'Y','俞':'Y','鱼':'Y','庾':'Y','禹':'Y','郁':'Y','喻':'Y','元':'Y','袁':'Y','岳':'Y','乐':'Y','越':'Y','云':'Y','鄢':'Y','闫':'Y','苑':'Y','运':'Y','恽':'Y',
+  // Z
+  '昝':'Z','臧':'Z','曾':'Z','查':'Z','翟':'Z','詹':'Z','湛':'Z','张':'Z','章':'Z','赵':'Z','甄':'Z','郑':'Z','支':'Z','植':'Z','钟':'Z','仲':'Z','周':'Z','朱':'Z','诸':'Z','祝':'Z','庄':'Z','卓':'Z','宗':'Z','邹':'Z','祖':'Z','左':'Z','终':'Z','竺':'Z','宰':'Z','占':'Z','展':'Z','战':'Z','仉':'Z','折':'Z'
+};
+const LETTER_LIST = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
+// 名字 → 首字母（中文查姓氏表；英文首字符大写；其他归 #）
+function nameLetter(name){
+  const c = (name||'').trim().charAt(0);
+  if(!c) return '#';
+  if(/[a-zA-Z]/.test(c)) return c.toUpperCase();
+  return SURNAME_LETTER[c] || '#';
+}
+/* 首字母筛选状态（模块变量：多选并集，切页不清空，仅刷新重置） */
+let stuLetters = [];
+let alumniLetters = [];
+function matchLetters(name, letters){ return !letters.length || letters.indexOf(nameLetter(name)) !== -1; }
+function toggleLetter(kind, l){
+  const arr = kind==='stu' ? stuLetters : alumniLetters;
+  const i = arr.indexOf(l);
+  if(i === -1) arr.push(l); else arr.splice(i, 1);
+  if(kind==='stu') renderStats(); else renderAlumni();
+}
+function clearLetters(kind){
+  if(kind==='stu'){ stuLetters = []; renderStats(); } else { alumniLetters = []; renderAlumni(); }
+}
+// 筛选条：A–Z + # 横排可横滚（sub-chip 风格），有选中时末尾「清除筛选」
+function letterBarHtml(letters, kind){
+  return '<div class="letter-bar">' +
+    LETTER_LIST.map(l=>'<span class="sub-chip letter-chip' + (letters.indexOf(l)!==-1?' active':'') + '" onclick="toggleLetter(\'' + kind + '\',\'' + l + '\')">' + l + '</span>').join('') +
+    (letters.length ? '<span class="sub-chip letter-clear" onclick="clearLetters(\'' + kind + '\')">清除筛选</span>' : '') +
+    '</div>';
+}
 /* ---- 逾期统一判定（首次课程时间口径） ----
    逾期 ⟺ 未处理 && 该科目已填开课时间（未填一律不算逾期）&& 开课时间 ≤ 今天（未开课不算）&& 未交日期 + 7 天宽限 < 今天
    「未指定科目」的未交无法定位开课时间 → 不算逾期 */
@@ -2324,6 +2410,10 @@ function renderStats(){
     if(s.gradYear) g.gradYear = s.gradYear;
   });
 
+  // 首字母筛选条（搜索框下方，所有角色可见；与姓名搜索/助教筛选叠加取交集）
+  const stuLb = document.getElementById('stu-letter-bar');
+  if(stuLb) stuLb.innerHTML = letterBarHtml(stuLetters, 'stu');
+
   // 销售视角：只读查询模式——默认只显示搜索框，输入关键字后才渲染匹配的只读学生卡
   if(isSalesView()){
     const chipBoxS = document.getElementById('stu-ta-filter');
@@ -2332,14 +2422,14 @@ function renderStats(){
     const listS = document.getElementById('stu-list');
     if(USE_API){ renderSalesApiList(listS, false); return; }  // API 模式：搜索走服务端
     if(!stuQuery){
-      // 无关键字：只展示示例学生（演示用），真实学生仍需搜索——防批量泄露
-      const demo = groups.filter(g=>g.sample);
+      // 无关键字：只展示示例学生（演示用），真实学生仍需搜索——防批量泄露；首字母筛选叠加生效
+      const demo = groups.filter(g=>g.sample && matchLetters(g.name, stuLetters));
       listS.innerHTML = demo.length
         ? '<p class="hint" style="margin-bottom:10px">以下为示例学生（演示用）；查询真实学生请输入姓名或学校：</p>' + demo.map(g=>salesStuCard(g, false)).join('')
-        : '<p class="hint">输入学生姓名或学校进行查询</p>';
+        : '<p class="hint">' + (stuLetters.length ? '没有匹配该首字母的示例学生。' : '输入学生姓名或学校进行查询') + '</p>';
       return;
     }
-    const matchedS = groups.filter(g=>g.name.indexOf(stuQuery)!==-1 || (g.school||'').indexOf(stuQuery)!==-1);
+    const matchedS = groups.filter(g=>(g.name.indexOf(stuQuery)!==-1 || (g.school||'').indexOf(stuQuery)!==-1) && matchLetters(g.name, stuLetters));
     listS.innerHTML = matchedS.length
       ? matchedS.map(g=>salesStuCard(g, false)).join('')
       : '<p class="hint">没有匹配「' + esc(stuQuery) + '」的学生。</p>';
@@ -2360,8 +2450,8 @@ function renderStats(){
 
   // 柱状图
   const wrap = document.getElementById('bar-chart');
-  // 按姓名搜索过滤
-  const filtered = stuQuery ? groups.filter(g=>g.name.indexOf(stuQuery) !== -1) : groups;
+  // 姓名搜索 + 首字母筛选叠加过滤（取交集；图表与明细同口径联动）
+  const filtered = groups.filter(g=>(!stuQuery || g.name.indexOf(stuQuery) !== -1) && matchLetters(g.name, stuLetters));
 
   // 助教维度筛选 chips（仅教务可见；助教端不渲染该行）。只作用于学生明细列表，不影响上方图表
   const chipBox = document.getElementById('stu-ta-filter');
@@ -2406,7 +2496,9 @@ function renderStats(){
   if(!stats.length){
     wrap.innerHTML = stuQuery
       ? '<p class="hint">没有匹配「' + esc(stuQuery) + '」的作业记录。</p>'
-      : '<p class="hint empty-tip"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="5" y="7" width="38" height="34" rx="6" fill="#F0F8F4"/><path d="M24 15v21M24 15c-2.5-2.8-6-3.8-10-3.8v21c4 0 7.5 1 10 3.8 2.5-2.8 6-3.8 10-3.8v-21c-4 0-7.5 1-10 3.8z" stroke="#5FB89A" stroke-width="2.2" stroke-linejoin="round"/></svg>暂无作业记录，录入后即可看到图表。</p>';
+      : (stuLetters.length
+        ? '<p class="hint">没有匹配该首字母的作业记录。</p>'
+        : '<p class="hint empty-tip"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="5" y="7" width="38" height="34" rx="6" fill="#F0F8F4"/><path d="M24 15v21M24 15c-2.5-2.8-6-3.8-10-3.8v21c4 0 7.5 1 10 3.8 2.5-2.8 6-3.8 10-3.8v-21c-4 0-7.5 1-10 3.8z" stroke="#5FB89A" stroke-width="2.2" stroke-linejoin="round"/></svg>暂无作业记录，录入后即可看到图表。</p>');
   } else {
     // 横向条形列表：分组标题 + 每行一个科目（名称/进度条/正确率/次数），长标签不再重叠
     let html = '', lastCat = '';
@@ -2435,7 +2527,9 @@ function renderStats(){
   // 教务的助教维度筛选与姓名搜索叠加生效
   const detail = (isAdminView() && stuTaFilter!=='all') ? filtered.filter(g=>g.ownerId===stuTaFilter) : filtered;
   if(!filtered.length){
-    list.innerHTML = '<p class="hint">没有匹配「' + esc(stuQuery) + '」的学生，换个关键词试试。</p>';
+    list.innerHTML = stuQuery
+      ? '<p class="hint">没有匹配「' + esc(stuQuery) + '」的学生，换个关键词试试。</p>'
+      : '<p class="hint">没有匹配该首字母的学生，换个字母试试。</p>';
     return;
   }
   if(!detail.length){
@@ -2690,7 +2784,9 @@ async function renderSalesApiList(listEl, isAlumni){
   if(!q){ listEl.innerHTML = '<p class="hint">输入学生姓名或学校进行查询</p>'; return; }
   const r = await HttpApi._req('GET', '/api/search/students?q=' + encodeURIComponent(q));
   if(!r.ok){ listEl.innerHTML = '<p class="hint">查询失败，请重试。</p>'; return; }
-  const items = r.students.filter(s=> isAlumni ? s.archived : !s.archived);
+  // 首字母筛选在服务端搜索结果上叠加（客户端后过滤）
+  const letters = isAlumni ? alumniLetters : stuLetters;
+  const items = r.students.filter(s=> (isAlumni ? s.archived : !s.archived) && matchLetters(s.name, letters));
   listEl.innerHTML = items.length
     ? items.map(s=>salesApiCard(s, isAlumni)).join('')
     : '<p class="hint">没有匹配「' + esc(q) + '」的' + (isAlumni ? '历史' : '') + '学生。</p>';
@@ -4065,16 +4161,19 @@ function renderAlumni(){
     if(s.school) g.school = s.school;
     if(s.gradYear) g.gradYear = s.gradYear;
   });
-  // 姓名/学校搜索过滤
-  const filtered = alumniQuery ? groups.filter(g=>g.name.indexOf(alumniQuery)!==-1 || (g.school||'').indexOf(alumniQuery)!==-1) : groups;
+  // 首字母筛选条（所有角色可见；与姓名/学校搜索叠加取交集）
+  const alLb = document.getElementById('alumni-letter-bar');
+  if(alLb) alLb.innerHTML = letterBarHtml(alumniLetters, 'alumni');
+  // 姓名/学校搜索 + 首字母筛选叠加过滤
+  const filtered = groups.filter(g=>(!alumniQuery || g.name.indexOf(alumniQuery)!==-1 || (g.school||'').indexOf(alumniQuery)!==-1) && matchLetters(g.name, alumniLetters));
   // 销售视角：无关键字只展示示例历史学生（演示用），真实学生仍需搜索
   if(isSalesView()){
     if(USE_API){ renderSalesApiList(list, true); return; }  // API 模式：搜索走服务端
     if(!alumniQuery){
-      const demo = groups.filter(g=>g.sample);
+      const demo = groups.filter(g=>g.sample && matchLetters(g.name, alumniLetters));
       list.innerHTML = demo.length
         ? '<p class="hint" style="margin-bottom:10px">以下为示例历史学生（演示用）；查询真实学生请输入姓名或学校：</p>' + demo.map(g=>salesStuCard(g, true)).join('')
-        : '<p class="hint">输入学生姓名或学校进行查询</p>';
+        : '<p class="hint">' + (alumniLetters.length ? '没有匹配该首字母的示例历史学生。' : '输入学生姓名或学校进行查询') + '</p>';
       return;
     }
     list.innerHTML = filtered.length

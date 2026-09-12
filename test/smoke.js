@@ -166,7 +166,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.1.3') !== -1, '登录页版本号升至 v1.1.3');
+  ok(html.indexOf('id="login-ver">v1.1.4') !== -1, '登录页版本号升至 v1.1.4');
 
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
@@ -241,6 +241,73 @@ function ok(cond, name){
   ok(vm.runInContext('addSubjGid', ctx) === null, '切页后新增科目面板状态被清空');
   wb.switchTab('today');
 
+  /* ---- 首字母筛选：映射 / 单选 / 多选并集 / 清除 / 叠加搜索 / 叠加助教筛选 / 图表联动 / 历史页 / 销售端 / 切页保留 ---- */
+  ok(vm.runInContext("nameLetter('罗昊')", ctx) === 'L' && vm.runInContext("nameLetter('张三')", ctx) === 'Z'
+    && vm.runInContext("nameLetter('赵四')", ctx) === 'Z', '中文姓氏拼音首字母映射（罗→L、张→Z、赵→Z）');
+  ok(vm.runInContext("nameLetter('Alice')", ctx) === 'A' && vm.runInContext("nameLetter('bob')", ctx) === 'B', '英文名取首字符大写');
+  ok(vm.runInContext("nameLetter('乂安')", ctx) === '#' && vm.runInContext("nameLetter('')", ctx) === '#', '未收录姓氏与空名归「#」');
+  ok(documentStub.getElementById('stu-letter-bar').innerHTML.indexOf('>#<') !== -1, '现有学生页筛选条渲染 A–Z + #');
+  ok(documentStub.getElementById('alumni-letter-bar').innerHTML.indexOf('letter-chip') !== -1, '历史学生页筛选条渲染');
+  // 切 ta1 视角做列表明细断言（admin 分组视图默认折叠组头不出姓名）
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  vm.runInContext("toggleLetter('stu','C')", ctx);
+  let letterHtml = documentStub.getElementById('stu-list').innerHTML;
+  ok(letterHtml.indexOf('陈星宇') !== -1 && letterHtml.indexOf('林小满') === -1 && letterHtml.indexOf('苏晚晴') === -1,
+    '单选 C：仅显示陈姓学生');
+  const chartC = documentStub.getElementById('bar-chart').innerHTML;
+  ok(chartC.indexOf('AP·物理1') !== -1 && chartC.indexOf('AP·微积分BC') === -1, '图表随首字母联动过滤');
+  vm.runInContext("toggleLetter('stu','S')", ctx);
+  letterHtml = documentStub.getElementById('stu-list').innerHTML;
+  ok(letterHtml.indexOf('陈星宇') !== -1 && letterHtml.indexOf('苏晚晴') !== -1 && letterHtml.indexOf('林小满') === -1,
+    '多选并集：C + S 两类学生都显示');
+  ok(documentStub.getElementById('stu-letter-bar').innerHTML.indexOf('清除筛选') !== -1, '有选中时筛选条末尾出现「清除筛选」');
+  wb.setStuQuery('苏');
+  letterHtml = documentStub.getElementById('stu-list').innerHTML;
+  ok(letterHtml.indexOf('苏晚晴') !== -1 && letterHtml.indexOf('陈星宇') === -1, '与姓名搜索叠加取交集');
+  wb.setStuQuery('');
+  vm.runInContext("toggleLetter('stu','C')", ctx);  // 剩 S
+  vm.runInContext("toggleLetter('stu','Q')", ctx);  // 加无匹配字母
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('苏晚晴') !== -1, '多选中无匹配字母不影响有匹配的并集');
+  vm.runInContext("toggleLetter('stu','S')", ctx);  // 只剩 Q → 空
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('没有匹配该首字母') !== -1, '全部字母无匹配时给空提示');
+  vm.runInContext("clearLetters('stu')", ctx);
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('林小满') !== -1
+    && documentStub.getElementById('stu-letter-bar').innerHTML.indexOf('清除筛选') === -1, '清除筛选恢复全部且按钮消失');
+  // 历史学生页同样生效
+  vm.runInContext("toggleLetter('alumni','L')", ctx);
+  const alLetterHtml = documentStub.getElementById('alumni-list').innerHTML;
+  ok(alLetterHtml.indexOf('李浩然') !== -1, '历史学生页按首字母过滤生效（L → 李浩然）');
+  vm.runInContext("clearLetters('alumni')", ctx);
+  // 切页不清空筛选状态
+  vm.runInContext("toggleLetter('stu','Z')", ctx);
+  wb.switchTab('today'); wb.switchTab('stats');
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('周子墨') !== -1
+    && documentStub.getElementById('stu-list').innerHTML.indexOf('林小满') === -1, '切页后首字母筛选保持（Z → 周子墨）');
+  vm.runInContext("clearLetters('stu')", ctx);
+  // 与助教维度筛选叠加（回 admin 视图）
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  vm.runInContext("toggleLetter('stu','C')", ctx);
+  wb.setStuTaFilter(admin.id);  // admin 名下无学生
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('该助教名下暂无匹配的学生') !== -1, '与助教筛选叠加取交集（空结果提示）');
+  wb.setStuTaFilter('all');
+  vm.runInContext("clearLetters('stu')", ctx);
+  // 销售端：示例卡叠加首字母筛选
+  wb.doLogout();
+  await wb.doLogin('sales1', 'sales123456', 'sales');
+  vm.runInContext("toggleLetter('stu','L')", ctx);
+  const salesLetterHtml = documentStub.getElementById('stu-list').innerHTML;
+  ok(salesLetterHtml.indexOf('林小满') !== -1 && salesLetterHtml.indexOf('陈星宇') === -1, '销售端示例卡叠加首字母筛选');
+  vm.runInContext("toggleLetter('alumni','Z')", ctx);
+  const salesAlHtml = documentStub.getElementById('alumni-list').innerHTML;
+  ok(salesAlHtml.indexOf('赵雨桐') !== -1 && salesAlHtml.indexOf('李浩然') === -1, '销售端历史学生页同样生效');
+  vm.runInContext("clearLetters('stu')", ctx);
+  vm.runInContext("clearLetters('alumni')", ctx);
+  // 恢复教务登录与默认筛选状态，避免影响后续用例
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+
   /* ---- 助教数据隔离 ---- */
   wb.doLogout();
   await wb.doLogin('ta1', 'ta123456', 'ta');
@@ -312,8 +379,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.1.3') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.1.3」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.1.4') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.1.4」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
