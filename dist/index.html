@@ -684,7 +684,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.1.5</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.1.6</div>
   </aside>
 
   <main>
@@ -1102,7 +1102,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.1.5</div>
+    <div class="login-ver" id="login-ver">v1.1.6</div>
   </div>
 </div>
 
@@ -1203,7 +1203,7 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
-const APP_VERSION = 'v1.1.5';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.1.6';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -2050,6 +2050,10 @@ function switchTab(name){
     : ['today','stats','alumni','data','audit'];
   if(allowed.indexOf(name) === -1) name = role==='sales' ? 'stats' : 'today';
   addSubjGid = null;  // 切页 = 取消未确认的「新增科目」面板（回来时重新展开）
+  // 切页 = 清空筛选条件恢复默认展示（姓名搜索 + 首字母筛选）
+  stuQuery = ''; alumniQuery = ''; stuLetters = []; alumniLetters = [];
+  const ss = document.getElementById('stu-search'); if(ss) ss.value = '';
+  const as = document.getElementById('alumni-search'); if(as) as.value = '';
   document.querySelectorAll('.nav-btn,.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   document.querySelectorAll('.tab-pane').forEach(p=>p.classList.toggle('active', p.id==='pane-'+name));
   const pt = document.getElementById('page-title');  // DOM 桩下为桩元素，赋值静默安全
@@ -5007,10 +5011,11 @@ let dashAlertExpand = { low: false, miss: false, sleep: false };
 function dashToggleAlert(key){ dashAlertExpand[key] = !dashAlertExpand[key]; renderDashboard(); }
 /* 预警跳转：跳到「现有学生」并把姓名填入搜索框（复用现有搜索机制定位学生卡） */
 function dashGotoStudent(name){
+  switchTab('stats');  // 先切页（切页会清空筛选），再填搜索词
   stuQuery = name;
   const inp = document.getElementById('stu-search');
   if(inp) inp.value = name;
-  switchTab('stats');
+  renderStats();
 }
 /* 助教行下钻：再点同一行返回全部助教 */
 function dashDrillTa(id){

@@ -166,7 +166,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.1.5') !== -1, '登录页版本号升至 v1.1.5');
+  ok(html.indexOf('id="login-ver">v1.1.6') !== -1, '登录页版本号升至 v1.1.6');
 
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
@@ -279,12 +279,15 @@ function ok(cond, name){
   const alLetterHtml = documentStub.getElementById('alumni-list').innerHTML;
   ok(alLetterHtml.indexOf('李浩然') !== -1, '历史学生页按首字母过滤生效（L → 李浩然）');
   vm.runInContext("clearLetters('alumni')", ctx);
-  // 切页不清空筛选状态
+  // 切页清空筛选条件（字母 + 姓名搜索）恢复默认展示
   vm.runInContext("toggleLetter('stu','Z')", ctx);
+  wb.setStuQuery('林');
   wb.switchTab('today'); wb.switchTab('stats');
   ok(documentStub.getElementById('stu-list').innerHTML.indexOf('周子墨') !== -1
-    && documentStub.getElementById('stu-list').innerHTML.indexOf('林小满') === -1, '切页后首字母筛选保持（Z → 周子墨）');
-  vm.runInContext("clearLetters('stu')", ctx);
+    && documentStub.getElementById('stu-list').innerHTML.indexOf('林小满') !== -1
+    && documentStub.getElementById('stu-letter-bar').innerHTML.indexOf('清除筛选') === -1
+    && documentStub.getElementById('stu-search').value === '',
+    '切页后首字母筛选与姓名搜索清空，恢复默认展示');
   // 与助教维度筛选叠加（回 admin 视图）
   wb.doLogout();
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -379,8 +382,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.1.5') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.1.5」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.1.6') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.1.6」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
