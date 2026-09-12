@@ -166,7 +166,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.1.4') !== -1, '登录页版本号升至 v1.1.4');
+  ok(html.indexOf('id="login-ver">v1.1.5') !== -1, '登录页版本号升至 v1.1.5');
 
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
@@ -379,8 +379,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.1.4') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.1.4」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.1.5') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.1.5」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -603,6 +603,30 @@ function ok(cond, name){
   ok(cardCnt(listSearch)===1 && listSearch.indexOf('林小满')!==-1, '姓名搜索与助教筛选叠加生效');
   wb.setStuQuery('');
   wb.setStuTaFilter('all');
+
+  /* ---- 归档（历史学生）的未交不进待办 ---- */
+  const zzmMiss = wb.pool.missed.find(m=>!m.resolved && m.sample);
+  const zzmStu = wb.pool.students.find(s=>s.id===zzmMiss.studentId);
+  // 构造为逾期：日期改为 30 天前（超 7 天宽限）+ 补科目与开课时间；学生改名便于断言（两位助教都有周子墨，且教务视角今日待办为只读、不含记录 id）
+  zzmMiss.subject = '竞赛 / AMC10';
+  zzmMiss.date = '2026-08-10';
+  zzmStu.subjFirstClass = {'竞赛 / AMC10': '2026-08-01'};
+  zzmStu.name = '归档测试生';
+  wb.refreshView(); wb.renderToday(); wb.renderDashboard();
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf('归档测试生') !== -1, '归档前今日待办含该未交记录');
+  const quickBefore = documentStub.getElementById('quick-grid').innerHTML.match(/(\d+)<\/div><div class="lbl">未补交作业/);
+  ok(wb.computeDash().overdueList.some(x=>x.id===zzmMiss.id), '归档前看板逾期名单含该记录');
+  const stuSortKeyBackup = zzmMiss.resolved;
+  zzmStu.archived = true;
+  wb.refreshView(); wb.renderToday(); wb.renderDashboard();
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf('归档测试生') === -1, '归档后今日待办不再显示该未交');
+  const quickAfter = documentStub.getElementById('quick-grid').innerHTML.match(/(\d+)<\/div><div class="lbl">未补交作业/);
+  ok(quickBefore && quickAfter && parseInt(quickAfter[1]) === parseInt(quickBefore[1]) - 1, '归档后快速一览未补交计数减一');
+  ok(!wb.computeDash().overdueList.some(x=>x.id===zzmMiss.id), '归档后看板逾期名单不含该记录');
+  ok(zzmMiss.resolved === false && stuSortKeyBackup === false, '归档不改变未交数据本身（留痕可查）');
+  zzmStu.archived = false;
+  wb.refreshView(); wb.renderToday(); wb.renderDashboard();
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf('归档测试生') !== -1, '恢复为现有学生后待办重新出现');
   // 历史学生页渲染（含示例历史学生，无 NaN/undefined）
   const alHtml = documentStub.getElementById('alumni-list').innerHTML;
   ok(alHtml.indexOf('NaN')===-1 && alHtml.indexOf('undefined')===-1

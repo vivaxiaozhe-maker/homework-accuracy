@@ -684,7 +684,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.1.4</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.1.5</div>
   </aside>
 
   <main>
@@ -1102,7 +1102,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.1.4</div>
+    <div class="login-ver" id="login-ver">v1.1.5</div>
   </div>
 </div>
 
@@ -1203,7 +1203,7 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
-const APP_VERSION = 'v1.1.4';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.1.5';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -2168,6 +2168,7 @@ function renderToday(){
   const stuGroups = {};
   state.missed.filter(m=>!m.resolved).forEach(m=>{
     const st = state.students.find(x=>x.id===m.studentId);
+    if(st && st.archived) return;  // 已归档 = 学习已结束：不进待办（数据保留在历史学生卡）
     const fc = m.subject && st && st.subjFirstClass && st.subjFirstClass[m.subject];
     if(fc && fc > todayStr()) return;  // 未开课：不进入今天要处理
     (stuGroups[m.studentId] = stuGroups[m.studentId] || []).push(m);
@@ -2258,7 +2259,11 @@ function renderToday(){
 
   // 快速统计
   const todayRecs = state.records.filter(r=>r.date===t).length;
-  const unresolved = state.missed.filter(m=>!m.resolved).length;
+  const unresolved = state.missed.filter(m=>{
+    if(m.resolved) return false;
+    const st = state.students.find(x=>x.id===m.studentId);
+    return !(st && st.archived);  // 已归档学生的未交不计入待办统计
+  }).length;
   const recent = state.records.filter(r=>r.date>=weekAgo);
   const avgAcc = recent.length ? Math.round(recent.reduce((s,r)=>s+acc(r),0)/recent.length) : null;
   document.getElementById('quick-grid').innerHTML =
@@ -4806,7 +4811,9 @@ function computeDash(){
   const missed = pool.missed.filter(m=>dashOwner==='all' || m.ownerId===dashOwner);
   const students = pool.students.filter(s=>dashOwner==='all' || s.ownerId===dashOwner);
   const avgAcc = recs.length ? Math.round(recs.reduce((s,r)=>s+acc(r),0)/recs.length) : null;
-  const openMiss = missed.filter(m=>!m.resolved);
+  // 已归档学生的未交不算逾期（学习已结束，不再催办）
+  const isActiveMissed = m => { const st = pool.students.find(x=>x.id===m.studentId); return !(st && st.archived); };
+  const openMiss = missed.filter(m=>!m.resolved && isActiveMissed(m));
   const overdue = openMiss.filter(m=>isOverdueMissed(m, pool.students.find(x=>x.id===m.studentId)));
 
   // 近 30 天录入趋势：始终画 30 天，受助教筛选影响
