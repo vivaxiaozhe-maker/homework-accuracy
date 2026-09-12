@@ -3,7 +3,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireRole } = require('../auth');
-const { uid, logAudit, canWrite, stuToJson } = require('../util');
+const { uid, logAudit, canWrite, clientId, stuToJson } = require('../util');
 
 const router = express.Router();
 router.use(requireRole('ta', 'admin'));  // 销售只读，不能写
@@ -17,7 +17,11 @@ router.post('/', (req, res) => {
   const clash = db.prepare('SELECT 1 FROM students WHERE owner_id = ? AND archived = 0 AND TRIM(name) = ?')
     .get(ownerId, name.trim());
   if(clash) return res.status(400).json({ ok: false, msg: '「' + name.trim() + '」已在现有学生中，同名不能重复录入' });
-  const id = uid('s_');
+  // 客户端可选 id（贯穿式，前端不再回填替换）；未传走服务端生成
+  const cid = clientId(req.body.id, 'students');
+  if(cid === 'invalid') return res.status(400).json({ ok: false, msg: 'id 不合法' });
+  if(cid === 'conflict') return res.status(409).json({ ok: false, msg: 'id 冲突，请刷新后重试' });
+  const id = cid || uid('s_');
   db.prepare(`INSERT INTO students (id, owner_id, name, school, grad_year, archived, sample, created_at)
               VALUES (?,?,?,?,?,0,0,?)`)
     .run(id, ownerId, name.trim(), (school || '').trim(), String(gradYear), new Date().toISOString());

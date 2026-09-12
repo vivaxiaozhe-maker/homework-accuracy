@@ -59,4 +59,14 @@ function reqToJson(r){
     reviewedBy: r.reviewed_by || null, reviewedAt: r.reviewed_at || null, sample: !!r.sample };
 }
 
-module.exports = { nowTs, uid, logAudit, canWrite, parseJson, stuToJson, recToJson, missToJson, reqToJson };
+/* 客户端可选 id（id 由前端生成并贯穿，避免回填替换导致引用失效/排序退化）：
+   字符串、≤64 字符、表内唯一；未传返回 null（走服务端生成兜底）；
+   'invalid'/'conflict' 标记由调用方转 400/409。表名为内部常量，无注入风险。 */
+function clientId(raw, table){
+  if(raw === undefined || raw === null || raw === '') return null;
+  if(typeof raw !== 'string' || raw.length > 64) return 'invalid';
+  const clash = db.prepare('SELECT 1 FROM ' + table + ' WHERE id = ?').get(raw);
+  return clash ? 'conflict' : raw;
+}
+
+module.exports = { nowTs, uid, logAudit, canWrite, clientId, parseJson, stuToJson, recToJson, missToJson, reqToJson };

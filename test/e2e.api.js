@@ -91,7 +91,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.1.2', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.1.3', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -192,7 +192,7 @@ function ok(cond, name){
   let st1 = await apiGetState();
   ok(st1.records.some(r=>r.studentId===sid && r.total===20 && r.correct===18), '录入作业已持久化到服务端');
   const recId = wb.pool.records.find(r=>r.studentId===sid && r.total===20).id;
-  ok(st1.records.some(r=>r.id===recId), '服务端记录 id 已回填到本地 pool');
+  ok(st1.records.some(r=>r.id===recId), '记录 id 客户端生成并贯穿（服务端与本地一致）');
 
   /* ---- 附件：上传 → 记录引用文件 id → state 回读 ---- */
   const fd = new FormData();
@@ -350,6 +350,31 @@ function ok(cond, name){
   const treeBack = await wb.HttpApi._req('GET', '/api/subjects');
   ok(treeBack.tree['测试分类'] && treeBack.tree['测试分类']['测试系列'][0] === '测试科目', 'GET 回读新科目树（教务改动生效）');
   await wb.HttpApi._req('PUT', '/api/subjects', { tree: treeAdm.tree });  // 恢复默认树，避免影响其他用例
+
+  /* ---- 客户端 id 贯穿时序：新增学生不跳底 + 新增科目面板可开 + 删除格子可用 ---- */
+  await wb.doLogin('ta1', 'ta654321', 'ta');
+  const addResp = await wb.HttpApi.addStudent({ id: 'e2e-stu-new', name: '新生丙', gradYear: '2027' });
+  ok(addResp.ok && addResp.student && addResp.student.id === 'e2e-stu-new', '后端采用客户端 id（新增学生）');
+  await wb.resyncState();  // 模拟重取 state（原先 id 回填替换后会跳底的场景）
+  const listHtml = documentStub.getElementById('stu-list').innerHTML;
+  ok(listHtml.indexOf('新生丙') !== -1 && listHtml.indexOf('新生丙') < listHtml.indexOf('林小满'),
+    '重取 state 后新增学生仍在列表首位（createdAt 排序键生效）');
+  vm.runInContext("toggleAddSubject('e2e-stu-new')", ctx);
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('add-subj-panel') !== -1, '点新增科目面板出现（id 引用未失效）');
+  vm.runInContext("toggleAddSubject('e2e-stu-new')", ctx);  // 收起面板
+  // 录入作业 → 删除格子可用（id 引用全程有效）
+  wb.setQuickEntry({ gid: 'e2e-stu-new', subject: '学科 / AP / 微积分BC' });
+  setVal('qe-date', ''); setVal('qe-total', '10'); setVal('qe-correct', '9'); setVal('qe-wrongs', '3');
+  wb.saveQuickEntry();
+  await sleep(300);
+  const newRec = wb.pool.records.find(r => r.studentId === 'e2e-stu-new');
+  ok(newRec && (await apiGetState()).records.some(r => r.id === newRec.id), '录入作业已持久化（服务端与本地 id 一致）');
+  wb.setSlotEdit({ gid: 'e2e-stu-new', subject: '学科 / AP / 微积分BC', idx: 1 });
+  vm.runInContext('deleteSlot()', ctx);
+  await vm.runInContext('cfCallback()', ctx);  // 二次确认删除
+  await sleep(300);
+  ok(!wb.pool.records.some(r => r.id === newRec.id) && !(await apiGetState()).records.some(r => r.id === newRec.id),
+    '删除格子可用且服务端同步删除（id 引用全程有效）');
 
   console.log('\ne2e 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();

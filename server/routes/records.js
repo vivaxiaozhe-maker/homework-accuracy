@@ -4,7 +4,7 @@ const express = require('express');
 const fs = require('fs');
 const db = require('../db');
 const { requireRole } = require('../auth');
-const { uid, logAudit, canWrite, recToJson, missToJson, parseJson } = require('../util');
+const { uid, logAudit, canWrite, clientId, recToJson, missToJson, parseJson } = require('../util');
 
 const router = express.Router();
 const guard = requireRole('ta', 'admin');  // 销售只读，不能写（逐路由挂载，不能用 router.use——本路由挂在 /api 根上）
@@ -52,7 +52,11 @@ router.post('/records', guard, (req, res) => {
   if(err) return res.status(400).json({ ok: false, msg: err });
   const ferr = checkFileIds(req.user, images || []) || checkFileIds(req.user, pdfs || []);
   if(ferr) return res.status(400).json({ ok: false, msg: ferr });
-  const id = uid('r_');
+  // 客户端可选 id（贯穿式，前端不再回填替换）；未传走服务端生成
+  const cid = clientId(req.body.id, 'records');
+  if(cid === 'invalid') return res.status(400).json({ ok: false, msg: 'id 不合法' });
+  if(cid === 'conflict') return res.status(409).json({ ok: false, msg: 'id 冲突，请刷新后重试' });
+  const id = cid || uid('r_');
   db.prepare(`INSERT INTO records (id, student_id, owner_id, date, total, correct, wrongs, subject, images, pdfs, sample)
               VALUES (?,?,?,?,?,?,?,?,?,?,0)`)
     .run(id, studentId, st.owner_id, date, total, correct, JSON.stringify(wrongs || []), subject || '',
@@ -109,7 +113,11 @@ router.post('/missed', guard, (req, res) => {
                           AND IFNULL(subject,'') = IFNULL(?, '') AND resolved = 0`)
     .get(studentId, date, subject || '');
   if(dup) return res.status(400).json({ ok: false, msg: '该学生在该日期已有此科目的未交记录' });
-  const id = uid('m_');
+  // 客户端可选 id（贯穿式）；未传走服务端生成
+  const cid = clientId(req.body.id, 'missed');
+  if(cid === 'invalid') return res.status(400).json({ ok: false, msg: 'id 不合法' });
+  if(cid === 'conflict') return res.status(409).json({ ok: false, msg: 'id 冲突，请刷新后重试' });
+  const id = cid || uid('m_');
   db.prepare(`INSERT INTO missed (id, student_id, owner_id, date, subject, resolved, sample)
               VALUES (?,?,?,?,?,0,0)`)
     .run(id, studentId, st.owner_id, date, subject || '');

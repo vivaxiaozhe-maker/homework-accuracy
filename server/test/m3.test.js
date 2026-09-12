@@ -225,6 +225,24 @@ function ok(cond, name){
   ok(p1.data.items.length === 2 && p2.data.items.length === 2 && p1.data.items[0].id !== p2.data.items[0].id
     && p1.data.total === p2.data.total, '审计服务端分页');
 
+  /* ---- 客户端 id 贯穿（学生/记录/未交：采用客户端 id / 冲突 409 / 未传兼容服务端生成） ---- */
+  r = await req('POST', '/api/students', { id: 'cli-stu-1', name: '客户端ID生', gradYear: '2027' }, T1);
+  ok(r.status === 200 && r.data.student.id === 'cli-stu-1' && r.data.student.createdAt, 'POST /api/students 采用客户端 id（含 createdAt 回填）');
+  r = await req('POST', '/api/students', { id: 'cli-stu-1', name: '另一个学生', gradYear: '2027' }, T1);
+  ok(r.status === 409 && r.data.ok === false, '学生客户端 id 冲突 409');
+  r = await req('POST', '/api/records', { id: 'cli-rec-1', studentId: 'cli-stu-1', date: today(), total: 10, correct: 9, wrongs: [1], subject: '学科 / AP / 微积分BC' }, T1);
+  ok(r.status === 200 && r.data.record.id === 'cli-rec-1', 'POST /api/records 采用客户端 id');
+  r = await req('POST', '/api/records', { id: 'cli-rec-1', studentId: 'cli-stu-1', date: offDay(-1), total: 10, correct: 8, wrongs: [] }, T1);
+  ok(r.status === 409, '记录客户端 id 冲突 409');
+  r = await req('POST', '/api/missed', { id: 'cli-mis-1', studentId: 'cli-stu-1', date: today(), subject: '学科 / AP / 微积分BC' }, T1);
+  ok(r.status === 200 && r.data.missed.id === 'cli-mis-1', 'POST /api/missed 采用客户端 id');
+  r = await req('POST', '/api/missed', { id: 'cli-mis-1', studentId: 'cli-stu-1', date: offDay(-1), subject: '竞赛 / AMC10' }, T1);
+  ok(r.status === 409, '未交客户端 id 冲突 409');
+  r = await req('POST', '/api/records', { id: 'x'.repeat(65), studentId: 'cli-stu-1', date: today(), total: 5, correct: 5, wrongs: [] }, T1);
+  ok(r.status === 400, '超长 id（>64 字符）400');
+  r = await req('POST', '/api/records', { studentId: 'cli-stu-1', date: today(), total: 5, correct: 5, wrongs: [] }, T1);
+  ok(r.status === 200 && r.data.record.id && r.data.record.id !== 'cli-rec-1', '未传 id 走服务端生成（向后兼容）');
+
   console.log('\nM3 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();
   try{ fs.unlinkSync(TEST_DB); fs.unlinkSync(TEST_DB + '-wal'); fs.unlinkSync(TEST_DB + '-shm'); }catch(e){}
