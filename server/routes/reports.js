@@ -57,14 +57,16 @@ router.post('/push', async (req, res) => {
   // 最近正确率：该学生该科目最近一条作业记录
   const lastRec = db.prepare('SELECT * FROM records WHERE student_id = ? AND subject = ? ORDER BY date DESC LIMIT 1').get(studentId, subject);
   const lastAcc = lastRec ? (lastRec.total > 0 ? Math.round(lastRec.correct / lastRec.total * 100) : 0) + '%' : '暂无记录';
-  // 模板字段按 first/keyword1-3/remark 通用结构（公众平台模板需与此对齐）
-  const tplData = {
-    first: { value: st.name + ' 的「' + shortSubject(subject) + '」作业打卡报告已更新' },
-    keyword1: { value: st.name },
-    keyword2: { value: shortSubject(subject) },
-    keyword3: { value: lastAcc + '（' + nowTs().slice(0, 10) + '）' },
-    remark: { value: '点击查看完整打卡报告' }
-  };
+  // 模板字段：默认 first/keyword1-3/remark 通用结构；WECHAT_TEMPLATE_MODE=content 时用单字段 content（适配「{{content.DATA}}」单字段模板）
+  const tplData = wx.cfg().templateMode === 'content'
+    ? { content: { value: '【' + st.name + '】' + shortSubject(subject) + ' 作业打卡报告已更新，最近正确率 ' + lastAcc + '。点击查看完整打卡报告' } }
+    : {
+      first: { value: st.name + ' 的「' + shortSubject(subject) + '」作业打卡报告已更新' },
+      keyword1: { value: st.name },
+      keyword2: { value: shortSubject(subject) },
+      keyword3: { value: lastAcc + '（' + nowTs().slice(0, 10) + '）' },
+      remark: { value: '点击查看完整打卡报告' }
+    };
   let accessToken;
   try{ accessToken = await wx.getAccessToken(); }
   catch(e){ return res.status(502).json({ ok: false, msg: '微信接口调用失败：' + e.message }); }

@@ -8,7 +8,8 @@ function cfg(){
     appid: process.env.WECHAT_APPID || '',
     secret: process.env.WECHAT_SECRET || '',
     token: process.env.WECHAT_TOKEN || '',
-    templateId: process.env.WECHAT_TEMPLATE_ID || ''
+    templateId: process.env.WECHAT_TEMPLATE_ID || '',
+    templateMode: process.env.WECHAT_TEMPLATE_MODE || 'keywords'  // keywords=多字段模板 / content=单字段 content 模板
   };
 }
 function configured(){
