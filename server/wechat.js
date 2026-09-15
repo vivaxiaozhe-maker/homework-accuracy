@@ -47,6 +47,18 @@ async function getAccessToken(){
 /* 测试用：清空 access_token 缓存 */
 function _resetTokenCache(){ tokenCache = { token: null, expiresAt: 0 }; }
 
+/* 带 token 失效自愈的微信接口调用：errcode 40001（token 被外部刷新而失效）时清缓存重取并重试一次 */
+async function callWithTokenRetry(fn){
+  let accessToken = await getAccessToken();
+  let d = await fn(accessToken);
+  if(d && d.errcode === 40001){
+    _resetTokenCache();
+    accessToken = await getAccessToken();
+    d = await fn(accessToken);
+  }
+  return d;
+}
+
 /* 最少量 XML 解析：微信服务器推送为固定格式 XML（内部系统、来源可控），
    用正则提取 <tag> 或 <tag><![CDATA[…]]></tag> 的值即可，不引 XML 解析库。
    注意 CDATA 闭合是三字符「]]>」——只剥「]]」会回溯把残壳吞进值里（已踩过） */
@@ -64,4 +76,4 @@ function replyText(toUser, fromUser, content){
     '<Content><![CDATA[' + content + ']]></Content></xml>';
 }
 
-module.exports = { cfg, configured, checkSignature, getAccessToken, _resetTokenCache, xmlVal, replyText };
+module.exports = { cfg, configured, checkSignature, getAccessToken, _resetTokenCache, callWithTokenRetry, xmlVal, replyText };
