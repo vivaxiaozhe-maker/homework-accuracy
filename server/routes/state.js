@@ -12,6 +12,11 @@ router.get('/', (req, res) => {
   const students = (isAdmin
     ? db.prepare('SELECT * FROM students').all()
     : db.prepare('SELECT * FROM students WHERE owner_id = ?').all(req.user.id)).map(stuToJson);
+  // 家长绑定数（学生卡显示绑定状态用；一次聚合查询避免 N+1）
+  const bindMap = {};
+  db.prepare('SELECT student_id, COUNT(*) AS c FROM parent_binds WHERE unbound = 0 GROUP BY student_id').all()
+    .forEach(b => { bindMap[b.student_id] = b.c; });
+  students.forEach(s => { s.bindCnt = bindMap[s.id] || 0; });
   const records = (isAdmin
     ? db.prepare('SELECT * FROM records').all()
     : db.prepare('SELECT * FROM records WHERE owner_id = ?').all(req.user.id)).map(recToJson);

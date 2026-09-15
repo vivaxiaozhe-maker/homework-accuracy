@@ -1,17 +1,34 @@
-/* 报告分享路由（家长 H5 报告页，方案：docs/parent-push-plan.md 第 1 步）
+/* 报告分享路由（家长 H5 报告页 + 服务号模板消息推送，方案：docs/parent-push-plan.md 第 1/3 步）
    - POST /api/reports/share            助教/教务生成（或复用）分享链接，归属校验在路由内
    - POST /api/reports/share/:token/revoke  撤销（创建者本人或教务）
-   - GET  /r/:token                     公开只读报告页（sharePage，由 index.js 挂在 /api 守卫之外；零 JS，CSP 兼容） */
+   - POST /api/reports/push             模板消息推送给已绑定家长
+   - GET  /r/:token                     公开只读报告页在 index.js 单独挂载（/api 全局守卫之外） */
 const crypto = require('crypto');
 const express = require('express');
 const db = require('../db');
 const { requireRole } = require('../auth');
 const { logAudit, canWrite, parseJson, nowTs } = require('../util');
+const wx = require('../wechat');
 
 const router = express.Router();
-router.use(requireRole('ta', 'admin'));  // 销售无报告分享入口（前端销售端也无报告弹窗）
+router.use(requireRole('ta', 'admin'));  // 销售无报告分享/推送入口（前端销售端也无报告弹窗）
 
 const SHARE_DAYS = 30;
+
+/* 创建/复用分享 token（同学生同科目有未过期未撤销的链接 → 复用）：返回 {token, reused} */
+function ensureShareToken(user, st, subject){
+  const nowIso = new Date().toISOString();
+  const exist = db.prepare(`SELECT token FROM share_tokens
+                            WHERE student_id = ? AND subject = ? AND revoked = 0 AND expires_at > ?
+                            ORDER BY created_at DESC`).get(st.id, subject, nowIso);
+  if(exist) return { token: exist.token, reused: true };
+  const token = crypto.randomBytes(16).toString('hex');  // 32 位 hex
+  const exp = new Date(Date.now() + SHARE_DAYS * 86400000).toISOString();
+  db.prepare('INSERT INTO share_tokens (token, student_id, subject, created_by, created_at, expires_at, revoked) VALUES (?,?,?,?,?,?,0)')
+    .run(token, st.id, subject, user.id, nowIso, exp);
+  logAudit(user, '生成分享链接', 'student', st.name + ' · ' + subject, '有效期 ' + SHARE_DAYS + ' 天', st.owner_id);
+  return { token: token, reused: false };
+}
 
 // POST /api/reports/share {studentId, subject}：创建分享链接；同学生同科目复用未过期未撤销的 token
 router.post('/share', (req, res) => {
@@ -20,17 +37,57 @@ router.post('/share', (req, res) => {
   const st = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId);
   if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
   if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限操作该数据' });
-  const nowIso = new Date().toISOString();
-  const exist = db.prepare(`SELECT token FROM share_tokens
-                            WHERE student_id = ? AND subject = ? AND revoked = 0 AND expires_at > ?
-                            ORDER BY created_at DESC`).get(studentId, subject, nowIso);
-  if(exist) return res.json({ ok: true, url: '/r/' + exist.token, reused: true });  // 避免同一家长收到多个链接
-  const token = crypto.randomBytes(16).toString('hex');  // 32 位 hex
-  const exp = new Date(Date.now() + SHARE_DAYS * 86400000).toISOString();
-  db.prepare('INSERT INTO share_tokens (token, student_id, subject, created_by, created_at, expires_at, revoked) VALUES (?,?,?,?,?,?,0)')
-    .run(token, studentId, subject, req.user.id, nowIso, exp);
-  logAudit(req.user, '生成分享链接', 'student', st.name + ' · ' + subject, '有效期 ' + SHARE_DAYS + ' 天', st.owner_id);
-  res.json({ ok: true, url: '/r/' + token });
+  const r = ensureShareToken(req.user, st, subject);
+  res.json({ ok: true, url: '/r/' + r.token, reused: r.reused });
+});
+
+/* POST /api/reports/push {studentId, subject}：模板消息推送给该学生已绑定的家长（方案第 3 步）
+   生成/复用分享链接 → 查有效绑定 → 逐个调 template/send；errcode 43004（家长已取关）标记绑定失效 */
+router.post('/push', async (req, res) => {
+  const { studentId, subject } = req.body || {};
+  if(!studentId || !subject) return res.status(400).json({ ok: false, msg: '缺少学生或科目' });
+  const st = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId);
+  if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
+  if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限操作该数据' });
+  if(!wx.configured()) return res.status(503).json({ ok: false, msg: '服务号未配置' });
+  const binds = db.prepare('SELECT * FROM parent_binds WHERE student_id = ? AND unbound = 0').all(studentId);
+  if(!binds.length) return res.status(400).json({ ok: false, msg: '该学生未绑定家长微信' });
+  if(!wx.cfg().templateId) return res.status(503).json({ ok: false, msg: '模板消息未配置' });
+  const shareUrl = 'https://' + req.headers.host + '/r/' + ensureShareToken(req.user, st, subject).token;
+  // 最近正确率：该学生该科目最近一条作业记录
+  const lastRec = db.prepare('SELECT * FROM records WHERE student_id = ? AND subject = ? ORDER BY date DESC LIMIT 1').get(studentId, subject);
+  const lastAcc = lastRec ? (lastRec.total > 0 ? Math.round(lastRec.correct / lastRec.total * 100) : 0) + '%' : '暂无记录';
+  // 模板字段按 first/keyword1-3/remark 通用结构（公众平台模板需与此对齐）
+  const tplData = {
+    first: { value: st.name + ' 的「' + shortSubject(subject) + '」作业打卡报告已更新' },
+    keyword1: { value: st.name },
+    keyword2: { value: shortSubject(subject) },
+    keyword3: { value: lastAcc + '（' + nowTs().slice(0, 10) + '）' },
+    remark: { value: '点击查看完整打卡报告' }
+  };
+  let accessToken;
+  try{ accessToken = await wx.getAccessToken(); }
+  catch(e){ return res.status(502).json({ ok: false, msg: '微信接口调用失败：' + e.message }); }
+  let sent = 0, unboundCnt = 0;
+  for(const b of binds){
+    try{
+      const resp = await fetch('https://api.weixin.qq.com/cgi-bin/message/template/send?access_token=' + accessToken, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ touser: b.openid, template_id: wx.cfg().templateId, url: shareUrl, data: tplData })
+      });
+      const d = await resp.json();
+      if(d.errcode === 0 || d.errcode === undefined){ sent++; }
+      else if(d.errcode === 43004){  // 家长已取关：标记绑定失效
+        db.prepare('UPDATE parent_binds SET unbound = 1 WHERE id = ?').run(b.id);
+        unboundCnt++;
+      }
+    }catch(e){ /* 单个家长失败不阻塞其他人 */ }
+  }
+  logAudit(req.user, '推送报告给家长', 'student', st.name + ' · ' + subject,
+    '成功 ' + sent + ' 人' + (unboundCnt ? '，' + unboundCnt + ' 人已取关标记失效' : ''), st.owner_id);
+  if(!sent) return res.status(400).json({ ok: false, msg: '推送失败（家长可能已取关，请重新绑定）' });
+  res.json({ ok: true, sent: sent });
 });
 
 // POST /api/reports/share/:token/revoke：撤销（创建者本人或教务；幂等）

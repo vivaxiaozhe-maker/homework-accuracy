@@ -684,7 +684,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.1.6</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.2.0</div>
   </aside>
 
   <main>
@@ -1051,7 +1051,20 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       <button class="btn ghost sm" id="rp-close">关闭</button>
       <button class="btn ghost sm" id="rp-print">打印/另存为</button>
       <button class="btn ghost sm" id="rp-share">分享给家长</button>
+      <button class="btn ghost sm" id="rp-push">推送给家长</button>
       <button class="btn mint sm" id="rp-download">⬇ 下载 PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- 家长绑定二维码弹窗（服务号；转发给家长微信扫码即自动绑定） -->
+<div class="modal-mask" id="bind-modal">
+  <div class="modal">
+    <h3>绑定家长微信</h3>
+    <p>把二维码转发给家长，微信扫码关注服务号即自动绑定；之后报告更新会推送到家长微信。</p>
+    <div id="bind-qr-box" style="text-align:center;margin-bottom:14px"></div>
+    <div class="row">
+      <button class="btn ghost sm" id="bind-close">关闭</button>
     </div>
   </div>
 </div>
@@ -1102,7 +1115,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.1.6</div>
+    <div class="login-ver" id="login-ver">v1.2.0</div>
   </div>
 </div>
 
@@ -1203,7 +1216,7 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
-const APP_VERSION = 'v1.1.6';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.2.0';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -1683,6 +1696,14 @@ const HttpApi = {
   // POST /api/reports/share（家长 H5 报告分享链接，30 天有效；mock 模式无此能力，前端拦截提示）
   shareReport(studentId, subject){
     return this._req('POST', '/api/reports/share', { studentId: studentId, subject: subject });
+  },
+  // POST /api/reports/push（服务号模板消息推送给已绑定家长）
+  pushReport(studentId, subject){
+    return this._req('POST', '/api/reports/push', { studentId: studentId, subject: subject });
+  },
+  // POST /api/students/:id/bind-qr（家长绑定二维码）
+  bindQr(studentId){
+    return this._req('POST', '/api/students/' + studentId + '/bind-qr');
   },
   // GET /api/subjects（科目树，全局共享，全角色可读）
   getSubjects(){ return this._req('GET', '/api/subjects'); },
@@ -2931,6 +2952,11 @@ function qePanelHtml(){
       '<button class="btn mint sm" onclick="saveMockScore()">保存模考分数</button>';
   }
   const plan = (st && st.subjPlans && st.subjPlans[quickEntry.subject]) || '';
+  // 家长绑定状态（服务号推送用）：已绑定显示人数；未绑定显示「绑定家长微信」入口（教务/助教均可见）
+  const bindCnt = st ? (st.bindCnt || 0) : 0;
+  const bindHtml = '<div style="margin-bottom:10px">' + (bindCnt > 0
+    ? '<span class="tag mint">已绑定家长微信（' + bindCnt + ' 人）</span>'
+    : '<button class="btn ghost sm" onclick="openBindModal()" title="生成家长绑定二维码，转发给家长微信扫码即绑定">绑定家长微信</button>') + '</div>';
   // 首次课程时间（科目级）：首次设定计划时必填；已设后助教可直改（不审批，记审计）
   const firstClass = (st && st.subjFirstClass && st.subjFirstClass[quickEntry.subject]) || '';
   const fcEditing = fcEdit && fcEdit.gid===quickEntry.gid && fcEdit.subject===quickEntry.subject;
@@ -2954,6 +2980,7 @@ function qePanelHtml(){
   return '<div class="qe-panel">' +
     '<div class="qe-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span>「' + esc(shortSubject(quickEntry.subject)) + '」作业打卡</span>' +
     '<button class="btn mint sm" onclick="genReport()" title="生成该生该科目的作业打卡报告 PDF（含打卡情况、老师评语、模考信息）">⬇ 生成报告</button></div>' +
+    bindHtml +
     '<div class="plan-row">' +
     (isArchived
       ? '<span style="font-size:14px;font-weight:600">应完成作业次数</span><span class="plan-hint">' + (plan ? '已定 ' + plan + ' 次，已完成 ' + countSubjectRecs(quickEntry.gid, quickEntry.subject) + ' 次' : '未设置计划') + '</span>'
@@ -3580,6 +3607,28 @@ document.getElementById('rp-download').addEventListener('click', ()=>{ downloadR
 document.getElementById('rp-print').addEventListener('click', ()=>{ printReportDirect(); });
 document.getElementById('rp-share').addEventListener('click', ()=>{ shareReportToParent(); });
 document.getElementById('rp-copy').addEventListener('click', ()=>{ copyShareLink(); });
+/* 「推送给家长」：服务号模板消息推送报告；未绑定时提示并打开绑定弹窗引导；mock 提示不支持 */
+async function pushReportToParent(){
+  if(!quickEntry) return;
+  if(!USE_API){ toast('演示环境暂不支持推送（正式环境可用）'); return; }
+  const r = await HttpApi.pushReport(quickEntry.gid, quickEntry.subject);
+  if(r.ok){ toast('已推送到家长微信'); return; }
+  toast(r.msg || '推送失败，请重试');
+  if(r.msg && r.msg.indexOf('未绑定') !== -1) openBindModal();  // 未绑定 → 引导绑定
+}
+document.getElementById('rp-push').addEventListener('click', ()=>{ pushReportToParent(); });
+/* 「绑定家长微信」：调 bind-qr 生成/复用学生专属二维码（同一学生二维码不变，可重复转发）；mock 提示不支持 */
+async function openBindModal(){
+  if(!quickEntry) return;
+  if(!USE_API){ toast('演示环境暂不支持绑定（正式环境可用）'); return; }
+  const box = document.getElementById('bind-qr-box');
+  box.innerHTML = '<p class="hint">二维码生成中…</p>';
+  document.getElementById('bind-modal').classList.add('show');
+  const r = await HttpApi.bindQr(quickEntry.gid);
+  if(!r.ok){ box.innerHTML = '<p class="hint">' + esc(r.msg || '生成失败，请重试') + '</p>'; return; }
+  box.innerHTML = '<img src="' + esc(r.qrUrl) + '" alt="家长绑定二维码" style="width:220px;height:220px;border-radius:12px;border:1px solid var(--line)">';
+}
+document.getElementById('bind-close').addEventListener('click', ()=>document.getElementById('bind-modal').classList.remove('show'));
 function printReport(area){
   area.style.cssText = 'position:absolute;left:0;top:0;width:100%;background:#fff;z-index:99999;';
   window.print();

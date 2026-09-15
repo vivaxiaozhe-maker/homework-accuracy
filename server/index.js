@@ -21,7 +21,7 @@ app.use(helmet({
       'script-src': ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
       'script-src-attr': ["'unsafe-inline'"],
       'style-src': ["'self'", "'unsafe-inline'"],
-      'img-src': ["'self'", 'data:', 'blob:']
+      'img-src': ["'self'", 'data:', 'blob:', 'https://mp.weixin.qq.com']  // mp.weixin.qq.com：家长绑定二维码图片
     }
   }
 }));
@@ -51,6 +51,9 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
    页面零 JS、样式内联，helmet CSP（style-src 含 'unsafe-inline'）天然兼容 */
 const reports = require('./routes/reports');
 app.get('/r/:token', reports.sharePage);
+
+/* 微信服务器回调（公开，/api 全局守卫之外；安全性靠微信签名验签，配置缺失时 503 不崩溃） */
+app.use('/api/wechat', require('./routes/wechat'));
 
 // /api 全局守卫：除登录/健康检查外，一律先过 auth（登录校验 + 挂载 req.user / req.token）
 app.use('/api', (req, res, next) => {

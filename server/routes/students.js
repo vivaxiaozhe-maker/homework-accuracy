@@ -1,9 +1,10 @@
-/* 学生路由：新增 / 修改（同名组同步）/ 归档 / 恢复 / 转移归属（仅教务）
+/* 学生路由：新增 / 修改（同名组同步）/ 归档 / 恢复 / 转移归属（仅教务）/ 家长绑定二维码
    无物理删除（与前端一致：学生只归档） */
 const express = require('express');
 const db = require('../db');
 const { requireRole } = require('../auth');
 const { uid, logAudit, canWrite, clientId, stuToJson } = require('../util');
+const wx = require('../wechat');
 
 const router = express.Router();
 router.use(requireRole('ta', 'admin'));  // 销售只读，不能写
@@ -137,6 +138,34 @@ router.put('/:id/subj-fields', (req, res) => {
   db.prepare('UPDATE students SET ' + setClauses.join(', ') + ' WHERE id = ?').run(...params, st.id);
   logAudit(req.user, actions.join('、'), 'student', st.name, keys.join('、'), st.owner_id);
   res.json({ ok: true });
+});
+
+/* POST /api/students/:id/bind-qr：家长绑定二维码（带参数永久二维码，scene_str = 学生绑定 token）
+   助教本人/教务可调；bind_token 首次生成后写入 students 表复用（同一学生二维码不变，可重复转发） */
+router.post('/:id/bind-qr', async (req, res) => {
+  const st = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.id);
+  if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
+  if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
+  if(!wx.configured()) return res.status(503).json({ ok: false, msg: '服务号未配置' });
+  if(!st.bind_token){
+    db.prepare('UPDATE students SET bind_token = ? WHERE id = ?').run(uid('bind_'), st.id);
+    st.bind_token = db.prepare('SELECT bind_token FROM students WHERE id = ?').get(st.id).bind_token;
+  }
+  try{
+    const accessToken = await wx.getAccessToken();
+    const qr = await fetch('https://api.weixin.qq.com/cgi-bin/qrcode/create?access_token=' + accessToken, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action_name: 'QR_LIMIT_STR_SCENE', action_info: { scene: { scene_str: st.bind_token } } })
+    });
+    const d = await qr.json();
+    if(!d.ticket) return res.status(502).json({ ok: false, msg: '二维码生成失败：' + (d.errmsg || '未知错误') });
+    logAudit(req.user, '生成家长绑定二维码', 'student', st.name, '', st.owner_id);
+    // 前端直接当 <img src> 用（CSP img-src 已放行 mp.weixin.qq.com）
+    res.json({ ok: true, qrUrl: 'https://mp.weixin.qq.com/cgi-bin/showqrcode?ticket=' + encodeURIComponent(d.ticket) });
+  }catch(e){
+    res.status(502).json({ ok: false, msg: '微信接口调用失败：' + e.message });
+  }
 });
 
 module.exports = router;

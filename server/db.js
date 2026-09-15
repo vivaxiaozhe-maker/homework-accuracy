@@ -196,5 +196,22 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 `);
+/* 家长绑定（docs/parent-push-plan.md 第 2 步）：parent_binds 表。
+   一家长多孩子、一学生多家长都支持；取关标 unbound=1（留痕不删行）；重新扫码关注自动恢复。 */
+db.exec(`
+CREATE TABLE IF NOT EXISTS parent_binds (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  openid TEXT NOT NULL,
+  bound_at TEXT NOT NULL,
+  unbound INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_binds_student ON parent_binds(student_id);
+CREATE INDEX IF NOT EXISTS idx_binds_openid ON parent_binds(openid);
+`);
+/* 绑定二维码迁移：students 补 bind_token 列（扫码场景值 scene_str，首次生成二维码时写入复用） */
+if(!db.prepare("PRAGMA table_info(students)").all().map(c => c.name).includes('bind_token')){
+  db.exec('ALTER TABLE students ADD COLUMN bind_token TEXT');
+}
 
 module.exports = db;
