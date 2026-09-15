@@ -39,7 +39,8 @@ if [ $SKIP_PROD -eq 0 ]; then
   echo "==> 4/5 部署到生产服务器"
   scp -o ConnectTimeout=15 -o BatchMode=yes index.html 学生作业正确率.html root@47.113.184.105:/opt/xueqing/
   if [ $WITH_SERVER -eq 1 ]; then
-    scp -o BatchMode=yes -r server/db.js server/index.js server/util.js server/auth.js server/routes root@47.113.184.105:/opt/xueqing/server/
+    scp -o BatchMode=yes server/*.js root@47.113.184.105:/opt/xueqing/server/
+    scp -o BatchMode=yes -r server/routes root@47.113.184.105:/opt/xueqing/server/
     ssh -o BatchMode=yes root@47.113.184.105 'pm2 restart xueqing >/dev/null 2>&1 && sleep 2 && curl -s http://localhost:3000/api/health'
   fi
 else
