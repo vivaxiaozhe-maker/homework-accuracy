@@ -684,7 +684,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.2.0</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.2.1</div>
   </aside>
 
   <main>
@@ -1115,7 +1115,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.2.0</div>
+    <div class="login-ver" id="login-ver">v1.2.1</div>
   </div>
 </div>
 
@@ -1216,7 +1216,7 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
-const APP_VERSION = 'v1.2.0';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.2.1';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -2639,6 +2639,12 @@ function renderStats(){
     }
 
     // 每次详细记录已合并进科目 Tab 的打卡格子视图（点击科目徽章查看）
+    // 家长绑定状态（学生维度，服务号推送用）：显示在学生卡头部标签区
+    const repStuBind = state.students.find(x=>x.id===s.id);
+    const bindCnt = repStuBind ? (repStuBind.bindCnt || 0) : 0;
+    const bindTag = bindCnt > 0
+      ? ' <span class="tag mint" title="已绑定家长微信，可直接推送报告">已绑定家长（' + bindCnt + ' 人）</span>'
+      : ' <span class="tag amber owner-tag" onclick="openBindModal(\'' + s.id + '\')" title="生成家长绑定二维码，转发给家长微信扫码即绑定">绑定家长微信</span>';
 
     return '<div class="stu-card">' +
       '<div class="stu-head"><div class="avatar">' + esc(g.name.slice(0,1)) + '</div>' +
@@ -2647,7 +2653,8 @@ function renderStats(){
       (g.gradYear ? ' <span class="tag mint">' + g.gradYear + ' 届</span>' : '') +
       (g.ids.length>1 ? ' <span class="tag mint">同名合并 ×' + g.ids.length + '</span>' : '') +
       (g.sample?' <span class="tag sample">示例</span>':'') +
-      (isAdminView() ? ' <span class="tag amber owner-tag" onclick="openTransfer([\'' + g.ids.join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '</span>' : '') + '</div>' +
+      (isAdminView() ? ' <span class="tag amber owner-tag" onclick="openTransfer([\'' + g.ids.join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '</span>' : '') +
+      bindTag + '</div>' +
       trend +
       '<button class="btn ghost sm" onclick="toggleAddSubject(\'' + s.id + '\')" title="为该学生添加学习科目">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>新增科目</button>' +
@@ -2952,11 +2959,6 @@ function qePanelHtml(){
       '<button class="btn mint sm" onclick="saveMockScore()">保存模考分数</button>';
   }
   const plan = (st && st.subjPlans && st.subjPlans[quickEntry.subject]) || '';
-  // 家长绑定状态（服务号推送用）：已绑定显示人数；未绑定显示「绑定家长微信」入口（教务/助教均可见）
-  const bindCnt = st ? (st.bindCnt || 0) : 0;
-  const bindHtml = '<div style="margin-bottom:10px">' + (bindCnt > 0
-    ? '<span class="tag mint">已绑定家长微信（' + bindCnt + ' 人）</span>'
-    : '<button class="btn ghost sm" onclick="openBindModal()" title="生成家长绑定二维码，转发给家长微信扫码即绑定">绑定家长微信</button>') + '</div>';
   // 首次课程时间（科目级）：首次设定计划时必填；已设后助教可直改（不审批，记审计）
   const firstClass = (st && st.subjFirstClass && st.subjFirstClass[quickEntry.subject]) || '';
   const fcEditing = fcEdit && fcEdit.gid===quickEntry.gid && fcEdit.subject===quickEntry.subject;
@@ -2980,7 +2982,6 @@ function qePanelHtml(){
   return '<div class="qe-panel">' +
     '<div class="qe-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span>「' + esc(shortSubject(quickEntry.subject)) + '」作业打卡</span>' +
     '<button class="btn mint sm" onclick="genReport()" title="生成该生该科目的作业打卡报告 PDF（含打卡情况、老师评语、模考信息）">⬇ 生成报告</button></div>' +
-    bindHtml +
     '<div class="plan-row">' +
     (isArchived
       ? '<span style="font-size:14px;font-weight:600">应完成作业次数</span><span class="plan-hint">' + (plan ? '已定 ' + plan + ' 次，已完成 ' + countSubjectRecs(quickEntry.gid, quickEntry.subject) + ' 次' : '未设置计划') + '</span>'
@@ -3614,17 +3615,18 @@ async function pushReportToParent(){
   const r = await HttpApi.pushReport(quickEntry.gid, quickEntry.subject);
   if(r.ok){ toast('已推送到家长微信'); return; }
   toast(r.msg || '推送失败，请重试');
-  if(r.msg && r.msg.indexOf('未绑定') !== -1) openBindModal();  // 未绑定 → 引导绑定
+  if(r.msg && r.msg.indexOf('未绑定') !== -1) openBindModal(quickEntry.gid);  // 未绑定 → 引导绑定
 }
 document.getElementById('rp-push').addEventListener('click', ()=>{ pushReportToParent(); });
-/* 「绑定家长微信」：调 bind-qr 生成/复用学生专属二维码（同一学生二维码不变，可重复转发）；mock 提示不支持 */
-async function openBindModal(){
-  if(!quickEntry) return;
+/* 「绑定家长微信」：调 bind-qr 生成/复用学生专属二维码（同一学生二维码不变，可重复转发）；mock 提示不支持。
+   按学生 id 参数化：学生卡头部「绑定家长微信」标签与推送失败引导共用，不再依赖打卡面板状态 */
+async function openBindModal(gid){
+  if(!gid) return;
   if(!USE_API){ toast('演示环境暂不支持绑定（正式环境可用）'); return; }
   const box = document.getElementById('bind-qr-box');
   box.innerHTML = '<p class="hint">二维码生成中…</p>';
   document.getElementById('bind-modal').classList.add('show');
-  const r = await HttpApi.bindQr(quickEntry.gid);
+  const r = await HttpApi.bindQr(gid);
   if(!r.ok){ box.innerHTML = '<p class="hint">' + esc(r.msg || '生成失败，请重试') + '</p>'; return; }
   box.innerHTML = '<img src="' + esc(r.qrUrl) + '" alt="家长绑定二维码" style="width:220px;height:220px;border-radius:12px;border:1px solid var(--line)">';
 }

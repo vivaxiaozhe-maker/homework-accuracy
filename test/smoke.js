@@ -166,7 +166,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.2.0') !== -1, '登录页版本号升至 v1.2.0');
+  ok(html.indexOf('id="login-ver">v1.2.1') !== -1, '登录页版本号升至 v1.2.1');
 
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
@@ -317,10 +317,10 @@ function ok(cond, name){
   const bindStu = wb.pool.students.find(s=>!s.archived && s.ownerId===ta1.id);
   wb.setQuickEntry({gid: bindStu.id, subject: '学科 / AP / 微积分BC'});
   wb.toggleTaGroup(ta1.id);  // 教务分组视图默认折叠，展开 ta1 组才渲染卡内面板
-  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('绑定家长微信') !== -1, '未绑定学生打卡面板显示「绑定家长微信」入口');
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('绑定家长微信') !== -1, '未绑定学生卡头部显示「绑定家长微信」入口');
   await vm.runInContext('pushReportToParent()', ctx);
   ok(alerts[alerts.length-1].indexOf('演示环境暂不支持推送') !== -1, 'mock 模式推送提示演示环境不支持');
-  await vm.runInContext('openBindModal()', ctx);
+  await vm.runInContext('openBindModal("' + (typeof bindStu!=='undefined'?bindStu.id:sid) + '")', ctx);
   ok(alerts[alerts.length-1].indexOf('演示环境暂不支持绑定') !== -1, 'mock 模式绑定提示演示环境不支持');
   wb.setQuickEntry(null);
   wb.toggleTaGroup(ta1.id);  // 恢复折叠
@@ -396,8 +396,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.2.0') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.2.0」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.2.1') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.2.1」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');

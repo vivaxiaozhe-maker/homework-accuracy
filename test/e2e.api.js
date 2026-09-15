@@ -91,7 +91,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.2.0', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.2.1', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -380,8 +380,8 @@ function ok(cond, name){
   ok(wb.pool.students.every(s => typeof s.bindCnt === 'number'), 'state 学生带 bindCnt（绑定状态字段）');
   wb.setQuickEntry({ gid: sid, subject: subj });
   wb.renderStats();
-  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('绑定家长微信') !== -1, '未绑定学生打卡面板显示「绑定家长微信」入口');
-  await vm.runInContext('openBindModal()', ctx);
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('绑定家长微信') !== -1, '未绑定学生卡头部显示「绑定家长微信」入口');
+  await vm.runInContext('openBindModal("' + (typeof bindStu!=='undefined'?bindStu.id:sid) + '")', ctx);
   ok(documentStub.getElementById('bind-qr-box').innerHTML.indexOf('服务号未配置') !== -1, '服务号未配置时绑定弹窗给明确提示（不白屏）');
   vm.runInContext("document.getElementById('bind-modal').classList.remove('show')", ctx);
   await vm.runInContext('pushReportToParent()', ctx);
