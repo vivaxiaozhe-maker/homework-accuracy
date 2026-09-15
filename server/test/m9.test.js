@@ -116,6 +116,7 @@ function sign(token, ts, nonce){
   }
   r = await req('POST', '/api/wechat/callback' + cbQuery(), eventXml('subscribe', 'openid_p1', 'qrscene_' + bindToken), null, true);
   ok(r.status === 200 && r.text.indexOf('绑定成功') !== -1 && r.text.indexOf('林小满') !== -1, 'subscribe 事件绑定成功并回复欢迎语');
+  ok(r.text.indexOf('<ToUserName><![CDATA[openid_p1]]></ToUserName>') !== -1, '回复消息的 ToUserName 为家长 openid（方向正确）');
   ok(db.prepare('SELECT * FROM parent_binds WHERE student_id = ? AND openid = ? AND unbound = 0').get(stuA, 'openid_p1') !== undefined,
     '绑定写入 parent_binds（unbound=0）');
   // 重复扫码（已关注 SCAN）幂等
