@@ -168,4 +168,27 @@ router.post('/:id/bind-qr', async (req, res) => {
   }
 });
 
+/* GET /api/students/:id/binds：该学生的家长绑定列表（助教仅限自己名下，教务全部） */
+router.get('/:id/binds', (req, res) => {
+  const st = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.id);
+  if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
+  if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
+  const binds = db.prepare('SELECT id, openid, bound_at FROM parent_binds WHERE student_id = ? AND unbound = 0 ORDER BY bound_at DESC').all(st.id);
+  res.json({ ok: true, binds: binds });
+});
+
+/* POST /api/students/:id/binds/:bindId/unbind：手动解绑家长（软解绑 unbound=1 留痕不删行；与家长取关自动失效同口径） */
+router.post('/:id/binds/:bindId/unbind', (req, res) => {
+  const st = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.id);
+  if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
+  if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
+  const b = db.prepare('SELECT * FROM parent_binds WHERE id = ? AND student_id = ?').get(req.params.bindId, st.id);
+  if(!b) return res.status(404).json({ ok: false, msg: '绑定记录不存在' });
+  if(!b.unbound){
+    db.prepare('UPDATE parent_binds SET unbound = 1 WHERE id = ?').run(b.id);
+    logAudit(req.user, '解绑家长微信', 'student', st.name, 'openid ' + b.openid.slice(0, 6) + '…', st.owner_id);
+  }
+  res.json({ ok: true });  // 重复解绑幂等
+});
+
 module.exports = router;

@@ -69,6 +69,7 @@ function sign(token, ts, nonce){
   const T2 = (await req('POST', '/api/login', { username: 'ta2', password: 'ta123456', role: 'ta' })).data.token;
   const subj = '学科 / AP / 微积分BC';
   const stuA = (await req('POST', '/api/students', { name: '林小满', school: '深外', gradYear: '2027' }, T1)).data.student.id;
+  const stuB = (await req('POST', '/api/students', { name: '陈星宇', school: '杭外', gradYear: '2026' }, T2)).data.student.id;
   await req('POST', '/api/records', { studentId: stuA, date: '2026-09-14', total: 20, correct: 18, wrongs: [7, 14], subject: subj }, T1);
 
   /* ---- GET 验签（服务器配置验证） ---- */
@@ -174,6 +175,29 @@ function sign(token, ts, nonce){
   r = await req('POST', '/api/reports/push', { studentId: stuA, subject: subj }, T1);
   ok(r.status === 503 && r.data.msg === '服务号未配置', '未配置时推送 503「服务号未配置」');
   process.env.WECHAT_SECRET = 'test-secret-fake';  // 恢复
+
+  /* ---- 手动解绑：binds 列表 + unbind 接口 ---- */
+  db.prepare('INSERT INTO parent_binds (id, student_id, openid, bound_at, unbound) VALUES (?,?,?,?,0)')
+    .run('bind_manual_1', stuA, 'openid_m1', '2026-09-16T00:00:00.000Z');
+  db.prepare('INSERT INTO parent_binds (id, student_id, openid, bound_at, unbound) VALUES (?,?,?,?,0)')
+    .run('bind_manual_2', stuA, 'openid_m2', '2026-09-16T01:00:00.000Z');
+  db.prepare('INSERT INTO parent_binds (id, student_id, openid, bound_at, unbound) VALUES (?,?,?,?,0)')
+    .run('bind_manual_3', stuB, 'openid_m3', '2026-09-16T02:00:00.000Z');
+  r = await req('GET', '/api/students/' + stuA + '/binds', null, T1);
+  ok(r.status === 200 && r.data.binds.some(b=>b.openid==='openid_m1') && r.data.binds.some(b=>b.openid==='openid_m2'), 'binds 列表含该学生的有效绑定记录');
+  r = await req('GET', '/api/students/' + stuA + '/binds', null, T2);
+  ok(r.status === 403, '助教查他人学生绑定列表被越权拒绝');
+  r = await req('POST', '/api/students/' + stuA + '/binds/bind_manual_1/unbind', {}, T1);
+  ok(r.status === 200 && r.data.ok === true, '手动解绑成功');
+  ok(db.prepare('SELECT unbound FROM parent_binds WHERE id = ?').get('bind_manual_1').unbound === 1, '解绑为软解绑（unbound=1 留痕）');
+  ok(db.prepare('SELECT * FROM parent_binds WHERE id = ?').get('bind_manual_1') !== undefined, '解绑不删行');
+  r = await req('GET', '/api/students/' + stuA + '/binds', null, T1);
+  ok(!r.data.binds.some(b=>b.id==='bind_manual_1') && r.data.binds.some(b=>b.id==='bind_manual_2'), '解绑后列表不再含被解绑记录（其余保留）');
+  r = await req('POST', '/api/students/' + stuA + '/binds/bind_manual_1/unbind', {}, T1);
+  ok(r.status === 200 && r.data.ok === true, '重复解绑幂等');
+  r = await req('POST', '/api/students/' + stuB + '/binds/bind_manual_3/unbind', {}, T1);
+  ok(r.status === 403, '助教解绑他人学生家长被越权拒绝');
+  ok(db.prepare('SELECT unbound FROM parent_binds WHERE id = ?').get('bind_manual_3').unbound === 0, '越权解绑未生效');
 
   console.log('\nM9 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();

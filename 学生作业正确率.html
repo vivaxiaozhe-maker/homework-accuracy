@@ -537,7 +537,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .acct-row:last-child{border-bottom:none}
 .acct-row .grow{flex:1;min-width:200px}
 .owner-tag{cursor:pointer}
-.owner-tag:hover{background:#DF9A3A}
+.owner-tag:hover{background:var(--mint-d);color:#fff}
 /* ---------- 教务数据看板 ---------- */
 .dash-filter{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .dash-filter .role-seg{flex:0 1 340px}
@@ -684,7 +684,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.2.1</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.2.2</div>
   </aside>
 
   <main>
@@ -1069,6 +1069,17 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
   </div>
 </div>
 
+<!-- 家长绑定管理弹窗（查看已绑定家长 + 手动解绑） -->
+<div class="modal-mask" id="binds-modal">
+  <div class="modal">
+    <h3>已绑定家长</h3>
+    <div id="binds-list"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn ghost sm" id="binds-close">关闭</button>
+    </div>
+  </div>
+</div>
+
 <!-- 图片查看 -->
 <div class="modal-mask" id="img-modal">
   <div class="modal" style="max-width:640px">
@@ -1115,7 +1126,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.2.1</div>
+    <div class="login-ver" id="login-ver">v1.2.2</div>
   </div>
 </div>
 
@@ -1216,7 +1227,7 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
-const APP_VERSION = 'v1.2.1';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.2.2';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -1704,6 +1715,13 @@ const HttpApi = {
   // POST /api/students/:id/bind-qr（家长绑定二维码）
   bindQr(studentId){
     return this._req('POST', '/api/students/' + studentId + '/bind-qr');
+  },
+  // GET /api/students/:id/binds（家长绑定列表）/ POST 解绑
+  listBinds(studentId){
+    return this._req('GET', '/api/students/' + studentId + '/binds');
+  },
+  unbindParent(studentId, bindId){
+    return this._req('POST', '/api/students/' + studentId + '/binds/' + bindId + '/unbind');
   },
   // GET /api/subjects（科目树，全局共享，全角色可读）
   getSubjects(){ return this._req('GET', '/api/subjects'); },
@@ -2643,8 +2661,8 @@ function renderStats(){
     const repStuBind = state.students.find(x=>x.id===s.id);
     const bindCnt = repStuBind ? (repStuBind.bindCnt || 0) : 0;
     const bindTag = bindCnt > 0
-      ? ' <span class="tag mint" title="已绑定家长微信，可直接推送报告">已绑定家长（' + bindCnt + ' 人）</span>'
-      : ' <span class="tag amber owner-tag" onclick="openBindModal(\'' + s.id + '\')" title="生成家长绑定二维码，转发给家长微信扫码即绑定">绑定家长微信</span>';
+      ? ' <span class="tag mint owner-tag" onclick="openBindsModal(\'' + s.id + '\')" title="点击查看已绑定家长，可手动解绑">已绑定家长（' + bindCnt + ' 人）</span>'
+      : ' <span class="tag amber owner-tag" onclick="openBindModal(\'' + s.id + '\')" title="生成家长绑定二维码，转发给家长微信扫码即绑定">未绑定微信</span>';
 
     return '<div class="stu-card">' +
       '<div class="stu-head"><div class="avatar">' + esc(g.name.slice(0,1)) + '</div>' +
@@ -2653,7 +2671,7 @@ function renderStats(){
       (g.gradYear ? ' <span class="tag mint">' + g.gradYear + ' 届</span>' : '') +
       (g.ids.length>1 ? ' <span class="tag mint">同名合并 ×' + g.ids.length + '</span>' : '') +
       (g.sample?' <span class="tag sample">示例</span>':'') +
-      (isAdminView() ? ' <span class="tag amber owner-tag" onclick="openTransfer([\'' + g.ids.join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '</span>' : '') +
+      (isAdminView() ? ' <span class="tag mint owner-tag" onclick="openTransfer([\'' + g.ids.join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '</span>' : '') +
       bindTag + '</div>' +
       trend +
       '<button class="btn ghost sm" onclick="toggleAddSubject(\'' + s.id + '\')" title="为该学生添加学习科目">' +
@@ -3630,6 +3648,36 @@ async function openBindModal(gid){
   if(!r.ok){ box.innerHTML = '<p class="hint">' + esc(r.msg || '生成失败，请重试') + '</p>'; return; }
   box.innerHTML = '<img src="' + esc(r.qrUrl) + '" alt="家长绑定二维码" style="width:220px;height:220px;border-radius:12px;border:1px solid var(--line)">';
 }
+
+/* 「已绑定家长」管理弹窗：查看绑定列表（openid 脱敏）+ 手动解绑（软解绑留痕） */
+function maskOpenid(o){ return o && o.length > 10 ? o.slice(0, 6) + '…' + o.slice(-4) : o; }
+async function openBindsModal(gid){
+  if(!gid) return;
+  if(!USE_API){ toast('演示环境暂不支持绑定管理（正式环境可用）'); return; }
+  const list = document.getElementById('binds-list');
+  list.innerHTML = '<p class="hint">加载中…</p>';
+  document.getElementById('binds-modal').classList.add('show');
+  const r = await HttpApi.listBinds(gid);
+  if(!r.ok){ list.innerHTML = '<p class="hint">' + esc(r.msg || '加载失败') + '</p>'; return; }
+  if(!r.binds.length){ list.innerHTML = '<p class="hint">暂无绑定的家长。</p>'; return; }
+  list.innerHTML = r.binds.map(b=>
+    '<div class="acct-row" style="align-items:center"><div class="grow"><b>' + esc(maskOpenid(b.openid)) + '</b>' +
+    '<div class="hint" style="margin-top:2px">绑定于 ' + esc(String(b.bound_at).slice(0, 10)) + '</div></div>' +
+    '<button class="btn danger sm" onclick="unbindParent(\'' + gid + '\',\'' + b.id + '\')">解绑</button></div>').join('');
+}
+function unbindParent(gid, bindId){
+  askConfirm('解绑家长', '解绑后该家长微信将不再收到这名学生的报告推送。确定解绑吗？', async ()=>{
+    const r = await HttpApi.unbindParent(gid, bindId);
+    if(!r.ok){ toast(r.msg || '解绑失败'); return; }
+    toast('已解绑');
+    openBindsModal(gid);  // 刷新列表
+    // 同步本地 bindCnt 并重渲学生卡
+    const st = pool.students.find(x=>x.id===gid);
+    if(st) st.bindCnt = Math.max(0, (st.bindCnt || 1) - 1);
+    refreshView(); renderStats();
+  });
+}
+document.getElementById('binds-close').addEventListener('click', ()=>document.getElementById('binds-modal').classList.remove('show'));
 document.getElementById('bind-close').addEventListener('click', ()=>document.getElementById('bind-modal').classList.remove('show'));
 function printReport(area){
   area.style.cssText = 'position:absolute;left:0;top:0;width:100%;background:#fff;z-index:99999;';
@@ -4314,7 +4362,7 @@ function renderAlumni(){
       (g.gradYear ? ' <span class="tag mint">' + g.gradYear + ' 届</span>' : '') +
       (g.ids.length>1 ? ' <span class="tag mint">同名合并 ×' + g.ids.length + '</span>' : '') +
       (g.sample?' <span class="tag sample">示例</span>':'') +
-      (isAdminView() ? ' <span class="tag amber owner-tag" onclick="openTransfer([\'' + g.ids.join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '</span>' : '') + '</div>' +
+      (isAdminView() ? ' <span class="tag mint owner-tag" onclick="openTransfer([\'' + g.ids.join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '</span>' : '') + '</div>' +
       trend +
       '</div>' +
       '<div class="stu-nums"><span>历史作业 <b>' + recs.length + '</b> 次</span><span>未交次数 <b style="color:var(--red)">' + misses.length + '</b></span>' +

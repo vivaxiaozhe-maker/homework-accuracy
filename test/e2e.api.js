@@ -91,7 +91,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.2.1', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.2.2', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -380,12 +380,26 @@ function ok(cond, name){
   ok(wb.pool.students.every(s => typeof s.bindCnt === 'number'), 'state 学生带 bindCnt（绑定状态字段）');
   wb.setQuickEntry({ gid: sid, subject: subj });
   wb.renderStats();
-  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('绑定家长微信') !== -1, '未绑定学生卡头部显示「绑定家长微信」入口');
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('未绑定微信') !== -1, '未绑定学生卡头部显示「未绑定微信」入口');
   await vm.runInContext('openBindModal("' + (typeof bindStu!=='undefined'?bindStu.id:sid) + '")', ctx);
   ok(documentStub.getElementById('bind-qr-box').innerHTML.indexOf('服务号未配置') !== -1, '服务号未配置时绑定弹窗给明确提示（不白屏）');
   vm.runInContext("document.getElementById('bind-modal').classList.remove('show')", ctx);
   await vm.runInContext('pushReportToParent()', ctx);
   ok(alerts[alerts.length-1].indexOf('服务号未配置') !== -1, '推送在服务号未配置时给明确提示');
+
+  /* ---- 手动解绑（binds 列表 + unbind 接口，真实后端） ---- */
+  const dbE2e = require('../server/db.js');
+  dbE2e.prepare('INSERT INTO parent_binds (id, student_id, openid, bound_at, unbound) VALUES (?,?,?,?,0)')
+    .run('bind_e2e_1', sid, 'openid_e2e_1', '2026-09-16T00:00:00.000Z');
+  const lb = await wb.HttpApi.listBinds(sid);
+  ok(lb.ok && lb.binds.length === 1 && lb.binds[0].openid === 'openid_e2e_1', 'listBinds 返回该学生有效绑定');
+  await vm.runInContext('openBindsModal("' + sid + '")', ctx);
+  ok(documentStub.getElementById('binds-list').innerHTML.indexOf('openid_e2e_1'.slice(0,6)) !== -1
+    && documentStub.getElementById('binds-list').innerHTML.indexOf('解绑') !== -1, '绑定管理弹窗渲染绑定列表与解绑按钮');
+  const ub = await wb.HttpApi.unbindParent(sid, 'bind_e2e_1');
+  ok(ub.ok, 'unbindParent 解绑成功');
+  const lb2 = await wb.HttpApi.listBinds(sid);
+  ok(lb2.ok && lb2.binds.length === 0, '解绑后有效绑定列表为空');
 
   console.log('\ne2e 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();
