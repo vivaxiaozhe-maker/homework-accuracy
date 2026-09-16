@@ -91,7 +91,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.2.2', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.3.0', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -387,19 +387,44 @@ function ok(cond, name){
   await vm.runInContext('pushReportToParent()', ctx);
   ok(alerts[alerts.length-1].indexOf('服务号未配置') !== -1, '推送在服务号未配置时给明确提示');
 
-  /* ---- 手动解绑（binds 列表 + unbind 接口，真实后端） ---- */
+  /* ---- 解绑审批流：助教申请 → 申请中 → 红点合计 → 教务通过生效；教务直解不变 ---- */
   const dbE2e = require('../server/db.js');
   dbE2e.prepare('INSERT INTO parent_binds (id, student_id, openid, bound_at, unbound) VALUES (?,?,?,?,0)')
-    .run('bind_e2e_1', sid, 'openid_e2e_1', '2026-09-16T00:00:00.000Z');
+    .run('bind_e2e_1', sid, 'openid_e2e_1_xx_yy', '2026-09-16T00:00:00.000Z');
+  await wb.resyncState();
+  ok(wb.pool.students.find(s=>s.id===sid).bindCnt === 1, '插入绑定后 state bindCnt=1');
   const lb = await wb.HttpApi.listBinds(sid);
-  ok(lb.ok && lb.binds.length === 1 && lb.binds[0].openid === 'openid_e2e_1', 'listBinds 返回该学生有效绑定');
+  ok(lb.ok && lb.binds.length === 1 && lb.binds[0].openid === 'openid_e2e_1_xx_yy', 'listBinds 返回该学生有效绑定');
+  // 助教视角：弹窗显示「申请解绑」（无直解按钮）
   await vm.runInContext('openBindsModal("' + sid + '")', ctx);
-  ok(documentStub.getElementById('binds-list').innerHTML.indexOf('openid_e2e_1'.slice(0,6)) !== -1
-    && documentStub.getElementById('binds-list').innerHTML.indexOf('解绑') !== -1, '绑定管理弹窗渲染绑定列表与解绑按钮');
-  const ub = await wb.HttpApi.unbindParent(sid, 'bind_e2e_1');
-  ok(ub.ok, 'unbindParent 解绑成功');
-  const lb2 = await wb.HttpApi.listBinds(sid);
-  ok(lb2.ok && lb2.binds.length === 0, '解绑后有效绑定列表为空');
+  const bindsHtmlTa = documentStub.getElementById('binds-list').innerHTML;
+  ok(bindsHtmlTa.indexOf('申请解绑') !== -1 && bindsHtmlTa.indexOf('>解绑<') === -1, '助教绑定管理弹窗显示「申请解绑」（无直解按钮）');
+  // 助教直解接口被拒
+  const ubDeny = await wb.HttpApi.unbindParent(sid, 'bind_e2e_1');
+  ok(!ubDeny.ok && ubDeny.msg.indexOf('申请') !== -1, '助教直接解绑接口被拒并提示走申请（403）');
+  // 提交申请 → 该行变为「申请中」
+  vm.runInContext('requestUnbind("' + sid + '","bind_e2e_1")', ctx);
+  await vm.runInContext('cfCallback()', ctx);  // 确认弹窗点确认
+  await sleep(400);
+  ok(documentStub.getElementById('binds-list').innerHTML.indexOf('申请中') !== -1, '申请提交后该行变为「申请中」徽章');
+  // 教务审批：红点合计 + 审批块渲染
+  await wb.doLogin('admin', 'admin456', 'admin');
+  await vm.runInContext('refreshUnbindRequests()', ctx);
+  ok(documentStub.getElementById('badge-today').textContent === '1', '红点徽章计数为两类申请合计（此时仅解绑 1 条）');
+  const apprHtml = documentStub.getElementById('unbindreq-pending').innerHTML;
+  ok(apprHtml.indexOf('林小满') !== -1 && apprHtml.indexOf('王助教') !== -1 && apprHtml.indexOf('openid') !== -1,
+    '解绑审批块渲染学生姓名+归属助教+openid 脱敏');
+  const reqId = (await wb.HttpApi._req('GET', '/api/unbind-requests?status=pending')).requests[0].id;
+  vm.runInContext('reviewUnbindReq("' + reqId + '",true)', ctx);
+  await sleep(400);
+  ok(dbE2e.prepare('SELECT unbound FROM parent_binds WHERE id = ?').get('bind_e2e_1').unbound === 1, '教务审批通过 → 绑定标失效');
+  await wb.resyncState();
+  ok(wb.pool.students.find(s=>s.id===sid).bindCnt === 0, '通过后学生卡 bindCnt 同步归零');
+  // 教务直解不变（无需申请）
+  dbE2e.prepare('INSERT INTO parent_binds (id, student_id, openid, bound_at, unbound) VALUES (?,?,?,?,0)')
+    .run('bind_e2e_2', sid, 'openid_e2e_2_zz_ww', '2026-09-16T01:00:00.000Z');
+  const ub = await wb.HttpApi.unbindParent(sid, 'bind_e2e_2');
+  ok(ub.ok, '教务直接解绑不受影响（无需申请）');
 
   console.log('\ne2e 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();

@@ -176,7 +176,7 @@ function sign(token, ts, nonce){
   ok(r.status === 503 && r.data.msg === '服务号未配置', '未配置时推送 503「服务号未配置」');
   process.env.WECHAT_SECRET = 'test-secret-fake';  // 恢复
 
-  /* ---- 手动解绑：binds 列表 + unbind 接口 ---- */
+  /* ---- 手动解绑：binds 列表 + unbind 接口（仅教务直解；助教走申请审批） ---- */
   db.prepare('INSERT INTO parent_binds (id, student_id, openid, bound_at, unbound) VALUES (?,?,?,?,0)')
     .run('bind_manual_1', stuA, 'openid_m1', '2026-09-16T00:00:00.000Z');
   db.prepare('INSERT INTO parent_binds (id, student_id, openid, bound_at, unbound) VALUES (?,?,?,?,0)')
@@ -188,16 +188,51 @@ function sign(token, ts, nonce){
   r = await req('GET', '/api/students/' + stuA + '/binds', null, T2);
   ok(r.status === 403, '助教查他人学生绑定列表被越权拒绝');
   r = await req('POST', '/api/students/' + stuA + '/binds/bind_manual_1/unbind', {}, T1);
-  ok(r.status === 200 && r.data.ok === true, '手动解绑成功');
+  ok(r.status === 403 && r.data.msg.indexOf('申请') !== -1, '助教直接解绑被拒并提示走申请（403）');
+  r = await req('POST', '/api/students/' + stuA + '/binds/bind_manual_1/unbind', {}, adminTok);
+  ok(r.status === 200 && r.data.ok === true, '教务手动解绑成功');
   ok(db.prepare('SELECT unbound FROM parent_binds WHERE id = ?').get('bind_manual_1').unbound === 1, '解绑为软解绑（unbound=1 留痕）');
   ok(db.prepare('SELECT * FROM parent_binds WHERE id = ?').get('bind_manual_1') !== undefined, '解绑不删行');
   r = await req('GET', '/api/students/' + stuA + '/binds', null, T1);
   ok(!r.data.binds.some(b=>b.id==='bind_manual_1') && r.data.binds.some(b=>b.id==='bind_manual_2'), '解绑后列表不再含被解绑记录（其余保留）');
-  r = await req('POST', '/api/students/' + stuA + '/binds/bind_manual_1/unbind', {}, T1);
+  r = await req('POST', '/api/students/' + stuA + '/binds/bind_manual_1/unbind', {}, adminTok);
   ok(r.status === 200 && r.data.ok === true, '重复解绑幂等');
   r = await req('POST', '/api/students/' + stuB + '/binds/bind_manual_3/unbind', {}, T1);
   ok(r.status === 403, '助教解绑他人学生家长被越权拒绝');
   ok(db.prepare('SELECT unbound FROM parent_binds WHERE id = ?').get('bind_manual_3').unbound === 0, '越权解绑未生效');
+
+  /* ---- 解绑审批流：助教申请 → 教务审批 ---- */
+  r = await req('POST', '/api/students/' + stuA + '/binds/bind_manual_2/unbind-request', {}, T1);
+  ok(r.status === 200 && r.data.ok && r.data.request.status === 'pending', '助教发起解绑申请成功');
+  const reqId1 = r.data.request.id;
+  r = await req('POST', '/api/students/' + stuA + '/binds/bind_manual_2/unbind-request', {}, T1);
+  ok(r.status === 400, '同一绑定重复申请被拦截（已有 pending）');
+  r = await req('POST', '/api/students/' + stuB + '/binds/bind_manual_3/unbind-request', {}, T1);
+  ok(r.status === 403, '助教不能给他人学生提交解绑申请（403）');
+  r = await req('POST', '/api/students/' + stuA + '/binds/bind_manual_2/unbind-request', {}, adminTok);
+  ok(r.status === 400, '教务无需申请（可直接解绑）');
+  // ta2 也给自己学生提交一条（验证助教口径隔离）
+  r = await req('POST', '/api/students/' + stuB + '/binds/bind_manual_3/unbind-request', {}, T2);
+  const reqId2 = r.data.request.id;
+  r = await req('GET', '/api/unbind-requests?status=pending', null, T1);
+  ok(r.status === 200 && r.data.requests.length === 1 && r.data.requests[0].id === reqId1, '助教只看到自己提交的申请');
+  r = await req('GET', '/api/unbind-requests?status=pending', null, adminTok);
+  ok(r.data.requests.length === 2 && r.data.requests[0].studentName && r.data.requests[0].ownerName
+    && r.data.requests[0].openid, '教务见全量待审批（含学生名/归属助教/openid）');
+  r = await req('POST', '/api/unbind-requests/' + reqId1 + '/review', { approve: true }, T1);
+  ok(r.status === 403, '助教不能审批（403）');
+  r = await req('POST', '/api/unbind-requests/' + reqId1 + '/review', { approve: true }, adminTok);
+  ok(r.status === 200 && db.prepare('SELECT unbound FROM parent_binds WHERE id = ?').get('bind_manual_2').unbound === 1,
+    '教务通过 → 绑定标失效（软解绑）');
+  ok(db.prepare("SELECT status, reviewed_by FROM unbind_requests WHERE id = ?").get(reqId1).status === 'approved',
+    '申请状态 approved + 记录审批人');
+  r = await req('POST', '/api/unbind-requests/' + reqId1 + '/review', { approve: true }, adminTok);
+  ok(r.status === 400, '重复审批被拒（已处理）');
+  r = await req('POST', '/api/unbind-requests/' + reqId2 + '/review', { approve: false }, adminTok);
+  ok(r.status === 200 && db.prepare('SELECT unbound FROM parent_binds WHERE id = ?').get('bind_manual_3').unbound === 0
+    && db.prepare('SELECT status FROM unbind_requests WHERE id = ?').get(reqId2).status === 'rejected',
+    '教务驳回 → 绑定保持不变，申请状态 rejected');
+  ok(db.prepare("SELECT * FROM audit_logs WHERE action = '解绑审批通过'").all().length > 0, '审批通过写审计日志');
 
   console.log('\nM9 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();

@@ -213,5 +213,20 @@ CREATE INDEX IF NOT EXISTS idx_binds_openid ON parent_binds(openid);
 if(!db.prepare("PRAGMA table_info(students)").all().map(c => c.name).includes('bind_token')){
   db.exec('ALTER TABLE students ADD COLUMN bind_token TEXT');
 }
+/* 解绑审批（助教解绑家长需教务审批）：unbind_requests 表。同一绑定同时最多一条 pending。 */
+db.exec(`
+CREATE TABLE IF NOT EXISTS unbind_requests (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  bind_id TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  requested_by TEXT NOT NULL,
+  requested_at TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('pending','approved','rejected')),
+  reviewed_by TEXT,
+  reviewed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_unbindreq_status ON unbind_requests(status);
+`);
 
 module.exports = db;

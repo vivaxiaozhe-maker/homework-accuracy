@@ -166,7 +166,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.2.2') !== -1, '登录页版本号升至 v1.2.2');
+  ok(html.indexOf('id="login-ver">v1.3.0') !== -1, '登录页版本号升至 v1.3.0');
 
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
@@ -327,6 +327,14 @@ function ok(cond, name){
   wb.setQuickEntry(null);
   wb.toggleTaGroup(ta1.id);  // 恢复折叠
 
+  /* ---- 解绑审批（结构 + 弹窗层级 + mock 行为） ---- */
+  ok(/#confirm-modal\{z-index:400\}/.test(html), '确认弹窗 z-index 400（高于业务弹窗 300，不再被绑定管理弹窗压住）');
+  ok(html.indexOf('id="unbindreq-zone"') !== -1 && html.indexOf('id="unbindreq-pending"') !== -1, '今日概览含「解绑审批」区块结构');
+  ok(documentStub.getElementById('unbindreq-zone').style.display === 'none', 'mock 模式解绑审批区无内容不显示');
+  const alertsBeforeBinds = alerts.length;
+  await vm.runInContext('openBindsModal("' + bindStu.id + '")', ctx);
+  ok(alerts.length > alertsBeforeBinds && alerts[alerts.length-1].indexOf('演示环境暂不支持绑定管理') !== -1, 'mock 模式绑定管理提示演示环境不支持');
+
   /* ---- 助教数据隔离 ---- */
   wb.doLogout();
   await wb.doLogin('ta1', 'ta123456', 'ta');
@@ -398,8 +406,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.2.2') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.2.2」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.3.0') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.3.0」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');

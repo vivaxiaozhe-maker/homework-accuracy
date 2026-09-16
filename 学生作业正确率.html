@@ -427,6 +427,9 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
   align-items:center;justify-content:center;padding:20px;
 }
 .modal-mask.show{display:flex}
+/* 确认弹窗是最高决策层：z-index 400 高于一切业务弹窗（300），
+   否则绑定管理等弹窗内的「解绑」二次确认会被压在下面点不到（已踩过） */
+#confirm-modal{z-index:400}
 .modal{background:var(--card);border-radius:18px;padding:24px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.2)}
 .modal h3{font-size:16px;margin-bottom:10px}
 .modal p{font-size:14px;color:var(--ink2);margin-bottom:18px}
@@ -684,7 +687,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.2.2</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.3.0</div>
   </aside>
 
   <main>
@@ -728,6 +731,11 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
         <div id="planreq-zone" style="display:none">
           <h3>计划修改审批 <span class="tag red" id="planreq-badge-card" style="display:none"></span></h3>
           <div id="planreq-pending"></div>
+          <!-- 解绑审批（仅教务；有待审批时才显示整块） -->
+          <div id="unbindreq-zone" style="display:none">
+            <h3>解绑审批 <span class="tag red" id="unbindreq-badge-card" style="display:none"></span></h3>
+            <div id="unbindreq-pending"></div>
+          </div>
           <div class="divider"></div>
         </div>
         <div id="today-list"></div>
@@ -1126,7 +1134,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.2.2</div>
+    <div class="login-ver" id="login-ver">v1.3.0</div>
   </div>
 </div>
 
@@ -1227,7 +1235,7 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
-const APP_VERSION = 'v1.2.2';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.3.0';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -3649,7 +3657,7 @@ async function openBindModal(gid){
   box.innerHTML = '<img src="' + esc(r.qrUrl) + '" alt="家长绑定二维码" style="width:220px;height:220px;border-radius:12px;border:1px solid var(--line)">';
 }
 
-/* 「已绑定家长」管理弹窗：查看绑定列表（openid 脱敏）+ 手动解绑（软解绑留痕） */
+/* 「已绑定家长」管理弹窗：查看绑定列表（openid 脱敏）；教务可直解，助教走「申请解绑」（审批制） */
 function maskOpenid(o){ return o && o.length > 10 ? o.slice(0, 6) + '…' + o.slice(-4) : o; }
 async function openBindsModal(gid){
   if(!gid) return;
@@ -3659,11 +3667,33 @@ async function openBindsModal(gid){
   document.getElementById('binds-modal').classList.add('show');
   const r = await HttpApi.listBinds(gid);
   if(!r.ok){ list.innerHTML = '<p class="hint">' + esc(r.msg || '加载失败') + '</p>'; return; }
+  // 助教视角：拉取自己待审批的解绑申请，对应行标「申请中」且不再显示按钮
+  let pendingBindIds = [];
+  if(currentUser && currentUser.role === 'ta'){
+    const ur = await HttpApi._req('GET', '/api/unbind-requests?status=pending');
+    if(ur && ur.ok && Array.isArray(ur.requests)) pendingBindIds = ur.requests.map(x=>x.bindId);
+  }
   if(!r.binds.length){ list.innerHTML = '<p class="hint">暂无绑定的家长。</p>'; return; }
+  const isAdmin = currentUser && currentUser.role === 'admin';
   list.innerHTML = r.binds.map(b=>
     '<div class="acct-row" style="align-items:center"><div class="grow"><b>' + esc(maskOpenid(b.openid)) + '</b>' +
+    (pendingBindIds.indexOf(b.id) !== -1 ? ' <span class="tag amber">申请中</span>' : '') +
     '<div class="hint" style="margin-top:2px">绑定于 ' + esc(String(b.bound_at).slice(0, 10)) + '</div></div>' +
-    '<button class="btn danger sm" onclick="unbindParent(\'' + gid + '\',\'' + b.id + '\')">解绑</button></div>').join('');
+    (isAdmin
+      ? '<button class="btn danger sm" onclick="unbindParent(\'' + gid + '\',\'' + b.id + '\')">解绑</button>'
+      : (pendingBindIds.indexOf(b.id) !== -1
+          ? ''
+          : '<button class="btn ghost sm" onclick="requestUnbind(\'' + gid + '\',\'' + b.id + '\')">申请解绑</button>')) +
+    '</div>').join('');
+}
+/* 助教「申请解绑」：确认后创建审批申请，该行变为「申请中」 */
+function requestUnbind(gid, bindId){
+  askConfirm('申请解绑家长', '提交后由教务审批；通过后该家长微信不再收到这名学生的报告推送。确定申请解绑吗？', async ()=>{
+    const r = await HttpApi._req('POST', '/api/students/' + gid + '/binds/' + bindId + '/unbind-request');
+    if(!r.ok){ toast(r.msg || '申请失败'); return; }
+    toast('已提交解绑申请，待教务审批');
+    openBindsModal(gid);  // 刷新列表（该行变为「申请中」）
+  });
 }
 function unbindParent(gid, bindId){
   askConfirm('解绑家长', '解绑后该家长微信将不再收到这名学生的报告推送。确定解绑吗？', async ()=>{
@@ -4589,6 +4619,7 @@ function doLogout(){
   if(r && typeof r.then === 'function') r.catch(()=>{});  // HttpApi 登出为异步，失败不阻塞本地退出
   currentUser = null;
   subjTreeDraft = null;  // 科目管理草稿随会话清空（下次登录从当前树重新初始化）
+  unbindReqCache = [];   // 解绑申请缓存随会话清空
   if(USE_API){  // API 模式登出清空服务端快照，避免下个登录用户看到残留数据
     pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };
     refreshView();
@@ -4679,6 +4710,52 @@ function renderPlanRequests(){
   const cb = document.getElementById('planreq-badge-card');
   cb.style.display = pending.length ? '' : 'none';
   cb.textContent = pending.length + ' 条待审批';
+}
+/* ================= 解绑审批（仅教务；助教解绑家长需教务审批） =================
+   数据在服务端（mock 不支持绑定，恒为空）；refreshUnbindRequests 异步自取数自渲染 */
+let unbindReqCache = [];
+async function refreshUnbindRequests(){
+  if(!USE_API){ unbindReqCache = []; renderUnbindRequests(); renderPendingBadges(); return; }
+  const r = await HttpApi._req('GET', '/api/unbind-requests?status=pending');
+  unbindReqCache = (r && r.ok && Array.isArray(r.requests)) ? r.requests : [];
+  renderUnbindRequests();
+  renderPendingBadges();
+}
+function renderUnbindRequests(){
+  const zone = document.getElementById('unbindreq-zone');
+  if(!zone) return;
+  const pend = isAdminView() ? unbindReqCache.filter(r=>r.status==='pending') : [];
+  zone.style.display = pend.length ? '' : 'none';
+  // 每条：解绑学生 + 归属助教 + 家长 openid 脱敏 + 申请时间 + 通过/驳回
+  document.getElementById('unbindreq-pending').innerHTML = pend.map(r=>
+    '<div class="acct-row">' +
+    '<div class="grow"><b>' + esc(r.studentName || '（已删除学生）') + '</b> <span class="tag amber">解绑申请</span>' +
+    '<div class="hint" style="margin-top:2px">归属助教：' + esc(r.ownerName || '未知') + ' · 家长 ' + esc(maskOpenid(r.openid || '')) + ' · ' + esc(String(r.requestedAt || '').slice(0, 10)) + '</div></div>' +
+    '<button class="btn mint sm" onclick="reviewUnbindReq(\'' + r.id + '\',true)">通过</button>' +
+    '<button class="btn danger sm" onclick="reviewUnbindReq(\'' + r.id + '\',false)">驳回</button>' +
+    '</div>').join('');
+  const cb = document.getElementById('unbindreq-badge-card');
+  cb.style.display = pend.length ? '' : 'none';
+  cb.textContent = pend.length + ' 条待审批';
+}
+/* 教务审批解绑：通过直接生效（绑定标失效 + bindCnt 同步）；驳回需确认 */
+function reviewUnbindReq(id, approve){
+  if(approve){
+    (async ()=>{
+      const res = await HttpApi._req('POST', '/api/unbind-requests/' + id + '/review', { approve: true });
+      if(!res.ok){ toast(res.msg); return; }
+      toast('已通过，该家长已解绑');
+      await refreshUnbindRequests();
+      resyncState();  // 学生卡 bindCnt 同步
+    })();
+  } else {
+    askConfirm('驳回解绑申请', '确定驳回这条解绑申请吗？该家长的绑定保持不变。', async ()=>{
+      const res = await HttpApi._req('POST', '/api/unbind-requests/' + id + '/review', { approve: false });
+      if(!res.ok){ toast(res.msg); return; }
+      toast('已驳回，绑定保持不变');
+      await refreshUnbindRequests();
+    });
+  }
 }
 /* ================= 已处理事项统一回溯区（今天要处理卡片底部，近 30 天） =================
    助教：自己名下的已处理未交 + 自己提交的申请结果；教务：全部（未交条目附归属助教名）。
@@ -4823,9 +4900,11 @@ function reviewPlanRequest(id, approve){
     });
   }
 }
-/* 侧栏/底部 Tab「今日概览」待审批红点徽章（仅教务可见，0 不显示） */
+/* 侧栏/底部 Tab「今日概览」待审批红点徽章（仅教务可见，0 不显示；计划申请 + 解绑申请合计） */
 function renderPendingBadges(){
-  const n = (isAdminView() && pool.planRequests) ? pool.planRequests.filter(r=>r.status==='pending').length : 0;
+  const planN = (isAdminView() && pool.planRequests) ? pool.planRequests.filter(r=>r.status==='pending').length : 0;
+  const unbindN = isAdminView() ? unbindReqCache.filter(r=>r.status==='pending').length : 0;
+  const n = planN + unbindN;
   ['badge-today','badge-today-tab'].forEach(id=>{
     const el = document.getElementById(id);
     el.style.display = n > 0 ? '' : 'none';
@@ -5141,6 +5220,7 @@ function renderAll(){
   // 计划修改审批区挂在「今日概览-今天要处理」卡片顶部，仅教务可见
   document.getElementById('planreq-zone').style.display = isAdminView() ? '' : 'none';
   if(isAdminView()){ renderAccounts(); renderPlanRequests(); }
+  refreshUnbindRequests();  // 解绑审批区 + 红点合计（异步自取数自渲染；mock 恒空）
   renderDashboard();  // 内部含教务守卫，助教端自动清空看板内容
   renderAudit();      // 内部含角色守卫（销售/未登录不产出）
   renderSubjectMgmt();  // 科目管理卡片（内部含教务守卫）

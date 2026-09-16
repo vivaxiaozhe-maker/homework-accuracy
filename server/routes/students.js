@@ -177,11 +177,13 @@ router.get('/:id/binds', (req, res) => {
   res.json({ ok: true, binds: binds });
 });
 
-/* POST /api/students/:id/binds/:bindId/unbind：手动解绑家长（软解绑 unbound=1 留痕不删行；与家长取关自动失效同口径） */
+/* POST /api/students/:id/binds/:bindId/unbind：手动解绑家长（软解绑 unbound=1 留痕不删行；与家长取关自动失效同口径）
+   仅教务可直接解绑；助教走 unbind-request 申请审批 */
 router.post('/:id/binds/:bindId/unbind', (req, res) => {
   const st = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.id);
   if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
   if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
+  if(req.user.role !== 'admin') return res.status(403).json({ ok: false, msg: '助教解绑需提交申请，由教务审批' });
   const b = db.prepare('SELECT * FROM parent_binds WHERE id = ? AND student_id = ?').get(req.params.bindId, st.id);
   if(!b) return res.status(404).json({ ok: false, msg: '绑定记录不存在' });
   if(!b.unbound){
@@ -189,6 +191,24 @@ router.post('/:id/binds/:bindId/unbind', (req, res) => {
     logAudit(req.user, '解绑家长微信', 'student', st.name, 'openid ' + b.openid.slice(0, 6) + '…', st.owner_id);
   }
   res.json({ ok: true });  // 重复解绑幂等
+});
+
+/* POST /api/students/:id/binds/:bindId/unbind-request：助教发起解绑申请（归属校验；同一绑定同时最多一条 pending） */
+router.post('/:id/binds/:bindId/unbind-request', (req, res) => {
+  const st = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.id);
+  if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
+  if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
+  if(req.user.role === 'admin') return res.status(400).json({ ok: false, msg: '教务可直接解绑，无需申请' });
+  const b = db.prepare('SELECT * FROM parent_binds WHERE id = ? AND student_id = ?').get(req.params.bindId, st.id);
+  if(!b || b.unbound) return res.status(404).json({ ok: false, msg: '绑定记录不存在' });
+  const dup = db.prepare("SELECT 1 FROM unbind_requests WHERE bind_id = ? AND status = 'pending'").get(b.id);
+  if(dup) return res.status(400).json({ ok: false, msg: '该绑定已有待审批的解绑申请' });
+  const id = uid('ubr_');
+  db.prepare(`INSERT INTO unbind_requests (id, student_id, bind_id, owner_id, requested_by, requested_at, status)
+              VALUES (?,?,?,?,?,?,'pending')`)
+    .run(id, st.id, b.id, st.owner_id, req.user.id, new Date().toISOString());
+  logAudit(req.user, '申请解绑家长', 'student', st.name, 'openid ' + b.openid.slice(0, 6) + '…', st.owner_id);
+  res.json({ ok: true, request: { id: id, status: 'pending' } });
 });
 
 module.exports = router;
