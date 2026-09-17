@@ -34,6 +34,14 @@ function parseJson(s, fallback){
   if(!s) return fallback;
   try{ return JSON.parse(s); }catch(e){ return fallback; }
 }
+// 科目路径缩短显示（与前端一致）：「学科 / AP / 微积分BC」→「AP·微积分BC」；「竞赛 / AMC10」→「AMC10」
+function shortSubject(s){
+  if(!s) return '未指定';
+  const p = String(s).split(' / ');
+  if(p.length === 3) return p[1] + '·' + p[2];
+  if(p.length === 2) return p[1];
+  return s;
+}
 function stuToJson(s){
   return { id: s.id, ownerId: s.owner_id, name: s.name, school: s.school || '', gradYear: s.grad_year || '',
     archived: !!s.archived, sample: !!s.sample,
@@ -69,4 +77,4 @@ function clientId(raw, table){
   return clash ? 'conflict' : raw;
 }
 
-module.exports = { nowTs, uid, logAudit, canWrite, clientId, parseJson, stuToJson, recToJson, missToJson, reqToJson };
+module.exports = { nowTs, uid, logAudit, canWrite, clientId, parseJson, shortSubject, stuToJson, recToJson, missToJson, reqToJson };

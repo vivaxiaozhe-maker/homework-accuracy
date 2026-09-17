@@ -469,6 +469,15 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 /* 科目管理树编辑（仅教务，数据管理页）：一级为分区卡片（标题行右侧操作按钮，与二级系列行同款排布），
    二级一行一个系列（名居左按钮居右），三级标签流 */
 .st-cat{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px;background:#FDFCF8}
+/* 微信自动推送开关（教务管理页）：薄荷绿 toggle */
+.push-cfg-row{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px dashed var(--line);font-size:14px}
+.push-cfg-row:last-child{border-bottom:none}
+.push-cfg-row span{flex:1}
+.push-cfg-row small{color:var(--ink2);font-weight:400}
+.switch{width:46px;height:26px;border-radius:999px;border:none;background:#D8D0BC;position:relative;cursor:pointer;transition:background .15s;flex-shrink:0;padding:0}
+.switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .15s}
+.switch.on{background:var(--mint)}
+.switch.on::after{left:23px}
 .st-l1row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 2px 7px}
 .st-l1row b{font-size:15px;font-weight:700;color:var(--mint-d)}
 .st-l2{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 2px;border-top:1px dashed var(--line)}
@@ -681,13 +690,13 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
     </button>
     <button class="nav-btn" data-tab="data" id="nav-data">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
-      数据管理
+      教务管理
     </button>
     <button class="nav-btn" data-tab="audit" id="nav-audit" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.3.0</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.3.1</div>
   </aside>
 
   <main>
@@ -847,7 +856,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       </div>
     </section>
 
-    <!-- 数据管理 -->
+    <!-- 教务管理（备份/清理/科目管理/微信推送开关） -->
     <section id="pane-data" class="tab-pane">
       <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/></svg>备份与恢复</h2>
@@ -892,6 +901,17 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
           <button class="btn mint sm" id="btn-subj-save">保存科目树</button>
           <button class="btn ghost sm" id="btn-subj-reset">恢复默认</button>
         </div>
+      </div>
+      <!-- 微信自动推送开关（仅教务可见可改；默认全关；mock 演示环境隐藏） -->
+      <div class="card" id="push-config-card" style="display:none">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>微信自动推送</h2>
+        <p class="hint" style="margin-top:0">开启后，对应内容保存成功时自动推送给已绑定家长的微信；未绑定家长的学生不推送。开关即时生效。</p>
+        <div class="push-cfg-row"><span>作业成绩通知<small>（打卡录入/批改保存时）</small></span>
+          <button class="switch" id="push-cfg-homework" onclick="togglePushConfig('homework')" aria-label="作业成绩通知开关"></button></div>
+        <div class="push-cfg-row"><span>模考预约通知<small>（设置/修改预约模考时间时）</small></span>
+          <button class="switch" id="push-cfg-mockBook" onclick="togglePushConfig('mockBook')" aria-label="模考预约通知开关"></button></div>
+        <div class="push-cfg-row"><span>模考成绩通知<small>（保存结课模考分数时）</small></span>
+          <button class="switch" id="push-cfg-mockScore" onclick="togglePushConfig('mockScore')" aria-label="模考成绩通知开关"></button></div>
       </div>
     </section>
 
@@ -975,7 +995,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       </button>
       <button class="tab-btn" data-tab="data" id="tab-data">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
-        数据
+        教务
       </button>
       <button class="tab-btn" data-tab="accounts" id="tab-accounts" style="display:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg>
@@ -1134,7 +1154,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.3.0</div>
+    <div class="login-ver" id="login-ver">v1.3.1</div>
   </div>
 </div>
 
@@ -1235,7 +1255,7 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
-const APP_VERSION = 'v1.3.0';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.3.1';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -2088,7 +2108,7 @@ function archivedStudents(){ return state.students.filter(s=>s.archived); }
 
 /* ================= 页签切换 ================= */
 /* topbar 主标题 = 当前页签名称（产品名只在侧栏品牌区出现，顶部不再重复） */
-const TAB_TITLES = { today:'今日概览', dashboard:'数据看板', stats:'现有学生', alumni:'历史学生', accounts:'账号管理', data:'数据管理', audit:'操作记录' };
+const TAB_TITLES = { today:'今日概览', dashboard:'数据看板', stats:'现有学生', alumni:'历史学生', accounts:'账号管理', data:'教务管理', audit:'操作记录' };
 function switchTab(name){
   // 角色页签守卫：教务=全部 6 个；助教=今日/现有/历史/数据；销售=仅现有/历史
   const role = currentUser ? currentUser.role : null;
@@ -2970,7 +2990,8 @@ function qePanelHtml(){
   if(mockDate && !isMockEditDate){
     mockBookHtml = '<span class="mock-booked">✓ 已预约 ' + esc(mockDate) + ' 模考</span>' +
       '<button class="btn ghost sm" onclick="editMock(\'date\')">修改日期</button>' +
-      '<button class="btn ghost sm" onclick="cancelMockExam()">取消预约</button>';
+      '<button class="btn ghost sm" onclick="cancelMockExam()">取消预约</button>' +
+      '<button class="btn ghost sm" onclick="pushManual(\'mock-book\')" title="给已绑定家长推送「考试报名成功通知」">推送报名通知</button>';
   } else {
     mockBookHtml = '<input id="mock-date" type="date" value="' + (mockDate || todayStr()) + '">' +
       '<button class="btn mint sm" onclick="bookMockExam()">预约模考</button>';
@@ -2979,7 +3000,8 @@ function qePanelHtml(){
   if(mockScore!=='' && !isMockEditScore){
     mockScoreHtml = '<span class="mock-score-shown">结课模考分数：<b>' + esc(mockScore) + '</b>分</span>' +
       '<button class="btn ghost sm" onclick="editMock(\'score\')">修改</button>' +
-      '<button class="btn ghost sm" onclick="clearMockScore()">清除</button>';
+      '<button class="btn ghost sm" onclick="clearMockScore()">清除</button>' +
+      '<button class="btn ghost sm" onclick="pushManual(\'mock-score\')" title="给已绑定家长推送「考试成绩通知」">推送成绩通知</button>';
   } else {
     mockScoreHtml = '<input id="mock-score" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="结课模考分数（0-100，直接输入数字）" value="' + (mockScore!==''?esc(mockScore):'') + '">' +
       '<button class="btn mint sm" onclick="saveMockScore()">保存模考分数</button>';
@@ -3089,7 +3111,8 @@ function saveQuickEntry(){
   logAction('录入作业', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject),
     '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: st.ownerId});
   apiPersist(HttpApi.addRecord({id: newRec.id, studentId: newRec.studentId, date: date, total: total, correct: correct,
-    wrongs: wrongs, subject: newRec.subject, images: newRec.images, pdfs: newRec.pdfs}));  // id 客户端生成并贯穿，不再回填
+    wrongs: wrongs, subject: newRec.subject, images: newRec.images, pdfs: newRec.pdfs}),
+    r=>{ if(r && r.pushed) toast('已保存并推送家长'); });  // id 客户端生成并贯穿；开关打开时服务端自动推送
   quickEntry = null;
   save();
   renderAll();
@@ -3406,7 +3429,8 @@ function saveSlot(){
     r.date = date; r.total = total; r.correct = correct; r.wrongs = wrongs;
     logAction('修改作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
       '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: r.ownerId});
-    apiPersist(HttpApi.updateRecord(r.id, {date: date, total: total, correct: correct, wrongs: wrongs, subject: r.subject}));
+    apiPersist(HttpApi.updateRecord(r.id, {date: date, total: total, correct: correct, wrongs: wrongs, subject: r.subject}),
+      rr=>{ if(rr && rr.pushed) toast('已保存并推送家长'); });
   } else {
     const newRec = {id:uid(), studentId:slotEdit.gid, date:date, total:total, correct:correct,
       wrongs:wrongs, subject:slotEdit.subject, images:[], pdfs:[], ownerId:st0.ownerId};
@@ -3414,7 +3438,8 @@ function saveSlot(){
     logAction(miss ? '补录作业' : '录入作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
       '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: st0.ownerId});
     apiPersist(HttpApi.addRecord({id: newRec.id, studentId: newRec.studentId, date: date, total: total, correct: correct,
-      wrongs: wrongs, subject: newRec.subject, images: newRec.images, pdfs: newRec.pdfs}));  // id 客户端生成并贯穿，不再回填
+      wrongs: wrongs, subject: newRec.subject, images: newRec.images, pdfs: newRec.pdfs}),
+      rr=>{ if(rr && rr.pushed) toast('已保存并推送家长'); });  // id 客户端生成并贯穿，不再回填
     if(miss){
       miss.resolved = true; miss.resolution = 'made-up'; miss.resolvedAt = todayStr();  // 补录成功：该次未交视为已补交（留痕），不再占用打卡格子
       logAction('补交未交', 'missed', auditStuDesc(miss.studentId, miss.subject), '原未交日期 ' + miss.date, {ownerId: miss.ownerId});
@@ -3644,6 +3669,15 @@ async function pushReportToParent(){
   if(r.msg && r.msg.indexOf('未绑定') !== -1) openBindModal(quickEntry.gid);  // 未绑定 → 引导绑定
 }
 document.getElementById('rp-push').addEventListener('click', ()=>{ pushReportToParent(); });
+/* 手动推送（模考报名/成绩通知；防止家长没收到时补推。报告弹窗「推送给家长」是作业报告模板，别混） */
+async function pushManual(kind){
+  if(!quickEntry) return;
+  if(!USE_API){ toast('演示环境暂不支持推送（正式环境可用）'); return; }
+  const r = await HttpApi._req('POST', '/api/push/' + kind, { studentId: quickEntry.gid, subject: quickEntry.subject });
+  if(r.ok){ toast('已推送到家长微信'); return; }
+  toast(r.msg || '推送失败，请重试');
+  if(r.msg && r.msg.indexOf('未绑定') !== -1) openBindModal(quickEntry.gid);  // 未绑定 → 引导绑定
+}
 /* 「绑定家长微信」：调 bind-qr 生成/复用学生专属二维码（同一学生二维码不变，可重复转发）；mock 提示不支持。
    按学生 id 参数化：学生卡头部「绑定家长微信」标签与推送失败引导共用，不再依赖打卡面板状态 */
 async function openBindModal(gid){
@@ -3771,7 +3805,8 @@ function bookMockExam(){
   slot.date = d;
   const mst = getMockStu();
   logAction('预约模考', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '预约日期 ' + d, {ownerId: mst ? mst.ownerId : undefined});
-  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: mst.mock}));  // API 模式：整体提交模考列
+  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: mst.mock}),
+    r=>{ if(r && r.pushed) toast('已保存并推送家长'); });  // API 模式：整体提交模考列；开关打开时服务端自动推送
   mockEdit = null;
   save();
   renderAll();
@@ -3797,7 +3832,8 @@ function saveMockScore(){
   slot.score = v;
   const mst = getMockStu();
   logAction('保存模考分数', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '结课模考 ' + v + ' 分', {ownerId: mst ? mst.ownerId : undefined});
-  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: mst.mock}));
+  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: mst.mock}),
+    r=>{ if(r && r.pushed) toast('已保存并推送家长'); });  // 开关打开时服务端自动推送成绩通知
   mockEdit = null;
   save();
   renderAll();
@@ -4039,6 +4075,35 @@ document.getElementById('btn-subj-reset').addEventListener('click', ()=>{
     await saveSubjectsDraft();
   });
 });
+
+/* ================= 微信自动推送开关（教务管理页，仅教务可改；mock 隐藏） ================= */
+const PUSH_CFG_DEFAULT = { homework:false, mockBook:false, mockScore:false };
+let pushConfigCache = Object.assign({}, PUSH_CFG_DEFAULT);
+async function refreshPushConfig(){
+  const card = document.getElementById('push-config-card');
+  if(!card) return;
+  card.style.display = (isAdminView() && USE_API) ? '' : 'none';  // mock 演示环境无微信，隐藏
+  if(!USE_API) return;
+  const r = await HttpApi._req('GET', '/api/push-config');
+  if(r && r.ok && r.config) pushConfigCache = Object.assign({}, PUSH_CFG_DEFAULT, r.config);
+  renderPushConfig();
+}
+function renderPushConfig(){
+  ['homework','mockBook','mockScore'].forEach(k=>{
+    const b = document.getElementById('push-cfg-' + k);
+    if(b) b.classList.toggle('on', !!pushConfigCache[k]);  // classList.toggle(c,f) 桩兼容
+  });
+}
+async function togglePushConfig(k){
+  if(!isAdminView()) return;
+  if(!USE_API){ toast('演示环境暂不支持'); return; }
+  const next = Object.assign({}, pushConfigCache); next[k] = !next[k];
+  const r = await HttpApi._req('PUT', '/api/push-config', { config: next });
+  if(!r.ok){ toast(r.msg || '保存失败'); return; }
+  pushConfigCache = next;
+  renderPushConfig();
+  toast(next[k] ? '已开启自动推送' : '已关闭自动推送');
+}
 
 /* ================= 科目重命名 ================= */
 let renaming = null;  // {gid: 学生代表id, subject: 科目路径}
@@ -4620,6 +4685,7 @@ function doLogout(){
   currentUser = null;
   subjTreeDraft = null;  // 科目管理草稿随会话清空（下次登录从当前树重新初始化）
   unbindReqCache = [];   // 解绑申请缓存随会话清空
+  pushConfigCache = Object.assign({}, PUSH_CFG_DEFAULT);  // 推送开关缓存复位
   if(USE_API){  // API 模式登出清空服务端快照，避免下个登录用户看到残留数据
     pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };
     refreshView();
@@ -5221,6 +5287,7 @@ function renderAll(){
   document.getElementById('planreq-zone').style.display = isAdminView() ? '' : 'none';
   if(isAdminView()){ renderAccounts(); renderPlanRequests(); }
   refreshUnbindRequests();  // 解绑审批区 + 红点合计（异步自取数自渲染；mock 恒空）
+  refreshPushConfig();      // 微信自动推送开关卡（仅教务 + API 模式显示；内部含守卫）
   renderDashboard();  // 内部含教务守卫，助教端自动清空看板内容
   renderAudit();      // 内部含角色守卫（销售/未登录不产出）
   renderSubjectMgmt();  // 科目管理卡片（内部含教务守卫）

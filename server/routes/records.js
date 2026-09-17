@@ -5,6 +5,7 @@ const fs = require('fs');
 const db = require('../db');
 const { requireRole } = require('../auth');
 const { uid, logAudit, canWrite, clientId, recToJson, missToJson, parseJson } = require('../util');
+const push = require('../push');
 
 const router = express.Router();
 const guard = requireRole('ta', 'admin');  // 销售只读，不能写（逐路由挂载，不能用 router.use——本路由挂在 /api 根上）
@@ -43,7 +44,8 @@ function bindFiles(recordId, fileIds){
 }
 
 // POST /api/records {studentId, date, total, correct, wrongs, subject, images, pdfs}
-router.post('/records', guard, (req, res) => {
+// 保存成功后按开关自动推送「作业批改完成通知」（静默失败不阻塞保存；响应带 pushed 供前端提示）
+router.post('/records', guard, async (req, res) => {
   const { studentId, date, total, correct, wrongs, subject, images, pdfs } = req.body || {};
   const st = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId);
   if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
@@ -63,11 +65,13 @@ router.post('/records', guard, (req, res) => {
       JSON.stringify(images || []), JSON.stringify(pdfs || []));
   bindFiles(id, (images || []).concat(pdfs || []));
   logAudit(req.user, '录入作业', 'record', stuDesc(studentId, subject), '日期 ' + date + '，' + accText(total, correct), st.owner_id);
-  res.json({ ok: true, record: recToJson(db.prepare('SELECT * FROM records WHERE id = ?').get(id)) });
+  const pushed = await push.autoHomework(req, st, subject || '');
+  res.json({ ok: true, record: recToJson(db.prepare('SELECT * FROM records WHERE id = ?').get(id)), pushed: pushed });
 });
 
 // PUT /api/records/:id {date, total, correct, wrongs, subject, images, pdfs}
-router.put('/records/:id', guard, (req, res) => {
+// 编辑保存同样按开关自动推送（重新批改也算批改完成）
+router.put('/records/:id', guard, async (req, res) => {
   const r = db.prepare('SELECT * FROM records WHERE id = ?').get(req.params.id);
   if(!r) return res.status(404).json({ ok: false, msg: '记录不存在' });
   if(!canWrite(req.user, r.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
@@ -85,7 +89,9 @@ router.put('/records/:id', guard, (req, res) => {
   if(images !== undefined || pdfs !== undefined) bindFiles(r.id, newImages.concat(newPdfs));
   logAudit(req.user, '修改作业', 'record', stuDesc(r.student_id, subject !== undefined ? subject : r.subject),
     '日期 ' + date + '，' + accText(total, correct), r.owner_id);
-  res.json({ ok: true });
+  const st = db.prepare('SELECT * FROM students WHERE id = ?').get(r.student_id);
+  const pushed = st ? await push.autoHomework(req, st, subject !== undefined ? subject : r.subject) : false;
+  res.json({ ok: true, pushed: pushed });
 });
 
 // DELETE /api/records/:id（连带删除挂载的附件：库行 + 磁盘文件）

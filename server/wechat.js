@@ -9,7 +9,11 @@ function cfg(){
     secret: process.env.WECHAT_SECRET || '',
     token: process.env.WECHAT_TOKEN || '',
     templateId: process.env.WECHAT_TEMPLATE_ID || '',
-    templateMode: process.env.WECHAT_TEMPLATE_MODE || 'keywords'  // keywords=多字段模板 / content=单字段 content 模板
+    templateMode: process.env.WECHAT_TEMPLATE_MODE || 'keywords',  // keywords=多字段模板 / content=单字段 content 模板
+    // 三个业务模板（字段结构已从微信接口确认，见 routes/push.js 的映射注释；报告推送仍用上面的旧模板 templateId）
+    templateHomework: process.env.WECHAT_TEMPLATE_HOMEWORK || '',    // 作业批改完成通知
+    templateMockBook: process.env.WECHAT_TEMPLATE_MOCKBOOK || '',    // 考试报名成功通知
+    templateMockScore: process.env.WECHAT_TEMPLATE_MOCKSCORE || ''   // 考试成绩通知
   };
 }
 function configured(){

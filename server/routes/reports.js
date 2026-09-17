@@ -245,4 +245,4 @@ function sharePage(req, res){
   res.send(reportPage(st, t.subject, recs));
 }
 
-module.exports = { router, sharePage };
+module.exports = { router, sharePage, ensureShareToken };

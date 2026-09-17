@@ -166,7 +166,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.3.0') !== -1, '登录页版本号升至 v1.3.0');
+  ok(html.indexOf('id="login-ver">v1.3.1') !== -1, '登录页版本号升至 v1.3.1');
 
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
@@ -327,6 +327,24 @@ function ok(cond, name){
   wb.setQuickEntry(null);
   wb.toggleTaGroup(ta1.id);  // 恢复折叠
 
+  /* ---- 教务管理改名 + 微信自动推送开关卡 + 模考手动推送按钮（mock） ---- */
+  ok(html.indexOf('教务管理') !== -1 && html.indexOf("data:'教务管理'") !== -1, '「数据管理」改名「教务管理」（侧栏 + 页签标题映射）');
+  wb.switchTab('data');
+  ok(documentStub.getElementById('page-title').textContent === '教务管理', '切到教务管理页，topbar 标题联动');
+  ok(documentStub.getElementById('push-config-card').style.display === 'none', 'mock 模式推送开关卡隐藏（演示环境无微信）');
+  wb.switchTab('today');
+  // 模考区手动推送按钮（已预约 → 推送报名通知；已录分数 → 推送成绩通知）
+  bindStu.mock = { '学科 / AP / 微积分BC': { date: '2026-09-25', score: 92 } };
+  wb.setQuickEntry({gid: bindStu.id, subject: '学科 / AP / 微积分BC'});
+  wb.toggleTaGroup(ta1.id);  // 展开组渲染卡内面板
+  const mockHtml = documentStub.getElementById('stu-list').innerHTML;
+  ok(mockHtml.indexOf('推送报名通知') !== -1 && mockHtml.indexOf('推送成绩通知') !== -1, '模考区显示两个手动推送按钮（已预约+已录分）');
+  await vm.runInContext("pushManual('mock-book')", ctx);
+  ok(alerts[alerts.length-1].indexOf('演示环境暂不支持推送') !== -1, 'mock 模式手动推送提示演示环境不支持');
+  delete bindStu.mock['学科 / AP / 微积分BC'];
+  wb.setQuickEntry(null);
+  wb.toggleTaGroup(ta1.id);  // 恢复折叠
+
   /* ---- 解绑审批（结构 + 弹窗层级 + mock 行为） ---- */
   ok(/#confirm-modal\{z-index:400\}/.test(html), '确认弹窗 z-index 400（高于业务弹窗 300，不再被绑定管理弹窗压住）');
   ok(html.indexOf('id="unbindreq-zone"') !== -1 && html.indexOf('id="unbindreq-pending"') !== -1, '今日概览含「解绑审批」区块结构');
@@ -406,8 +424,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.3.0') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.3.0」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.3.1') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.3.1」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');

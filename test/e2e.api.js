@@ -91,7 +91,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.3.0', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.3.1', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -425,6 +425,18 @@ function ok(cond, name){
     .run('bind_e2e_2', sid, 'openid_e2e_2_zz_ww', '2026-09-16T01:00:00.000Z');
   const ub = await wb.HttpApi.unbindParent(sid, 'bind_e2e_2');
   ok(ub.ok, '教务直接解绑不受影响（无需申请）');
+
+  /* ---- 教务管理改名 + 推送开关卡（API 模式；桩服务器无 WECHAT_* 不影响开关存取） ---- */
+  wb.switchTab('data');
+  ok(documentStub.getElementById('page-title').textContent === '教务管理', '「数据管理」改名「教务管理」（页签标题联动）');
+  await vm.runInContext('refreshPushConfig()', ctx);
+  ok(documentStub.getElementById('push-config-card').style.display === '', '教务端显示微信自动推送开关卡');
+  ok(documentStub.getElementById('push-cfg-homework').classList.contains('on') === false, '推送开关默认关');
+  await vm.runInContext("togglePushConfig('homework')", ctx);
+  const cfgAfter = await wb.HttpApi._req('GET', '/api/push-config');
+  ok(cfgAfter.ok && cfgAfter.config.homework === true, '切换开关即 PUT 保存生效');
+  ok(alerts[alerts.length-1].indexOf('已开启自动推送') !== -1, '切换开关 toast 反馈');
+  await vm.runInContext("togglePushConfig('homework')", ctx);  // 关回去，避免影响其他用例
 
   console.log('\ne2e 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();

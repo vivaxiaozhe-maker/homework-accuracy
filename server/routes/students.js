@@ -3,8 +3,9 @@
 const express = require('express');
 const db = require('../db');
 const { requireRole } = require('../auth');
-const { uid, logAudit, canWrite, clientId, stuToJson } = require('../util');
+const { uid, logAudit, canWrite, clientId, parseJson, stuToJson } = require('../util');
 const wx = require('../wechat');
+const push = require('../push');
 
 const router = express.Router();
 router.use(requireRole('ta', 'admin'));  // 销售只读，不能写
@@ -87,7 +88,7 @@ router.post('/:id/owner', requireRole('admin'), (req, res) => {
    字段白名单：subjComments（评语）/ subjAdvice（学习计划与建议）/ mock（模考）/ subjects（科目列表）。
    注意：刻意不含 subj_plans——计划次数只能走 plan/set + 审批流，防止经此绕过审批 */
 const SUBJ_FIELD_WHITELIST = ['subjComments', 'subjAdvice', 'mock', 'subjects', 'subjFirstClass'];
-router.put('/:id/subj-fields', (req, res) => {
+router.put('/:id/subj-fields', async (req, res) => {
   const st = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.id);
   if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
   if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
@@ -96,6 +97,7 @@ router.put('/:id/subj-fields', (req, res) => {
   if(!keys.length || keys.some(k => SUBJ_FIELD_WHITELIST.indexOf(k) === -1)){
     return res.status(400).json({ ok: false, msg: '仅允许更新字段：' + SUBJ_FIELD_WHITELIST.join('、') });
   }
+  const oldMockAll = keys.includes('mock') ? parseJson(st.mock, {}) : null;  // 模考旧值（自动推送对比用）
   const setClauses = [];
   const params = [];
   const actions = [];
@@ -137,7 +139,13 @@ router.put('/:id/subj-fields', (req, res) => {
   }
   db.prepare('UPDATE students SET ' + setClauses.join(', ') + ' WHERE id = ?').run(...params, st.id);
   logAudit(req.user, actions.join('、'), 'student', st.name, keys.join('、'), st.owner_id);
-  res.json({ ok: true });
+  // 模考列变化按开关自动推送：date 变化 → 考试报名成功通知；score 变化 → 考试成绩通知（静默失败不阻塞保存）
+  let pushed;
+  if(oldMockAll !== null){
+    const p = await push.autoMock(req, st, oldMockAll, body.mock);
+    if(p.mockBook || p.mockScore) pushed = p;
+  }
+  res.json(Object.assign({ ok: true }, pushed ? { pushed: pushed } : {}));
 });
 
 /* POST /api/students/:id/bind-qr：家长绑定二维码（带参数永久二维码，scene_str = 学生绑定 token）
