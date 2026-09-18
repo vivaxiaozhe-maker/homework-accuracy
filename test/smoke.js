@@ -59,9 +59,13 @@ const ctx = vm.createContext({
 
 /* ---------- 加载页面脚本 ---------- */
 const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-const m = html.match(/<script>([\s\S]*?)<\/script>/);
-if(!m){ console.error('未找到 <script> 块'); process.exit(1); }
-vm.runInContext(m[1], ctx, {filename: 'inline-script.js'});
+/* 前端已拆分为 js/*.js（v1.4.0）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
+const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
+vm.runInContext(scriptSrc, ctx, {filename: 'inline-script.js'});
+/* 全文检索用：拆分后部分断言目标（文案/常量/CSS 规则）移入 js/styles，合并检索文本（DOM 结构断言仍用 html） */
+const allText = html + '\n' + scriptSrc + '\n' + fs.readFileSync(path.join(__dirname, '..', 'styles/main.css'), 'utf8');
 /* 脚本内顶层 function toast 声明会覆盖 ctx 预置的捕获桩；加载后改装为「捕获 + 透传真实实现」，
    既让既有断言继续从 alerts 数组读到提示，也顺带验证真实 toast() 在 DOM 桩下静默工作不抛错。 */
 const realToast = ctx.toast;
@@ -166,7 +170,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.3.3') !== -1, '登录页版本号升至 v1.3.3');
+  ok(html.indexOf('id="login-ver">v1.4.0') !== -1, '登录页版本号升至 v1.4.0');
 
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
@@ -315,7 +319,7 @@ function ok(cond, name){
   ok(html.indexOf('id="rp-push"') !== -1 && html.indexOf('推送给家长') !== -1, '报告预览弹窗含「推送给家长」按钮');
   ok(html.indexOf('id="bind-modal"') !== -1 && html.indexOf('id="bind-qr-box"') !== -1, '家长绑定二维码弹窗结构存在');
   ok(html.indexOf('id="binds-modal"') !== -1 && html.indexOf('id="binds-list"') !== -1, '家长绑定管理弹窗结构存在');
-  ok(html.indexOf('tag mint owner-tag') !== -1, '归属助教标签为薄荷绿色（tag mint）');
+  ok(allText.indexOf('tag mint owner-tag') !== -1, '归属助教标签为薄荷绿色（tag mint）');
   const bindStu = wb.pool.students.find(s=>!s.archived && s.ownerId===ta1.id);
   wb.setQuickEntry({gid: bindStu.id, subject: '学科 / AP / 微积分BC'});
   wb.toggleTaGroup(ta1.id);  // 教务分组视图默认折叠，展开 ta1 组才渲染卡内面板
@@ -328,9 +332,9 @@ function ok(cond, name){
   wb.toggleTaGroup(ta1.id);  // 恢复折叠
 
   /* ---- 教务管理改名 + 微信自动推送开关卡 + 模考手动推送按钮（mock） ---- */
-  ok(html.indexOf('作业成绩已推送给家长') !== -1 && html.indexOf('模考时间已推送给家长') !== -1
-    && html.indexOf('模考成绩已推送给家长') !== -1, '自动推送 toast 按类型分别反馈（作业成绩/模考时间/模考成绩）');
-  ok(html.indexOf('教务管理') !== -1 && html.indexOf("data:'教务管理'") !== -1, '「数据管理」改名「教务管理」（侧栏 + 页签标题映射）');
+  ok(allText.indexOf('作业成绩已推送给家长') !== -1 && allText.indexOf('模考时间已推送给家长') !== -1
+    && allText.indexOf('模考成绩已推送给家长') !== -1, '自动推送 toast 按类型分别反馈（作业成绩/模考时间/模考成绩）');
+  ok(html.indexOf('教务管理') !== -1 && allText.indexOf("data:'教务管理'") !== -1, '「数据管理」改名「教务管理」（侧栏 + 页签标题映射）');
   wb.switchTab('data');
   ok(documentStub.getElementById('page-title').textContent === '教务管理', '切到教务管理页，topbar 标题联动');
   ok(documentStub.getElementById('push-config-card').style.display === 'none', 'mock 模式推送开关卡隐藏（演示环境无微信）');
@@ -348,7 +352,7 @@ function ok(cond, name){
   wb.toggleTaGroup(ta1.id);  // 恢复折叠
 
   /* ---- 解绑审批（结构 + 弹窗层级 + mock 行为） ---- */
-  ok(/#confirm-modal\{z-index:400\}/.test(html), '确认弹窗 z-index 400（高于业务弹窗 300，不再被绑定管理弹窗压住）');
+  ok(/#confirm-modal\{z-index:400\}/.test(allText), '确认弹窗 z-index 400（高于业务弹窗 300，不再被绑定管理弹窗压住）');
   ok(html.indexOf('id="unbindreq-zone"') !== -1 && html.indexOf('id="unbindreq-pending"') !== -1, '今日概览含「解绑审批」区块结构');
   ok(documentStub.getElementById('unbindreq-zone').style.display === 'none', 'mock 模式解绑审批区无内容不显示');
   const alertsBeforeBinds = alerts.length;
@@ -426,8 +430,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.3.3') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.3.3」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.4.0') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.4.0」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -687,7 +691,7 @@ function ok(cond, name){
   /* ---- 批次一：品牌层级（火箭学院 > 学情跟踪平台）/ 停滞提醒 / 次数按钮形态 / subjAdvice / 清理区块显隐 ---- */
   ok(html.indexOf('<title>火箭学院 · 学情跟踪平台</title>') !== -1, '浏览器 title 为「火箭学院 · 学情跟踪平台」');
   // 品牌层级新结构：侧栏品牌区（主名+副标）、登录页（主名+副标）、title、报告落款，共 ≥4 处「火箭学院」
-  ok(html.indexOf('学生作业正确率') === -1 && (html.match(/火箭学院/g) || []).length >= 4,
+  ok(html.indexOf('学生作业正确率') === -1 && (allText.match(/火箭学院/g) || []).length >= 4,
     '品牌层级新结构：侧栏/登录页/title/报告落款均为「火箭学院」主品牌，旧名无残留');
   ok(html.indexOf('<div><b>火箭学院</b><span>学情跟踪平台</span></div>') !== -1, '侧栏品牌区 = 火箭学院主名 + 学情跟踪平台副标');
   ok(html.indexOf('<div><b>火箭学院</b><span>学情跟踪平台 · 内部工作台</span></div>') !== -1, '登录页品牌 = 火箭学院主名 + 学情跟踪平台副标');

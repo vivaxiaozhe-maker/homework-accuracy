@@ -80,8 +80,11 @@ function ok(cond, name){
   const sessionStore = ctx.sessionStorage;  // vm context 内同一引用
 
   const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-  const m = html.match(/<script>([\s\S]*?)<\/script>/);
-  vm.runInContext(m[1], ctx, { filename: 'inline-script.js' });
+  /* 前端已拆分为 js/*.js（v1.4.0）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+  const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
+  if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
+  const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
+  vm.runInContext(scriptSrc, ctx, { filename: 'inline-script.js' });
   /* 脚本内顶层 function toast 声明会覆盖 ctx 预置桩；加载后改装为「捕获 + 透传真实实现」，
      既有断言继续读 alerts 数组，同时验证真实 toast() 在 DOM 桩下静默工作不抛错 */
   const realToast = ctx.toast;
@@ -91,7 +94,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.3.3', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.4.0', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 

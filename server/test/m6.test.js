@@ -49,6 +49,15 @@ function ok(cond, name){
   ok(r.status === 404, '白名单：/.gitignore 404');
   r = await fetch(base + '/%2e%2e/server/db.js');
   ok(r.status === 404 || r.status === 400, '白名单：路径穿越（%2e%2e）被拦');
+  /* v1.4.0 前端拆分：/js/* 与 /styles/* 放行（限定目录内、no-store） */
+  r = await fetch(base + '/styles/main.css');
+  ok(r.status === 200 && (r.headers.get('content-type') || '').indexOf('text/css') !== -1, '白名单：/styles/main.css 200 且 Content-Type 为 CSS');
+  r = await fetch(base + '/js/data.js');
+  ok(r.status === 200 && (r.headers.get('content-type') || '').indexOf('javascript') !== -1, '白名单：/js/data.js 200 且 Content-Type 为 JS');
+  r = await fetch(base + '/js/../server/db.js');
+  ok(r.status === 404, '白名单：/js/../ 穿越被拒 404');
+  r = await fetch(base + '/js/../../etc/passwd');
+  ok(r.status === 404 || r.status === 400, '白名单：/js/../../ 穿越被拒');
 
   /* ---- 账号准备 ---- */
   let lr = await req('POST', '/api/login', { username: 'admin', password: 'admin123', role: 'admin' });

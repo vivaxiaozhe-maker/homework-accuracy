@@ -29,7 +29,8 @@ app.use(express.json({ limit: '10mb' }));
 
 /* 静态托管白名单：仅前端入口文件（此前整库根目录暴露 docs/、test/、server/、.gitignore 等，存在安全隐患）
    中文文件名入口：Express 5 路由对非 ASCII 路径不直接匹配，改为中间件手动解码比较。
-   HTML 一律 no-store：微信/浏览器缓存旧版前端会导致"修复了但用户端没生效"（生产已踩过）。 */
+   HTML 一律 no-store：微信/浏览器缓存旧版前端会导致"修复了但用户端没生效"（生产已踩过）。
+   v1.4.0 前端拆分：/js/* 与 /styles/* 放行（仍限定各自目录内，防路径穿越；同样 no-store 防旧缓存） */
 const ROOT_DIR = path.join(__dirname, '..');
 const sendHtml = (res, file) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -41,6 +42,13 @@ app.use((req, res, next) => {
   try{ p = decodeURIComponent(req.path); }catch(e){ return next(); }
   if(p === '/' || p === '/index.html') return sendHtml(res, 'index.html');
   if(p === '/学生作业正确率.html') return sendHtml(res, '学生作业正确率.html');
+  if(p.startsWith('/js/') || p.startsWith('/styles/')){
+    const dir = path.join(ROOT_DIR, p.startsWith('/js/') ? 'js' : 'styles');
+    const fp = path.resolve(dir, p.replace(/^\/(js|styles)\//, ''));
+    if(!fp.startsWith(dir + path.sep)) return next();  // 路径穿越（如 /js/../server/db.js）→ 404
+    res.setHeader('Cache-Control', 'no-store');
+    return res.sendFile(fp, err => { if(err && !res.headersSent) next(); });  // 文件不存在 → 404
+  }
   next();  // 其余路径一律 404（含 /docs/*、/test/*、/server/*、路径穿越尝试——Express 已规范化 .. 段）
 });
 
