@@ -91,7 +91,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.3.2', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.3.3', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -434,8 +434,14 @@ function ok(cond, name){
   ok(documentStub.getElementById('push-cfg-homework').classList.contains('on') === false, '推送开关默认关');
   await vm.runInContext("togglePushConfig('homework')", ctx);
   const cfgAfter = await wb.HttpApi._req('GET', '/api/push-config');
-  ok(cfgAfter.ok && cfgAfter.config.homework === true, '切换开关即 PUT 保存生效');
+  ok(cfgAfter.ok && cfgAfter.config.homework && cfgAfter.config.homework.enabled === true, '切换开关即 PUT 保存生效');
   ok(alerts[alerts.length-1].indexOf('已开启自动推送') !== -1, '切换开关 toast 反馈');
+  // 限流次数控件：步进到 4 并保存生效
+  await vm.runInContext("pushMaxStep('homework', 1)", ctx);
+  const cfgMax = await wb.HttpApi._req('GET', '/api/push-config');
+  ok(cfgMax.ok && cfgMax.config.homework.max === 4, '限流次数步进保存生效（3→4）');
+  ok(documentStub.getElementById('push-max-homework').textContent === '4', '限流次数控件显示更新');
+  await vm.runInContext("pushMaxStep('homework', -1)", ctx);  // 退回 3
   await vm.runInContext("togglePushConfig('homework')", ctx);  // 关回去，避免影响其他用例
 
   console.log('\ne2e 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);

@@ -13,35 +13,60 @@ const { ensureShareToken } = require('./routes/reports');
 const KIND_LABEL = { homework: '作业批改完成通知', mockBook: '考试报名成功通知', mockScore: '考试成绩通知' };
 const TEMPLATE_CFG_KEY = { homework: 'templateHomework', mockBook: 'templateMockBook', mockScore: 'templateMockScore' };
 
-/* 推送开关（settings.push_config JSON；默认全关，仅教务可改） */
-const PUSH_CFG_DEFAULT = { homework: false, mockBook: false, mockScore: false };
+/* 推送开关 + 按类型限流上限（settings.push_config JSON；默认 {enabled:false, max:3}，仅教务可改）
+   兼容旧格式 {homework:false,...}：读入自动归一化为新结构（enabled 布尔 + max 1–10 次/10 分钟） */
+const PUSH_KINDS = ['homework', 'mockBook', 'mockScore'];
+function clampMax(v){
+  const n = parseInt(v, 10);
+  if(isNaN(n)) return 3;
+  return Math.min(10, Math.max(1, n));
+}
+function normalizeCfg(raw){
+  const out = {};
+  PUSH_KINDS.forEach(k => {
+    const v = raw ? raw[k] : undefined;
+    if(v === undefined || v === null) out[k] = { enabled: false, max: 3 };
+    else if(typeof v === 'boolean') out[k] = { enabled: v, max: 3 };  // 旧格式兼容
+    else if(typeof v === 'number') out[k] = { enabled: !!v, max: 3 };
+    else out[k] = { enabled: !!v.enabled, max: clampMax(v.max) };
+  });
+  return out;
+}
 function pushConfig(){
   const row = db.prepare("SELECT value FROM settings WHERE key = 'push_config'").get();
-  if(!row) return Object.assign({}, PUSH_CFG_DEFAULT);
-  try{
-    const c = JSON.parse(row.value);
-    return { homework: !!c.homework, mockBook: !!c.mockBook, mockScore: !!c.mockScore };
-  }catch(e){ return Object.assign({}, PUSH_CFG_DEFAULT); }
+  if(!row) return normalizeCfg(null);
+  try{ return normalizeCfg(JSON.parse(row.value)); }catch(e){ return normalizeCfg(null); }
 }
-function savePushConfig(c){
+/* 保存：支持新旧两种输入；未提到的类型保留现值（局部更新不影响其他） */
+function savePushConfig(input){
+  const cur = pushConfig();
+  const next = {};
+  PUSH_KINDS.forEach(k => {
+    const v = input ? input[k] : undefined;
+    if(v === undefined || v === null) next[k] = cur[k];
+    else if(typeof v === 'boolean') next[k] = { enabled: v, max: cur[k].max };
+    else next[k] = { enabled: !!v.enabled, max: clampMax(v.max !== undefined ? v.max : cur[k].max) };
+  });
   db.prepare("INSERT INTO settings (key, value) VALUES ('push_config', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
-    .run(JSON.stringify({ homework: !!c.homework, mockBook: !!c.mockBook, mockScore: !!c.mockScore }));
+    .run(JSON.stringify(next));
 }
-function autoEnabled(kind){ return pushConfig()[kind] === true; }
+function autoEnabled(kind){ return pushConfig()[kind].enabled === true; }
 
-/* 推送频率限制：全局滑动窗口 10 分钟最多 3 次（自动+手动合计；单进程内存实现，重启清零可接受）。
+/* 推送频率限制：按类型独立滑动窗口（10 分钟，各类型上限可配 1–10 次，默认 3；自动+手动合计。
+   作业成绩限满不影响模考推送。单进程内存实现，重启清零可接受）。
    超限：自动推送静默丢弃并写审计「限流丢弃」；手动推送返回 429 明确提示。 */
 const RATE_WINDOW_MS = 10 * 60 * 1000;
-const RATE_MAX = 3;
-const rateHits = [];
-function rateAllow(){
+const rateHits = { homework: [], mockBook: [], mockScore: [] };
+function rateAllow(kind){
+  const hits = rateHits[kind] || (rateHits[kind] = []);
   const now = Date.now();
-  while(rateHits.length && rateHits[0] <= now - RATE_WINDOW_MS) rateHits.shift();
-  if(rateHits.length >= RATE_MAX) return false;
-  rateHits.push(now);
+  while(hits.length && hits[0] <= now - RATE_WINDOW_MS) hits.shift();
+  const max = clampMax(pushConfig()[kind].max);
+  if(hits.length >= max) return false;
+  hits.push(now);
   return true;
 }
-function _resetRateLimit(){ rateHits.length = 0; }  // 测试用
+function _resetRateLimit(){ PUSH_KINDS.forEach(k => { rateHits[k] = []; }); }  // 测试用
 
 /* kind（推送内部命名）→ 分享落地页 kind（homework/mockbook/mockscore 小写） */
 const SHARE_KIND = { homework: 'homework', mockBook: 'mockbook', mockScore: 'mockscore' };
@@ -64,8 +89,8 @@ async function pushTemplate(user, st, kind, subject, url, slotOverride, isManual
   const data = buildTplData(kind, st, subject, slotOverride);
   if(!data) return { err: '缺少推送所需数据（如模考日期/分数）', status: 400 };
   // 限流在数据校验之后：无效调用不消耗额度（额度只在真正发送前占用）
-  if(!rateAllow()){
-    logAudit(user, '限流丢弃', 'student', st.name + ' · ' + KIND_LABEL[kind], '10 分钟内推送超过 ' + RATE_MAX + ' 次', st.owner_id);
+  if(!rateAllow(kind)){
+    logAudit(user, '限流丢弃', 'student', st.name + ' · ' + KIND_LABEL[kind], '10 分钟内推送超过上限', st.owner_id);
     if(isManual) return { err: '推送频率已达上限，请 10 分钟后再试', status: 429 };
     return { dropped: true };
   }

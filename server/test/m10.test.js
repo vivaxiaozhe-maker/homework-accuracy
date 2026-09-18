@@ -70,7 +70,7 @@ function ok(cond, name){
 
   /* ---- 推送开关：默认全关 / 权限 / 审计 ---- */
   let r = await req('GET', '/api/push-config', null, T1);
-  ok(r.status === 200 && r.data.config.homework === false && r.data.config.mockBook === false && r.data.config.mockScore === false,
+  ok(r.status === 200 && r.data.config.homework.enabled === false && r.data.config.mockBook.enabled === false && r.data.config.mockScore.enabled === false,
     'GET /api/push-config 默认三开关全关（助教可读）');
   r = await req('GET', '/api/push-config', null, TS);
   ok(r.status === 200, '销售可读推送开关状态');
@@ -79,7 +79,7 @@ function ok(cond, name){
   r = await req('PUT', '/api/push-config', { config: { homework: true } }, TS);
   ok(r.status === 403, '销售不能改开关（403）');
   r = await req('PUT', '/api/push-config', { config: { homework: true } }, adminTok);
-  ok(r.status === 200 && r.data.config.homework === true && r.data.config.mockBook === false, '教务 PUT 开关生效（部分字段不影响其他）');
+  ok(r.status === 200 && r.data.config.homework.enabled === true && r.data.config.homework.max === 3 && r.data.config.mockBook.enabled === false, '教务 PUT 开关生效（部分字段不影响其他）');
   ok(db.prepare("SELECT * FROM audit_logs WHERE action = '修改自动推送开关'").all().length > 0, '改开关写审计日志');
 
   /* ---- 自动推送：作业批改完成通知（records POST/PUT） ---- */

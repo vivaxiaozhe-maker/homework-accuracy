@@ -472,8 +472,15 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 /* 微信自动推送开关（教务管理页）：薄荷绿 toggle */
 .push-cfg-row{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px dashed var(--line);font-size:14px}
 .push-cfg-row:last-child{border-bottom:none}
-.push-cfg-row span{flex:1}
+.push-cfg-row > span:first-child{flex:1}
 .push-cfg-row small{color:var(--ink2);font-weight:400}
+/* 每类型限流步进器（1–10 次/10 分钟） */
+.push-max{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px}
+.push-max-btn{width:26px;height:26px;border-radius:8px;border:1.5px solid var(--line);background:#FDFCF8;color:var(--ink);cursor:pointer;font-size:14px;line-height:1;padding:0}
+.push-max-btn:hover{border-color:var(--mint);color:var(--mint-d)}
+.push-max-num{font-weight:700;min-width:16px;text-align:center;font-variant-numeric:tabular-nums}
+.push-max-unit{font-size:11px;color:var(--ink2);margin-right:6px}
+@media (max-width:768px){ .push-cfg-row{flex-wrap:wrap} }
 .switch{width:46px;height:26px;border-radius:999px;border:none;background:#D8D0BC;position:relative;cursor:pointer;transition:background .15s;flex-shrink:0;padding:0}
 .switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .15s}
 .switch.on{background:var(--mint)}
@@ -696,7 +703,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.3.2</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.3.3</div>
   </aside>
 
   <main>
@@ -907,10 +914,13 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>微信自动推送</h2>
         <p class="hint" style="margin-top:0">开启后，对应内容保存成功时自动推送给已绑定家长的微信；未绑定家长的学生不推送。开关即时生效。</p>
         <div class="push-cfg-row"><span>作业成绩通知<small>（打卡录入/批改保存时）</small></span>
+          <span class="push-max"><button class="push-max-btn" onclick="pushMaxStep('homework',-1)" aria-label="减少">−</button><span class="push-max-num" id="push-max-homework">3</span><span class="push-max-unit">次/10分钟</span><button class="push-max-btn" onclick="pushMaxStep('homework',1)" aria-label="增加">＋</button></span>
           <button class="switch" id="push-cfg-homework" onclick="togglePushConfig('homework')" aria-label="作业成绩通知开关"></button></div>
         <div class="push-cfg-row"><span>模考预约通知<small>（设置/修改预约模考时间时）</small></span>
+          <span class="push-max"><button class="push-max-btn" onclick="pushMaxStep('mockBook',-1)" aria-label="减少">−</button><span class="push-max-num" id="push-max-mockBook">3</span><span class="push-max-unit">次/10分钟</span><button class="push-max-btn" onclick="pushMaxStep('mockBook',1)" aria-label="增加">＋</button></span>
           <button class="switch" id="push-cfg-mockBook" onclick="togglePushConfig('mockBook')" aria-label="模考预约通知开关"></button></div>
         <div class="push-cfg-row"><span>模考成绩通知<small>（保存结课模考分数时）</small></span>
+          <span class="push-max"><button class="push-max-btn" onclick="pushMaxStep('mockScore',-1)" aria-label="减少">−</button><span class="push-max-num" id="push-max-mockScore">3</span><span class="push-max-unit">次/10分钟</span><button class="push-max-btn" onclick="pushMaxStep('mockScore',1)" aria-label="增加">＋</button></span>
           <button class="switch" id="push-cfg-mockScore" onclick="togglePushConfig('mockScore')" aria-label="模考成绩通知开关"></button></div>
       </div>
     </section>
@@ -1154,7 +1164,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.3.2</div>
+    <div class="login-ver" id="login-ver">v1.3.3</div>
   </div>
 </div>
 
@@ -1255,7 +1265,7 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
-const APP_VERSION = 'v1.3.2';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.3.3';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -4077,32 +4087,58 @@ document.getElementById('btn-subj-reset').addEventListener('click', ()=>{
 });
 
 /* ================= 微信自动推送开关（教务管理页，仅教务可改；mock 隐藏） ================= */
-const PUSH_CFG_DEFAULT = { homework:false, mockBook:false, mockScore:false };
-let pushConfigCache = Object.assign({}, PUSH_CFG_DEFAULT);
+/* ================= 微信自动推送开关（教务管理页，仅教务可改；mock 隐藏） ================= */
+/* 配置结构：{homework:{enabled:false,max:3}, ...}；老布尔格式（{homework:false}）读入时归一化 */
+const PUSH_CFG_DEFAULT = { homework:{enabled:false,max:3}, mockBook:{enabled:false,max:3}, mockScore:{enabled:false,max:3} };
+function normalizePushCfg(raw){
+  const out = {};
+  ['homework','mockBook','mockScore'].forEach(k=>{
+    const v = raw && raw[k];
+    if(v && typeof v === 'object') out[k] = { enabled: !!v.enabled, max: Math.min(10, Math.max(1, parseInt(v.max, 10) || 3)) };
+    else out[k] = { enabled: !!v, max: 3 };  // 旧布尔格式兼容
+  });
+  return out;
+}
+let pushConfigCache = normalizePushCfg(null);
 async function refreshPushConfig(){
   const card = document.getElementById('push-config-card');
   if(!card) return;
   card.style.display = (isAdminView() && USE_API) ? '' : 'none';  // mock 演示环境无微信，隐藏
   if(!USE_API) return;
   const r = await HttpApi._req('GET', '/api/push-config');
-  if(r && r.ok && r.config) pushConfigCache = Object.assign({}, PUSH_CFG_DEFAULT, r.config);
+  pushConfigCache = (r && r.ok && r.config) ? normalizePushCfg(r.config) : normalizePushCfg(null);
   renderPushConfig();
 }
 function renderPushConfig(){
   ['homework','mockBook','mockScore'].forEach(k=>{
     const b = document.getElementById('push-cfg-' + k);
-    if(b) b.classList.toggle('on', !!pushConfigCache[k]);  // classList.toggle(c,f) 桩兼容
+    if(b) b.classList.toggle('on', pushConfigCache[k].enabled);  // classList.toggle(c,f) 桩兼容
+    const n = document.getElementById('push-max-' + k);
+    if(n) n.textContent = String(pushConfigCache[k].max);  // textContent 数字在桩里不自动转字符串，显式 String()
   });
+}
+async function savePushConfigPatch(patch){
+  const r = await HttpApi._req('PUT', '/api/push-config', { config: patch });
+  if(!r.ok){ toast(r.msg || '保存失败'); return false; }
+  pushConfigCache = normalizePushCfg(r.config);
+  renderPushConfig();
+  return true;
 }
 async function togglePushConfig(k){
   if(!isAdminView()) return;
   if(!USE_API){ toast('演示环境暂不支持'); return; }
-  const next = Object.assign({}, pushConfigCache); next[k] = !next[k];
-  const r = await HttpApi._req('PUT', '/api/push-config', { config: next });
-  if(!r.ok){ toast(r.msg || '保存失败'); return; }
-  pushConfigCache = next;
-  renderPushConfig();
-  toast(next[k] ? '已开启自动推送' : '已关闭自动推送');
+  const ok = await savePushConfigPatch({ [k]: { enabled: !pushConfigCache[k].enabled } });
+  if(ok) toast(pushConfigCache[k].enabled ? '已开启自动推送' : '已关闭自动推送');
+}
+/* 每 10 分钟最大推送次数步进（1–10），即改即存 */
+async function pushMaxStep(k, d){
+  if(!isAdminView()) return;
+  if(!USE_API){ toast('演示环境暂不支持'); return; }
+  const cur = pushConfigCache[k].max;
+  const next = Math.min(10, Math.max(1, cur + d));
+  if(next === cur) return;
+  const ok = await savePushConfigPatch({ [k]: { max: next } });
+  if(ok) toast('已设为每 10 分钟最多 ' + next + ' 次');
 }
 
 /* ================= 科目重命名 ================= */

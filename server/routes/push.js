@@ -21,7 +21,7 @@ router.put('/push-config', requireAdmin, (req, res) => {
   push.savePushConfig(c);
   const saved = push.pushConfig();
   logAudit(req.user, '修改自动推送开关', 'data', '微信自动推送',
-    Object.keys(saved).map(k => (k === 'homework' ? '作业成绩' : k === 'mockBook' ? '模考预约' : '模考成绩') + (saved[k] ? '开' : '关')).join('、'));
+    Object.keys(saved).map(k => (k === 'homework' ? '作业成绩' : k === 'mockBook' ? '模考预约' : '模考成绩') + ' ' + (saved[k].enabled ? '开' : '关') + '（限 ' + saved[k].max + ' 次/10分钟）').join('、'));
   res.json({ ok: true, config: saved });
 });
 
