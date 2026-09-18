@@ -31,6 +31,7 @@ const sendCalls = () => wxCalls.filter(c => c.url.indexOf('template/send') !== -
 
 const { app } = require('../index');
 const db = require('../db');
+const push = require('../push');  // 限流重置锚点（本文件按顺序会触发多次推送，分段重置避免误触 10 分钟 3 次上限）
 
 let pass = 0, fail = 0;
 function ok(cond, name){
@@ -82,6 +83,7 @@ function ok(cond, name){
   ok(db.prepare("SELECT * FROM audit_logs WHERE action = '修改自动推送开关'").all().length > 0, '改开关写审计日志');
 
   /* ---- 自动推送：作业批改完成通知（records POST/PUT） ---- */
+  push._resetRateLimit();
   let before = sendCalls().length;
   r = await req('POST', '/api/records', { studentId: stuA, date: '2026-09-15', total: 20, correct: 18, wrongs: [7, 14], subject: subj }, T1);
   ok(r.status === 200 && r.data.pushed === true, '开关开：录入作业自动推送（pushed:true）');
@@ -102,6 +104,7 @@ function ok(cond, name){
   ok(r.status === 200 && r.data.pushed === false && sendCalls().length === before, '开关关：保存成功但不推送（pushed:false，零调用）');
 
   /* ---- 自动推送：模考预约 / 模考成绩（subj-fields mock 列新旧对比） ---- */
+  push._resetRateLimit();  // 上节已用 2 次额度，重置防误触限流
   before = sendCalls().length;
   r = await req('PUT', '/api/students/' + stuA + '/subj-fields', { mock: { [subj]: { date: '2026-09-25' } } }, T1);
   ok(r.status === 200 && sendCalls().length === before, '预约开关关：设模考日期不推送');
@@ -122,6 +125,7 @@ function ok(cond, name){
     '成绩通知字段映射正确（科目短名/姓名/分数+分）');
 
   /* ---- 手动推送三接口 ---- */
+  push._resetRateLimit();  // 上节已用 2 次额度，重置防误触限流
   r = await req('POST', '/api/push/homework', { studentId: stuA, subject: subj }, T1);
   ok(r.status === 200 && r.data.ok && r.data.sent === 1, '手动推送作业成绩通知成功（不受开关影响）');
   ok(sendCalls()[sendCalls().length - 1].body.data.character_string18.value === '90%', '手动作业通知用最近正确率');

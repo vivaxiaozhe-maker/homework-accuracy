@@ -213,6 +213,11 @@ CREATE INDEX IF NOT EXISTS idx_binds_openid ON parent_binds(openid);
 if(!db.prepare("PRAGMA table_info(students)").all().map(c => c.name).includes('bind_token')){
   db.exec('ALTER TABLE students ADD COLUMN bind_token TEXT');
 }
+/* 推送落地页分类迁移：share_tokens 补 kind 列（homework=作业成绩/mockbook=模考报名/mockscore=模考成绩；
+   旧行 NULL 按 homework 处理，复用与渲染均用 IFNULL(kind,'homework')） */
+if(!db.prepare("PRAGMA table_info(share_tokens)").all().map(c => c.name).includes('kind')){
+  db.exec('ALTER TABLE share_tokens ADD COLUMN kind TEXT');
+}
 /* 解绑审批（助教解绑家长需教务审批）：unbind_requests 表。同一绑定同时最多一条 pending。 */
 db.exec(`
 CREATE TABLE IF NOT EXISTS unbind_requests (

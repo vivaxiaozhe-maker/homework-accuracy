@@ -696,7 +696,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.3.1</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.3.2</div>
   </aside>
 
   <main>
@@ -1154,7 +1154,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.3.1</div>
+    <div class="login-ver" id="login-ver">v1.3.2</div>
   </div>
 </div>
 
@@ -1255,7 +1255,7 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
-const APP_VERSION = 'v1.3.1';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.3.2';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -3112,7 +3112,7 @@ function saveQuickEntry(){
     '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: st.ownerId});
   apiPersist(HttpApi.addRecord({id: newRec.id, studentId: newRec.studentId, date: date, total: total, correct: correct,
     wrongs: wrongs, subject: newRec.subject, images: newRec.images, pdfs: newRec.pdfs}),
-    r=>{ if(r && r.pushed) toast('已保存并推送家长'); });  // id 客户端生成并贯穿；开关打开时服务端自动推送
+    r=>{ if(r && r.pushed) toast('作业成绩已推送给家长'); });  // id 客户端生成并贯穿；开关打开时服务端自动推送
   quickEntry = null;
   save();
   renderAll();
@@ -3430,7 +3430,7 @@ function saveSlot(){
     logAction('修改作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
       '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: r.ownerId});
     apiPersist(HttpApi.updateRecord(r.id, {date: date, total: total, correct: correct, wrongs: wrongs, subject: r.subject}),
-      rr=>{ if(rr && rr.pushed) toast('已保存并推送家长'); });
+      rr=>{ if(rr && rr.pushed) toast('作业成绩已推送给家长'); });
   } else {
     const newRec = {id:uid(), studentId:slotEdit.gid, date:date, total:total, correct:correct,
       wrongs:wrongs, subject:slotEdit.subject, images:[], pdfs:[], ownerId:st0.ownerId};
@@ -3439,7 +3439,7 @@ function saveSlot(){
       '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: st0.ownerId});
     apiPersist(HttpApi.addRecord({id: newRec.id, studentId: newRec.studentId, date: date, total: total, correct: correct,
       wrongs: wrongs, subject: newRec.subject, images: newRec.images, pdfs: newRec.pdfs}),
-      rr=>{ if(rr && rr.pushed) toast('已保存并推送家长'); });  // id 客户端生成并贯穿，不再回填
+      rr=>{ if(rr && rr.pushed) toast('作业成绩已推送给家长'); });  // id 客户端生成并贯穿，不再回填
     if(miss){
       miss.resolved = true; miss.resolution = 'made-up'; miss.resolvedAt = todayStr();  // 补录成功：该次未交视为已补交（留痕），不再占用打卡格子
       logAction('补交未交', 'missed', auditStuDesc(miss.studentId, miss.subject), '原未交日期 ' + miss.date, {ownerId: miss.ownerId});
@@ -3806,7 +3806,7 @@ function bookMockExam(){
   const mst = getMockStu();
   logAction('预约模考', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '预约日期 ' + d, {ownerId: mst ? mst.ownerId : undefined});
   if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: mst.mock}),
-    r=>{ if(r && r.pushed) toast('已保存并推送家长'); });  // API 模式：整体提交模考列；开关打开时服务端自动推送
+    r=>{ if(r && r.pushed) toast('模考时间已推送给家长'); });  // API 模式：整体提交模考列；开关打开时服务端自动推送
   mockEdit = null;
   save();
   renderAll();
@@ -3833,7 +3833,7 @@ function saveMockScore(){
   const mst = getMockStu();
   logAction('保存模考分数', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '结课模考 ' + v + ' 分', {ownerId: mst ? mst.ownerId : undefined});
   if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: mst.mock}),
-    r=>{ if(r && r.pushed) toast('已保存并推送家长'); });  // 开关打开时服务端自动推送成绩通知
+    r=>{ if(r && r.pushed) toast('模考成绩已推送给家长'); });  // 开关打开时服务端自动推送成绩通知
   mockEdit = null;
   save();
   renderAll();

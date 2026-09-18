@@ -25,7 +25,8 @@ router.put('/push-config', requireAdmin, (req, res) => {
   res.json({ ok: true, config: saved });
 });
 
-// POST /api/push/:kind {studentId, subject}（手动推送；开关不影响手动推送——手动是「家长没收到时补推」）
+// POST /api/push/:kind {studentId, subject}（手动推送；开关不影响手动推送——手动是「家长没收到时补推」；
+// 限流时返回 429 明确提示）
 const KIND_MAP = { homework: 'homework', 'mock-book': 'mockBook', 'mock-score': 'mockScore' };
 router.post('/push/:kind', requireRole('ta', 'admin'), async (req, res) => {
   const kind = KIND_MAP[req.params.kind];
@@ -35,7 +36,7 @@ router.post('/push/:kind', requireRole('ta', 'admin'), async (req, res) => {
   const st = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId);
   if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
   if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限操作该数据' });
-  const r = await push.pushTemplate(req.user, st, kind, subject, push.shareUrlFor(req, st, subject));
+  const r = await push.pushTemplate(req.user, st, kind, subject, push.shareUrlFor(req, st, subject, kind), undefined, true);
   if(r.err) return res.status(r.status || 500).json({ ok: false, msg: r.err });
   res.json({ ok: true, sent: r.sent });
 });

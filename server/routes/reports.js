@@ -15,17 +15,19 @@ router.use(requireRole('ta', 'admin'));  // 销售无报告分享/推送入口�
 
 const SHARE_DAYS = 30;
 
-/* 创建/复用分享 token（同学生同科目有未过期未撤销的链接 → 复用）：返回 {token, reused} */
-function ensureShareToken(user, st, subject){
+/* 创建/复用分享 token（同学生同科目同类型有未过期未撤销的链接 → 复用）：返回 {token, reused}
+   kind：homework（作业成绩/报告分享，默认）/ mockbook（模考报名）/ mockscore（模考成绩）——落地页按类型渲染 */
+function ensureShareToken(user, st, subject, kind){
+  kind = kind || 'homework';
   const nowIso = new Date().toISOString();
   const exist = db.prepare(`SELECT token FROM share_tokens
-                            WHERE student_id = ? AND subject = ? AND revoked = 0 AND expires_at > ?
-                            ORDER BY created_at DESC`).get(st.id, subject, nowIso);
+                            WHERE student_id = ? AND subject = ? AND IFNULL(kind,'homework') = ? AND revoked = 0 AND expires_at > ?
+                            ORDER BY created_at DESC`).get(st.id, subject, kind, nowIso);
   if(exist) return { token: exist.token, reused: true };
   const token = crypto.randomBytes(16).toString('hex');  // 32 位 hex
   const exp = new Date(Date.now() + SHARE_DAYS * 86400000).toISOString();
-  db.prepare('INSERT INTO share_tokens (token, student_id, subject, created_by, created_at, expires_at, revoked) VALUES (?,?,?,?,?,?,0)')
-    .run(token, st.id, subject, user.id, nowIso, exp);
+  db.prepare('INSERT INTO share_tokens (token, student_id, subject, created_by, created_at, expires_at, revoked, kind) VALUES (?,?,?,?,?,?,0,?)')
+    .run(token, st.id, subject, user.id, nowIso, exp, kind);
   logAudit(user, '生成分享链接', 'student', st.name + ' · ' + subject, '有效期 ' + SHARE_DAYS + ' 天', st.owner_id);
   return { token: token, reused: false };
 }
@@ -158,6 +160,16 @@ const PAGE_CSS = `
     line-height:1.7;white-space:pre-wrap;margin-bottom:6px;border-radius:0 8px 8px 0}
   .none{padding:12px 14px;font-size:13px;color:#9CA3AF;background:#F8FAF9;margin-bottom:6px;border-radius:8px}
   .foot{margin-top:26px;text-align:right;font-size:11px;color:#9CA3AF}
+  /* 类型落地页大卡（模考预约时间 / 模考分数突出展示） */
+  .hero{background:#F0F8F4;border:1px solid #D8F0E5;border-radius:14px;padding:20px;text-align:center;margin-bottom:18px}
+  .hero .l{font-size:13px;color:#6B7C74}
+  .hero .v{font-size:34px;font-weight:800;color:#3E9B7F;margin-top:6px}
+  .hero .d{font-size:12px;color:#9CA3AF;margin-top:4px}
+  .tips{background:#FBF0DC;border:1px solid #F0D9AC;border-radius:10px;padding:12px 14px;font-size:13px;color:#8A6D2A;line-height:1.8;margin-bottom:6px}
+  .mini{display:flex;gap:8px;flex-wrap:wrap}
+  .mini .m{flex:1;min-width:100px;background:#F8FAF9;border:1px solid #DDE3E0;border-radius:8px;padding:8px 10px;text-align:center}
+  .mini .m .a{font-weight:800;color:#3E9B7F;font-size:16px}
+  .mini .m .b{font-size:11px;color:#9CA3AF}
   .invalid{max-width:420px;margin:12vh auto 0;text-align:center}
   .invalid .ico{width:56px;height:56px;border-radius:50%;background:#FBF0DC;color:#B9802A;
     font-size:28px;line-height:56px;margin:0 auto 14px;font-weight:700}
@@ -220,18 +232,72 @@ function reportPage(st, subject, recs){
       '<div class="card"><div class="l">完成率</div><div class="v">' + rate + '</div></div></div>' +
     '<h2>一、作业打卡情况</h2>' +
     '<table><tr><th>次数</th><th>日期</th><th>正确率</th><th>错题</th></tr>' + rows + '</table>' +
-    '<h2>二、老师评语</h2>' +
-    (comment ? '<div class="note">' + esc(comment) + '</div>' : '<div class="none">暂无评语</div>') +
-    '<h2>三、模考信息</h2>' +
-    '<table><tr><td class="k">预约日期</td><td>' + (mk.date ? esc(mk.date) : '未预约') + '</td></tr>' +
-    '<tr><td class="k">结课模考分数</td><td>' + (mk.score !== undefined && mk.score !== null && mk.score !== '' ? esc(mk.score) + ' 分' : '未录入') + '</td></tr></table>' +
-    '<h2>四、学习计划与建议</h2>' +
-    (adv ? '<div class="note">' + esc(adv) + '</div>' : '<div class="none">暂无</div>') +
+    // 空字段隐藏整个区块：无评语/无模考/无建议则不留空标题（三类落地页统一口径）
+    (comment ? '<h2>二、老师评语</h2><div class="note">' + esc(comment) + '</div>' : '') +
+    ((mk.date || (mk.score !== undefined && mk.score !== null && mk.score !== ''))
+      ? '<h2>三、模考信息</h2>' +
+        '<table><tr><td class="k">预约日期</td><td>' + (mk.date ? esc(mk.date) : '未预约') + '</td></tr>' +
+        '<tr><td class="k">结课模考分数</td><td>' + (mk.score !== undefined && mk.score !== null && mk.score !== '' ? esc(mk.score) + ' 分' : '未录入') + '</td></tr></table>'
+      : '') +
+    (adv ? '<h2>四、学习计划与建议</h2><div class="note">' + esc(adv) + '</div>' : '') +
     '<div class="foot">本报告由「火箭学院 · 学情跟踪平台」自动生成</div>' +
     '</div></body></html>';
 }
 
-// GET /r/:token：公开只读报告页（免登录；只含该学生该科目数据）
+/* ---- 类型落地页共用：头部（学生/科目/日期）与近期作业摘要（近 3 条，空则隐藏） ---- */
+function pageHead(st, subject, h1){
+  return '<div class="head"><h1>' + h1 + '</h1>' +
+    '<div class="meta">学生：<b>' + esc(st.name) + '</b>' +
+    (st.school ? '　｜　学校：' + esc(st.school) : '') +
+    (st.grad_year ? '　｜　年级：' + esc(st.grad_year) + ' 届' : '') +
+    '　｜　科目：<b>' + esc(shortSubject(subject)) + '</b></div>' +
+    '<div class="date">生成日期：' + nowTs().slice(0, 10) + '</div></div>';
+}
+function recentRecsHtml(recs){
+  if(!recs.length) return '';  // 无作业记录：整个摘要区块隐藏
+  const last = recs.slice(-3).reverse();  // 最近 3 条（新→旧）
+  return '<h2>近期作业表现</h2><div class="mini">' + last.map(r=>{
+    const a = accOf(r);
+    return '<div class="m"><div class="a">' + a + '%</div><div class="b">' + esc(r.date) + '</div></div>';
+  }).join('') + '</div>';
+}
+const PAGE_FOOT = '<div class="foot">本报告由「火箭学院 · 学情跟踪平台」自动生成</div>';
+
+/* 模考报名落地页：预约时间大卡 + 备考提示 + 近期作业摘要（空字段隐藏） */
+function mockBookPage(st, subject, recs){
+  const mk = (parseJson(st.mock, {})[subject]) || {};
+  return '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<title>' + esc(st.name) + ' 的模考预约 · 火箭学院</title><style>' + PAGE_CSS + '</style></head><body>' +
+    '<div class="page">' + pageHead(st, subject, '模考预约提醒') +
+    '<div class="hero"><div class="l">预约模考时间</div><div class="v">' + esc(mk.date || '待定') + '</div></div>' +
+    '<div class="tips">备考提示：请提前 15 分钟到场，带好文具与准考证；考前可让孩子复习近期错题，保持作息规律。</div>' +
+    recentRecsHtml(recs) +
+    PAGE_FOOT + '</div></body></html>';
+}
+
+/* 模考成绩落地页：分数大卡 + 历次（其他科目）模考对比 + 近期作业摘要（空字段隐藏） */
+function mockScorePage(st, subject, recs){
+  const mockAll = parseJson(st.mock, {});
+  const mk = mockAll[subject] || {};
+  // 历次对比：该学生其他科目已录入的模考分数（无则整块隐藏）
+  const others = Object.keys(mockAll).filter(k => k !== subject &&
+    mockAll[k] && mockAll[k].score !== undefined && mockAll[k].score !== null && mockAll[k].score !== '');
+  return '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    '<title>' + esc(st.name) + ' 的模考成绩 · 火箭学院</title><style>' + PAGE_CSS + '</style></head><body>' +
+    '<div class="page">' + pageHead(st, subject, '模考成绩通知') +
+    '<div class="hero"><div class="l">结课模考分数</div><div class="v">' + esc(mk.score) + ' 分</div>' +
+    (mk.date ? '<div class="d">模考日期 ' + esc(mk.date) + '</div>' : '') + '</div>' +
+    (others.length
+      ? '<h2>其他科目模考成绩</h2><div class="mini">' + others.map(k=>
+          '<div class="m"><div class="a">' + esc(mockAll[k].score) + ' 分</div><div class="b">' + esc(shortSubject(k)) + '</div></div>').join('') + '</div>'
+      : '') +
+    recentRecsHtml(recs) +
+    PAGE_FOOT + '</div></body></html>';
+}
+
+// GET /r/:token：公开只读报告页（免登录；只含该学生该科目数据；按分享类型渲染对应落地页）
 function sharePage(req, res){
   const t = db.prepare('SELECT * FROM share_tokens WHERE token = ?').get(req.params.token);
   if(!t) return res.status(404).send(invalidPage());
@@ -242,6 +308,9 @@ function sharePage(req, res){
   logAudit(null, '访问分享报告', 'student', st.name + ' · ' + t.subject, '家长端打开报告页', st.owner_id);
   const recs = db.prepare('SELECT * FROM records WHERE student_id = ? AND subject = ? ORDER BY date').all(t.student_id, t.subject);
   res.setHeader('Cache-Control', 'no-store');
+  const kind = t.kind || 'homework';  // 旧行 NULL 按作业成绩页处理
+  if(kind === 'mockbook') return res.send(mockBookPage(st, t.subject, recs));
+  if(kind === 'mockscore') return res.send(mockScorePage(st, t.subject, recs));
   res.send(reportPage(st, t.subject, recs));
 }
 

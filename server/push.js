@@ -29,15 +29,33 @@ function savePushConfig(c){
 }
 function autoEnabled(kind){ return pushConfig()[kind] === true; }
 
-/* 分享报告链接（推送消息点开的落地页） */
-function shareUrlFor(req, st, subject){
-  return 'https://' + req.headers.host + '/r/' + ensureShareToken(req.user, st, subject).token;
+/* 推送频率限制：全局滑动窗口 10 分钟最多 3 次（自动+手动合计；单进程内存实现，重启清零可接受）。
+   超限：自动推送静默丢弃并写审计「限流丢弃」；手动推送返回 429 明确提示。 */
+const RATE_WINDOW_MS = 10 * 60 * 1000;
+const RATE_MAX = 3;
+const rateHits = [];
+function rateAllow(){
+  const now = Date.now();
+  while(rateHits.length && rateHits[0] <= now - RATE_WINDOW_MS) rateHits.shift();
+  if(rateHits.length >= RATE_MAX) return false;
+  rateHits.push(now);
+  return true;
+}
+function _resetRateLimit(){ rateHits.length = 0; }  // 测试用
+
+/* kind（推送内部命名）→ 分享落地页 kind（homework/mockbook/mockscore 小写） */
+const SHARE_KIND = { homework: 'homework', mockBook: 'mockbook', mockScore: 'mockscore' };
+
+/* 分享报告链接（推送消息点开的落地页；按推送类型写入 kind，落地页分类渲染） */
+function shareUrlFor(req, st, subject, kind){
+  return 'https://' + req.headers.host + '/r/' + ensureShareToken(req.user, st, subject, SHARE_KIND[kind] || 'homework').token;
 }
 
-/* 推送执行：查有效绑定 → 逐个 template/send（callWithTokenRetry 自愈）→ 43004 标失效 → 审计。
+/* 推送执行：查有效绑定 → 限流检查 → 逐个 template/send（callWithTokenRetry 自愈）→ 43004 标失效 → 审计。
    slotOverride：自动推送场景传新模考值（st 为更新前旧行，直接读会拿到旧日期/旧分数——已踩过）。
-   返回 {sent} / {err, status}（status 供路由响应码：400 未绑定 / 503 未配置 / 502 微信接口失败） */
-async function pushTemplate(user, st, kind, subject, url, slotOverride){
+   isManual=true 为手动推送（限流时返回 429 提示；自动推送限流静默丢弃）。
+   返回 {sent} / {dropped:true}（限流丢弃）/ {err, status}（400 未绑定 / 429 限流 / 503 未配置 / 502 微信接口失败） */
+async function pushTemplate(user, st, kind, subject, url, slotOverride, isManual){
   if(!wx.configured()) return { err: '服务号未配置', status: 503 };
   const templateId = wx.cfg()[TEMPLATE_CFG_KEY[kind]];
   if(!templateId) return { err: '模板消息未配置', status: 503 };
@@ -45,6 +63,12 @@ async function pushTemplate(user, st, kind, subject, url, slotOverride){
   if(!binds.length) return { err: '该学生未绑定家长微信', status: 400 };
   const data = buildTplData(kind, st, subject, slotOverride);
   if(!data) return { err: '缺少推送所需数据（如模考日期/分数）', status: 400 };
+  // 限流在数据校验之后：无效调用不消耗额度（额度只在真正发送前占用）
+  if(!rateAllow()){
+    logAudit(user, '限流丢弃', 'student', st.name + ' · ' + KIND_LABEL[kind], '10 分钟内推送超过 ' + RATE_MAX + ' 次', st.owner_id);
+    if(isManual) return { err: '推送频率已达上限，请 10 分钟后再试', status: 429 };
+    return { dropped: true };
+  }
   let sent = 0, unboundCnt = 0;
   try{
     for(const b of binds){
@@ -90,10 +114,10 @@ function buildTplData(kind, st, subject, slotOverride){
   return null;
 }
 
-/* ---- 自动推送触发（开关打开才推；静默失败不阻塞保存流程，返回是否已推） ---- */
+/* ---- 自动推送触发（开关打开才推；限流/失败静默不阻塞保存流程，返回是否已推） ---- */
 async function autoHomework(req, st, subject){
   if(!autoEnabled('homework')) return false;
-  const r = await pushTemplate(req.user, st, 'homework', subject, shareUrlFor(req, st, subject));
+  const r = await pushTemplate(req.user, st, 'homework', subject, shareUrlFor(req, st, subject, 'homework'));
   return !!r.sent;
 }
 /* 模考列对比新旧值：date 从无到有/变化 → mockBook；score 变化（且有效）→ mockScore */
@@ -103,17 +127,17 @@ async function autoMock(req, st, oldMockAll, newMockAll){
     const oldS = (oldMockAll || {})[sub] || {};
     const newS = newMockAll[sub] || {};
     if(autoEnabled('mockBook') && newS.date && String(newS.date) !== String(oldS.date || '')){
-      const r = await pushTemplate(req.user, st, 'mockBook', sub, shareUrlFor(req, st, sub), newS);  // 传新值（st 是更新前旧行）
+      const r = await pushTemplate(req.user, st, 'mockBook', sub, shareUrlFor(req, st, sub, 'mockBook'), newS);  // 传新值（st 是更新前旧行）
       if(r.sent) out.mockBook = true;
     }
     const newScore = (newS.score === undefined || newS.score === null) ? '' : String(newS.score);
     const oldScore = (oldS.score === undefined || oldS.score === null) ? '' : String(oldS.score);
     if(autoEnabled('mockScore') && newScore !== '' && newScore !== oldScore){
-      const r = await pushTemplate(req.user, st, 'mockScore', sub, shareUrlFor(req, st, sub), newS);
+      const r = await pushTemplate(req.user, st, 'mockScore', sub, shareUrlFor(req, st, sub, 'mockScore'), newS);
       if(r.sent) out.mockScore = true;
     }
   }
   return out;
 }
 
-module.exports = { pushConfig, savePushConfig, autoEnabled, pushTemplate, buildTplData, autoHomework, autoMock, shareUrlFor, KIND_LABEL };
+module.exports = { pushConfig, savePushConfig, autoEnabled, pushTemplate, buildTplData, autoHomework, autoMock, shareUrlFor, KIND_LABEL, rateAllow, _resetRateLimit, _rateHits: rateHits };
