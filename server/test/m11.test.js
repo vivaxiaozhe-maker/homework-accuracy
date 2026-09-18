@@ -135,7 +135,7 @@ function ok(cond, name){
   ok(r.status === 200 && r.data.pushed === false, '自动推送超限静默丢弃（pushed:false，保存不受影响）');
   ok(db.prepare("SELECT COUNT(*) AS c FROM audit_logs WHERE action = '限流丢弃'").get().c === dropBefore + 1, '限流丢弃写审计日志');
   // 窗口滑动后恢复（把窗口内记录全部拨到 10 分钟前）
-  push._rateHits.forEach((h, i) => { push._rateHits[i] = Date.now() - 11 * 60 * 1000; });
+  push._rateHits.homework.forEach((h, i) => { push._rateHits.homework[i] = Date.now() - 11 * 60 * 1000; });
   r = await req('POST', '/api/push/homework', { studentId: stuA, subject: subj }, T1);
   ok(r.status === 200 && r.data.ok, '窗口滑动后推送恢复');
 
