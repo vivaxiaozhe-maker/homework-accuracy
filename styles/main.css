@@ -596,6 +596,11 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .ta-chips .chip-cnt{font-size:11px;color:var(--ink2)}
 .ta-group-head{display:flex;align-items:baseline;gap:8px;margin:16px 0 10px;font-size:14px;font-weight:700;color:var(--mint-d)}
 .ta-group-head .cnt{font-size:12px;font-weight:400;color:var(--ink2)}
+/* 学生卡「各科平均正确率」折叠条（默认收起，点击展开） */
+.sub-acc-toggle{display:flex;align-items:baseline;gap:6px;margin:8px 0 4px;font-size:13px;font-weight:600;color:var(--ink2);cursor:pointer;user-select:none}
+.sub-acc-toggle:hover{color:var(--mint-d)}
+.sub-acc-toggle .chev{font-size:11px}
+.sub-acc-toggle .cnt{font-size:12px;font-weight:400;color:var(--ink2)}
 /* 操作记录（审计日志） */
 .audit-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 4px;border-bottom:1px dashed var(--line);font-size:13px}
 .audit-row:last-child{border-bottom:none}

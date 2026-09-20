@@ -81,8 +81,10 @@ function ok(cond, name){
   /* ---- 公开报告页（免登录） ---- */
   let pg = await getText(url);
   ok(pg.status === 200 && pg.text.indexOf('作业打卡报告') !== -1, '公开页免登录可访问');
-  ok(pg.text.indexOf('林小满') !== -1 && pg.text.indexOf('AP·微积分BC') !== -1 && pg.text.indexOf('深外') !== -1,
-    '报告页含学生/科目短名/学校');
+  ok(pg.text.indexOf('林小满') !== -1 && pg.text.indexOf('AP·微积分BC') !== -1,
+    '报告页含学生/科目短名');
+  ok(pg.text.indexOf('深外') === -1 && pg.text.indexOf('学校') === -1 && pg.text.indexOf('年级') === -1,
+    '报告页不再展示学校/年级');
   ok(pg.text.indexOf('90%') !== -1 && pg.text.indexOf('2026-09-08') !== -1 && pg.text.indexOf('7、14') !== -1,
     '报告页含打卡记录（正确率/日期/错题号）');
   ok(pg.text.indexOf('最近进步明显') !== -1 && pg.text.indexOf('每周复盘错题') !== -1 && pg.text.indexOf('92 分') !== -1,

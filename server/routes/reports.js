@@ -221,8 +221,6 @@ function reportPage(st, subject, recs){
     '<div class="page">' +
     '<div class="head"><h1>作业打卡报告</h1>' +
       '<div class="meta">学生：<b>' + esc(st.name) + '</b>' +
-      (st.school ? '　｜　学校：' + esc(st.school) : '') +
-      (st.grad_year ? '　｜　年级：' + esc(st.grad_year) + ' 届' : '') +
       '　｜　科目：<b>' + esc(shortSubject(subject)) + '</b></div>' +
       '<div class="date">生成日期：' + nowTs().slice(0, 10) + '</div></div>' +
     '<div class="cards">' +
@@ -248,8 +246,6 @@ function reportPage(st, subject, recs){
 function pageHead(st, subject, h1){
   return '<div class="head"><h1>' + h1 + '</h1>' +
     '<div class="meta">学生：<b>' + esc(st.name) + '</b>' +
-    (st.school ? '　｜　学校：' + esc(st.school) : '') +
-    (st.grad_year ? '　｜　年级：' + esc(st.grad_year) + ' 届' : '') +
     '　｜　科目：<b>' + esc(shortSubject(subject)) + '</b></div>' +
     '<div class="date">生成日期：' + nowTs().slice(0, 10) + '</div></div>';
 }
