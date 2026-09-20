@@ -165,6 +165,11 @@ const recCols = db.prepare("PRAGMA table_info(records)").all().map(c => c.name);
 if(!recCols.includes('pdfs')){
   db.exec("ALTER TABLE records ADD COLUMN pdfs TEXT");
 }
+/* 「本次无作业」第四次态迁移（v1.4.3）：records 补 no_homework 列。
+   无作业记录：total=0, correct=0, wrongs=[], no_homework=1——计入已完成次数，不参与正确率统计 */
+if(!recCols.includes('no_homework')){
+  db.exec('ALTER TABLE records ADD COLUMN no_homework INTEGER NOT NULL DEFAULT 0');
+}
 /* 首次课程时间迁移：students 补 subj_first_class JSON 列（科目 → 开课日期 YYYY-MM-DD） */
 if(!db.prepare("PRAGMA table_info(students)").all().map(c => c.name).includes('subj_first_class')){
   db.exec('ALTER TABLE students ADD COLUMN subj_first_class TEXT');

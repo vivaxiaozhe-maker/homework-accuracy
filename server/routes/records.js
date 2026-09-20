@@ -18,8 +18,9 @@ function stuDesc(studentId, subject){
   const s = db.prepare('SELECT name FROM students WHERE id = ?').get(studentId);
   return (s ? s.name : '（已删除学生）') + (subject ? ' · ' + subject : '');
 }
-function validRec(date, total, correct){
+function validRec(date, total, correct, noHomework){
   if(!date) return '请选择日期';
+  if(noHomework) return null;  // 无作业打卡：只需日期，total/correct 恒为 0/0
   if(!Number.isInteger(total) || total <= 0) return '请填写有效的总题数';
   if(!Number.isInteger(correct) || correct < 0 || correct > total) return '正确题目数需在 0 到总题数之间';
   return null;
@@ -43,14 +44,16 @@ function bindFiles(recordId, fileIds){
   (fileIds || []).forEach(fid => upd.run(recordId, fid));
 }
 
-// POST /api/records {studentId, date, total, correct, wrongs, subject, images, pdfs}
+// POST /api/records {studentId, date, total, correct, wrongs, subject, images, pdfs, noHomework}
+// noHomework=true：本次无作业（第四次态），只校验日期，total/correct 落库 0/0；仍按开关触发自动推送
 // 保存成功后按开关自动推送「作业批改完成通知」（静默失败不阻塞保存；响应带 pushed 供前端提示）
 router.post('/records', guard, async (req, res) => {
-  const { studentId, date, total, correct, wrongs, subject, images, pdfs } = req.body || {};
+  const { studentId, date, total, correct, wrongs, subject, images, pdfs, noHomework } = req.body || {};
   const st = db.prepare('SELECT * FROM students WHERE id = ?').get(studentId);
   if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
   if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
-  const err = validRec(date, total, correct);
+  const noHw = !!noHomework;
+  const err = validRec(date, noHw ? 0 : total, noHw ? 0 : correct, noHw);
   if(err) return res.status(400).json({ ok: false, msg: err });
   const ferr = checkFileIds(req.user, images || []) || checkFileIds(req.user, pdfs || []);
   if(ferr) return res.status(400).json({ ok: false, msg: ferr });
@@ -59,36 +62,41 @@ router.post('/records', guard, async (req, res) => {
   if(cid === 'invalid') return res.status(400).json({ ok: false, msg: 'id 不合法' });
   if(cid === 'conflict') return res.status(409).json({ ok: false, msg: 'id 冲突，请刷新后重试' });
   const id = cid || uid('r_');
-  db.prepare(`INSERT INTO records (id, student_id, owner_id, date, total, correct, wrongs, subject, images, pdfs, sample)
-              VALUES (?,?,?,?,?,?,?,?,?,?,0)`)
-    .run(id, studentId, st.owner_id, date, total, correct, JSON.stringify(wrongs || []), subject || '',
-      JSON.stringify(images || []), JSON.stringify(pdfs || []));
+  db.prepare(`INSERT INTO records (id, student_id, owner_id, date, total, correct, wrongs, subject, images, pdfs, sample, no_homework)
+              VALUES (?,?,?,?,?,?,?,?,?,?,0,?)`)
+    .run(id, studentId, st.owner_id, date, noHw ? 0 : total, noHw ? 0 : correct,
+      JSON.stringify(noHw ? [] : (wrongs || [])), subject || '',
+      JSON.stringify(images || []), JSON.stringify(pdfs || []), noHw ? 1 : 0);
   bindFiles(id, (images || []).concat(pdfs || []));
-  logAudit(req.user, '录入作业', 'record', stuDesc(studentId, subject), '日期 ' + date + '，' + accText(total, correct), st.owner_id);
+  if(noHw) logAudit(req.user, '录入作业（无作业）', 'record', stuDesc(studentId, subject), '日期 ' + date, st.owner_id);
+  else logAudit(req.user, '录入作业', 'record', stuDesc(studentId, subject), '日期 ' + date + '，' + accText(total, correct), st.owner_id);
   const pushed = await push.autoHomework(req, st, subject || '');
   res.json({ ok: true, record: recToJson(db.prepare('SELECT * FROM records WHERE id = ?').get(id)), pushed: pushed });
 });
 
-// PUT /api/records/:id {date, total, correct, wrongs, subject, images, pdfs}
+// PUT /api/records/:id {date, total, correct, wrongs, subject, images, pdfs, noHomework}
+// 支持双向转换：正常 ↔ 无作业（转无作业时清空 total/correct/wrongs 为 0/0/[]）；未传 noHomework 保持原态
 // 编辑保存同样按开关自动推送（重新批改也算批改完成）
 router.put('/records/:id', guard, async (req, res) => {
   const r = db.prepare('SELECT * FROM records WHERE id = ?').get(req.params.id);
   if(!r) return res.status(404).json({ ok: false, msg: '记录不存在' });
   if(!canWrite(req.user, r.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
-  const { date, total, correct, wrongs, subject, images, pdfs } = req.body || {};
-  const err = validRec(date, total, correct);
+  const { date, total, correct, wrongs, subject, images, pdfs, noHomework } = req.body || {};
+  const noHw = noHomework !== undefined ? !!noHomework : !!r.no_homework;
+  const err = validRec(date, noHw ? 0 : total, noHw ? 0 : correct, noHw);
   if(err) return res.status(400).json({ ok: false, msg: err });
   // images/pdfs 未传则保持原值；传了则校验并重新绑定
   const newImages = images !== undefined ? images : parseJson(r.images, []);
   const newPdfs = pdfs !== undefined ? pdfs : parseJson(r.pdfs, []);
   const ferr = checkFileIds(req.user, newImages) || checkFileIds(req.user, newPdfs);
   if(ferr) return res.status(400).json({ ok: false, msg: ferr });
-  db.prepare('UPDATE records SET date = ?, total = ?, correct = ?, wrongs = ?, subject = ?, images = ?, pdfs = ? WHERE id = ?')
-    .run(date, total, correct, JSON.stringify(wrongs || []), subject !== undefined ? subject : r.subject,
-      JSON.stringify(newImages), JSON.stringify(newPdfs), r.id);
+  db.prepare('UPDATE records SET date = ?, total = ?, correct = ?, wrongs = ?, subject = ?, images = ?, pdfs = ?, no_homework = ? WHERE id = ?')
+    .run(date, noHw ? 0 : total, noHw ? 0 : correct,
+      JSON.stringify(noHw ? [] : (wrongs || [])), subject !== undefined ? subject : r.subject,
+      JSON.stringify(newImages), JSON.stringify(newPdfs), noHw ? 1 : 0, r.id);
   if(images !== undefined || pdfs !== undefined) bindFiles(r.id, newImages.concat(newPdfs));
-  logAudit(req.user, '修改作业', 'record', stuDesc(r.student_id, subject !== undefined ? subject : r.subject),
-    '日期 ' + date + '，' + accText(total, correct), r.owner_id);
+  logAudit(req.user, noHw ? '修改作业（无作业）' : '修改作业', 'record', stuDesc(r.student_id, subject !== undefined ? subject : r.subject),
+    '日期 ' + date + (noHw ? '' : '，' + accText(total, correct)), r.owner_id);
   const st = db.prepare('SELECT * FROM students WHERE id = ?').get(r.student_id);
   const pushed = st ? await push.autoHomework(req, st, subject !== undefined ? subject : r.subject) : false;
   res.json({ ok: true, pushed: pushed });

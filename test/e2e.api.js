@@ -80,7 +80,7 @@ function ok(cond, name){
   const sessionStore = ctx.sessionStorage;  // vm context 内同一引用
 
   const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-  /* 前端已拆分为 js/*.js（v1.4.2）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+  /* 前端已拆分为 js/*.js（v1.4.3）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
   const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
   if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
   const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
@@ -94,7 +94,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.4.2', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.4.3', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -446,6 +446,21 @@ function ok(cond, name){
   ok(documentStub.getElementById('push-max-homework').textContent === '4', '限流次数控件显示更新');
   await vm.runInContext("pushMaxStep('homework', -1)", ctx);  // 退回 3
   await vm.runInContext("togglePushConfig('homework')", ctx);  // 关回去，避免影响其他用例
+
+  /* ---- 「本次无作业」第四次态（API 全链路：接口 → state 同步 → 双向转换 → 落地页行） ---- */
+  const noHwAdd = await wb.HttpApi.addRecord({ id: 'e2e-nohw-1', studentId: sid, date: '2026-09-18', subject: subj, noHomework: true });
+  ok(noHwAdd.ok && noHwAdd.record.noHomework === true && noHwAdd.record.total === 0 && noHwAdd.record.correct === 0,
+    'POST 无作业记录成功（noHomework 标志 + 0/0 落库）');
+  await wb.resyncState();
+  ok(wb.pool.records.find(r=>r.id==='e2e-nohw-1').noHomework === true, 'state 同步带 noHomework 标志');
+  const noHwPut = await wb.HttpApi.updateRecord('e2e-nohw-1', { date: '2026-09-18', noHomework: false, total: 12, correct: 10, wrongs: [3, 8] });
+  ok(noHwPut.ok && (await apiGetState()).records.find(r=>r.id==='e2e-nohw-1').noHomework === false, 'PUT 无作业 → 正常转换');
+  const noHwPut2 = await wb.HttpApi.updateRecord('e2e-nohw-1', { date: '2026-09-18', noHomework: true, total: 12, correct: 10 });
+  const noHwRow2 = (await apiGetState()).records.find(r=>r.id==='e2e-nohw-1');
+  ok(noHwPut2.ok && noHwRow2.total === 0 && noHwRow2.noHomework === true, 'PUT 正常 → 无作业转换（成绩清零）');
+  const shareR2 = await wb.HttpApi.shareReport(sid, subj);
+  const sharePg2 = await (await fetch(base + shareR2.url)).text();
+  ok(sharePg2.indexOf('本次无作业') !== -1 && sharePg2.indexOf('2026-09-18') !== -1, '落地页无作业行渲染「本次无作业」+ 日期');
 
   console.log('\ne2e 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();

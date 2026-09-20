@@ -24,10 +24,11 @@ router.get('/students', (req, res) => {
   const missStmt = db.prepare('SELECT COUNT(*) AS c FROM missed WHERE student_id = ?');
   const items = students.map(s => {
     const recs = recStmt.all(s.id);
-    const last = recs.length ? recs.reduce((a, b) => a.date > b.date ? a : b) : null;
-    // 各科目 {正确率, 次数}
+    const graded = recs.filter(r=>!r.no_homework);  // 无作业记录不参与正确率统计
+    const lastGraded = graded.length ? graded.reduce((a, b) => a.date > b.date ? a : b) : null;
+    // 各科目 {正确率, 次数}（正确率只算有成绩的记录；次数含无作业——无作业计入已完成）
     const subMap = {};
-    recs.forEach(r => {
+    graded.forEach(r => {
       const k = r.subject || '未指定';
       (subMap[k] = subMap[k] || []).push(r);
     });
@@ -38,7 +39,7 @@ router.get('/students', (req, res) => {
     return { id: s.id, name: s.name, school: s.school || '', gradYear: s.grad_year || '',
       archived: !!s.archived, ownerName: ownerName(s.owner_id),
       recCnt: recs.length, missCnt: missStmt.get(s.id).c,
-      lastAcc: last ? accOf(last) : null, subjects };
+      lastAcc: lastGraded ? accOf(lastGraded) : null, subjects };
   });
   res.json({ ok: true, students: items });
 });
@@ -58,7 +59,8 @@ router.get('/students/:id', (req, res) => {
   const subjects = [...subjSet].filter(k => k !== '').map(k => {
     // 打卡序列：作业记录 + 未处理未交按日期合并（同日期记录在前，与前端 subjectItems 一致）
     const items = recs.filter(r => (r.subject || '未指定') === k)
-      .map(r => ({ type: 'rec', date: r.date, total: r.total, correct: r.correct, acc: accOf(r), wrongs: parseJson(r.wrongs, []) }))
+      .map(r => ({ type: 'rec', date: r.date, total: r.total, correct: r.correct, acc: accOf(r), wrongs: parseJson(r.wrongs, []),
+        noHomework: !!r.no_homework }))  // 无作业标记供前端展示（第四次态）
       .concat(missed.filter(m => (m.subject || '') === k && !m.resolved)
         .map(m => ({ type: 'miss', date: m.date })))
       .sort((a, b) => a.date === b.date ? (a.type === 'rec' ? -1 : 1) : (a.date < b.date ? -1 : 1));

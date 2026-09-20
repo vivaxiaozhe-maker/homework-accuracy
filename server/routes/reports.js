@@ -204,11 +204,17 @@ function reportPage(st, subject, recs){
   for(let i = 0; i < total; i++){
     const r = recs[i];
     if(r){
+      if(r.no_homework){
+        // 无作业记录：正确率 —、错题列标「本次无作业」（灰色，不带颜色评级）
+        rows += '<tr><td>第' + (i+1) + '次</td><td>' + esc(r.date) + '</td>' +
+          '<td style="color:#9CA3AF">—</td><td style="color:#9CA3AF">本次无作业</td></tr>';
+      } else {
       const ra = accOf(r);
       const wrongs = (r.wrongs && parseJson(r.wrongs, []).length) ? esc(parseJson(r.wrongs, []).join('、')) : '无错题';
       rows += '<tr><td>第' + (i+1) + '次</td><td>' + esc(r.date) + '</td>' +
         '<td style="font-weight:700;color:' + (ra >= 85 ? '#0F8F68' : (ra >= 60 ? '#B9802A' : '#DC2626')) + '">' + ra + '%</td>' +
         '<td>' + wrongs + '</td></tr>';
+      }
     } else {
       rows += '<tr><td>第' + (i+1) + '次</td><td>未完成</td>' +
         '<td style="font-weight:700;color:#DC2626">—</td><td style="color:#DC2626">未完成</td></tr>';
@@ -250,8 +256,9 @@ function pageHead(st, subject, h1){
     '<div class="date">生成日期：' + nowTs().slice(0, 10) + '</div></div>';
 }
 function recentRecsHtml(recs){
-  if(!recs.length) return '';  // 无作业记录：整个摘要区块隐藏
-  const last = recs.slice(-3).reverse();  // 最近 3 条（新→旧）
+  const graded = recs.filter(r=>!r.no_homework);  // 无作业记录不产生正确率，摘要不纳入
+  if(!graded.length) return '';  // 无作业记录：整个摘要区块隐藏
+  const last = graded.slice(-3).reverse();  // 最近 3 条（新→旧）
   return '<h2>近期作业表现</h2><div class="mini">' + last.map(r=>{
     const a = accOf(r);
     return '<div class="m"><div class="a">' + a + '%</div><div class="b">' + esc(r.date) + '</div></div>';

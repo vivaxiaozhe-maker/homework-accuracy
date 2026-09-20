@@ -2,6 +2,11 @@
 /* ================= 工具 ================= */
 function stuName(id){ const s = state.students.find(x=>x.id===id); return s ? s.name : '（已删除学生）'; }
 function acc(r){ return r.total>0 ? Math.round(r.correct/r.total*100) : 0; }
+/* 无作业记录（第四次态 noHomework）不产生正确率：所有正确率统计先过 gradedRecs 过滤。
+   注意口径：无作业计入「已完成次数」（课上了视为已打卡），只排除在正确率之外 */
+function gradedRecs(recs){ return recs.filter(r=>!r.noHomework); }
+// 最近一条有成绩的记录（无作业不算）；无则 null（recs 须已按日期升序）
+function lastGradedRec(recs){ const g = gradedRecs(recs); return g.length ? g[g.length-1] : null; }
 function accClass(a){ return a>=85 ? 'acc-good' : (a>=60 ? 'acc-mid' : 'acc-low'); }
 // 科目路径缩短显示：「学科 / AP / 微积分BC」→「AP·微积分BC」；「竞赛 / AMC10」→「AMC10」
 function shortSubject(s){

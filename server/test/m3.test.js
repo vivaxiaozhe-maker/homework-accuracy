@@ -243,6 +243,31 @@ function ok(cond, name){
   r = await req('POST', '/api/records', { studentId: 'cli-stu-1', date: today(), total: 5, correct: 5, wrongs: [] }, T1);
   ok(r.status === 200 && r.data.record.id && r.data.record.id !== 'cli-rec-1', '未传 id 走服务端生成（向后兼容）');
 
+  /* ---- 「本次无作业」第四次态（v1.4.3）：记录接口校验分支 + 双向转换 + 搜索排除 ---- */
+  r = await req('POST', '/api/records', { studentId: 'cli-stu-1', date: offDay(-2), subject: '学科 / AP / 微积分BC', noHomework: true }, T1);
+  ok(r.status === 200 && r.data.record.noHomework === true && r.data.record.total === 0 && r.data.record.correct === 0
+    && r.data.record.wrongs.length === 0, 'POST 无作业记录：跳过题数校验，落库 0/0/[] + noHomework 标志');
+  const noHwRecId = r.data.record.id;
+  r = await req('POST', '/api/records', { studentId: 'cli-stu-1', subject: '学科 / AP / 微积分BC', noHomework: true }, T1);
+  ok(r.status === 400, '无作业记录仍必须填日期（400）');
+  ok(db.prepare("SELECT * FROM audit_logs WHERE action = '录入作业（无作业）'").all().length > 0, '无作业录入写审计（动作区分）');
+  // 双向转换：正常 → 无作业（清空成绩）；无作业 → 正常
+  r = await req('PUT', '/api/records/' + noHwRecId, { date: offDay(-2), noHomework: false, total: 10, correct: 8, wrongs: [2, 5] }, T1);
+  ok(r.status === 200 && db.prepare('SELECT no_homework, total FROM records WHERE id = ?').get(noHwRecId).no_homework === 0, '无作业 → 正常：转换成功');
+  r = await req('PUT', '/api/records/' + noHwRecId, { date: offDay(-2), noHomework: true, total: 10, correct: 8, wrongs: [2] }, T1);
+  const convRow = db.prepare('SELECT no_homework, total, correct, wrongs FROM records WHERE id = ?').get(noHwRecId);
+  ok(r.status === 200 && convRow.no_homework === 1 && convRow.total === 0 && convRow.correct === 0 && convRow.wrongs === '[]',
+    '正常 → 无作业：清空 total/correct/wrongs');
+  // 搜索口径：平均分/最近正确率排除无作业；明细行带标记
+  r = await req('GET', '/api/search/students?q=' + encodeURIComponent('客户端ID生'), null, TS);
+  const searchItem = r.data.students.find(s=>s.id==='cli-stu-1');
+  ok(searchItem && searchItem.lastAcc === 100, '搜索最近正确率排除无作业记录（取最近一条有成绩的 100%）');
+  const searchSubj = searchItem.subjects.find(s=>s.subject==='学科 / AP / 微积分BC');
+  ok(searchSubj && searchSubj.avg === 90, '搜索科目平均分排除无作业记录（该科目仅 cli-rec-1 一条有成绩 90%；无作业行不计入）');
+  r = await req('GET', '/api/search/students/cli-stu-1', null, TS);
+  const detailItems = r.data.student.subjects.find(s=>s.subject==='学科 / AP / 微积分BC').items;
+  ok(detailItems.some(i=>i.noHomework === true), '搜索明细行带 noHomework 标记');
+
   console.log('\nM3 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();
   try{ fs.unlinkSync(TEST_DB); fs.unlinkSync(TEST_DB + '-wal'); fs.unlinkSync(TEST_DB + '-shm'); }catch(e){}

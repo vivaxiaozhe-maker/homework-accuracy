@@ -94,6 +94,13 @@ function ok(cond, name){
   // 不泄露其他数据：页面不含任何接口/其他学生线索
   ok(pg.text.indexOf('/api/') === -1, '报告页不含任何 API 路径');
 
+  /* ---- 无作业记录行（第四次态；已完成计数含无作业） ---- */
+  db.prepare("INSERT INTO records (id, student_id, owner_id, date, total, correct, wrongs, subject, no_homework) VALUES ('m7_nohw', ?, (SELECT owner_id FROM students WHERE id = ?), '2026-09-10', 0, 0, '[]', ?, 1)")
+    .run(stuA, stuA, subj);
+  pg = await getText(url);  // 复用既有分享链接（落地页实时渲染）
+  ok(pg.text.indexOf('本次无作业') !== -1 && pg.text.indexOf('2026-09-10') !== -1, '报告页无作业行：错题列「本次无作业」+ 日期');
+  ok(pg.text.indexOf('已完成</div><div class="v">3 次') !== -1, '已完成计数含无作业记录（2 次成绩 + 1 次无作业 = 3）');
+
   /* ---- 审计日志 ---- */
   const logRows = db.prepare("SELECT * FROM audit_logs WHERE target_type = 'student' AND (action = '生成分享链接' OR action = '访问分享报告')").all();
   ok(logRows.some(l => l.action === '生成分享链接'), '生成链接写审计日志');

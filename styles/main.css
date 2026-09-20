@@ -309,6 +309,9 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .ci-slot.done .ci-mark{color:var(--mint-d)}
 .ci-slot.miss{border-color:#F0C6C2;background:#FDF3F2}
 .ci-slot.miss .ci-mark{color:var(--red)}
+/* 无作业格子（第四次态）：中性灰蓝，不参与正确率统计；标记「无作业」+ 日期，不显示百分比与错题 */
+.ci-slot.nohw{border-color:#D5DDE5;background:#F4F7F9}
+.ci-slot.nohw .ci-mark{color:#7A8CA0;font-size:12px}
 .ci-date{color:var(--ink2);font-size:11px}
 .ci-acc{font-weight:800;font-size:13px;color:var(--mint-d)}
 .ci-acc.mid{color:#B9802A}

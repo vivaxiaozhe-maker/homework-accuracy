@@ -122,9 +122,11 @@ async function pushTemplate(user, st, kind, subject, url, slotOverride, isManual
 function buildTplData(kind, st, subject, slotOverride){
   const sn = shortSubject(subject);
   if(kind === 'homework'){
-    // 最近正确率：该学生该科目最近一条作业记录
+    // 最近正确率：该学生该科目最近一条作业记录；无作业记录（no_homework）无正确率可言，
+    // character_string 字段不支持中文，填「-」占位（家长的「无作业」信息由落地页承载）
     const lastRec = db.prepare('SELECT * FROM records WHERE student_id = ? AND subject = ? ORDER BY date DESC LIMIT 1').get(st.id, subject);
-    const acc = lastRec ? (lastRec.total > 0 ? Math.round(lastRec.correct / lastRec.total * 100) : 0) + '%' : '暂无记录';
+    const acc = !lastRec ? '暂无记录'
+      : (lastRec.no_homework ? '-' : (lastRec.total > 0 ? Math.round(lastRec.correct / lastRec.total * 100) : 0) + '%');
     return { thing15: { value: sn }, thing1: { value: st.name }, character_string18: { value: acc } };
   }
   const slot = slotOverride || parseJson(st.mock, {})[subject] || {};

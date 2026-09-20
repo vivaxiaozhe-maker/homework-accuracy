@@ -32,6 +32,13 @@ function reportHtml(st, subject){
     const idx = i+1;
     const td = 'padding:7px 10px;border:1px solid #DDE3E0;font-size:13px;color:#374151';
     if(r){
+      if(r.noHomework){  // 无作业记录：正确率 — + 错题列「本次无作业」（灰，不带评级；与落地页同口径）
+        rows += '<tr>' +
+          '<td style="' + td + '">第' + idx + '次</td>' +
+          '<td style="' + td + '">' + esc(r.date) + '</td>' +
+          '<td style="' + td + ';color:#9CA3AF">—</td>' +
+          '<td style="' + td + ';color:#9CA3AF">本次无作业</td></tr>';
+      } else {
       const ra = acc(r);
       const wrongs = (r.wrongs && r.wrongs.length) ? esc(r.wrongs.join('、')) : '无错题';
       rows += '<tr>' +
@@ -39,6 +46,7 @@ function reportHtml(st, subject){
         '<td style="' + td + '">' + esc(r.date) + '</td>' +
         '<td style="' + td + ';font-weight:700;color:' + (ra>=85?'#0F8F68':(ra>=60?'#B9802A':'#DC2626')) + '">' + ra + '%</td>' +
         '<td style="' + td + '">' + wrongs + '</td></tr>';
+      }
     } else {
       rows += '<tr>' +
         '<td style="' + td + '">第' + idx + '次</td>' +

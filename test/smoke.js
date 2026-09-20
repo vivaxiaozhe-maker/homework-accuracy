@@ -59,7 +59,7 @@ const ctx = vm.createContext({
 
 /* ---------- 加载页面脚本 ---------- */
 const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-/* 前端已拆分为 js/*.js（v1.4.2）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+/* 前端已拆分为 js/*.js（v1.4.3）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
 const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
 if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
 const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
@@ -170,7 +170,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.4.2') !== -1, '登录页版本号升至 v1.4.2');
+  ok(html.indexOf('id="login-ver">v1.4.3') !== -1, '登录页版本号升至 v1.4.3');
 
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
@@ -323,6 +323,61 @@ function ok(cond, name){
   wb.doLogout();
   await wb.doLogin('admin', 'admin456', 'admin');
 
+  /* ---- 「本次无作业」第四次态（mock 全流程：置灰→保存→格子渲染→切回→转换确认→统计排除） ---- */
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  const noHwDay = (n=>{ const d = new Date(); d.setDate(d.getDate()+n);
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); })(-1);
+  wb.pool.students.push({id:'nohw-s1', name:'无作业测试生', ownerId:ta1.id, subjPlans:{'学科 / AP / 统计':3}, subjects:['学科 / AP / 统计']});
+  wb.pool.records.push({id:'nohw-r1', studentId:'nohw-s1', date:noHwDay, total:20, correct:20, wrongs:[], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
+  wb.refreshView();
+  wb.setQuickEntry({gid:'nohw-s1', subject:'学科 / AP / 统计'});
+  // 1) 空格子进入无作业态：三框置灰 + 计算区文案
+  wb.setSlotEdit({gid:'nohw-s1', subject:'学科 / AP / 统计', idx:2});
+  vm.runInContext('toggleSlotNoHw()', ctx);
+  const noHwForm = vm.runInContext('slotEditHtml()', ctx);
+  ok(noHwForm.indexOf('本次无作业，仅需选择日期') !== -1 && (noHwForm.match(/disabled/g) || []).length >= 3
+    && noHwForm.indexOf('取消无作业') !== -1, '无作业态：题数/正确数/错题三框置灰 + 计算区文案 + 可切回按钮');
+  ok(vm.runInContext('slNoHw', ctx) === true, 'slNoHw 状态开启');
+  // 2) 保存无作业记录
+  vm.runInContext('saveSlot()', ctx);
+  const noHwRec = wb.pool.records.find(r=>r.studentId==='nohw-s1' && r.noHomework);
+  ok(noHwRec && noHwRec.total === 0 && noHwRec.correct === 0 && noHwRec.wrongs.length === 0, '无作业保存：落库 0/0/[] + noHomework 标志');
+  ok(alerts[alerts.length-1].indexOf('已打卡：本次无作业') !== -1, '无作业保存 toast「已打卡：本次无作业」');
+  const gridHtml = vm.runInContext('checkinGridHtml()', ctx);
+  ok(gridHtml.indexOf('ci-slot nohw') !== -1 && gridHtml.indexOf('>无作业<') !== -1, '格子渲染 nohw 变体（「无作业」标记 + 日期）');
+  // 3) 重新打开该格子：自动进入无作业态（日期可改）；切回正常录入
+  vm.runInContext('openSlot(2)', ctx);
+  ok(vm.runInContext('slNoHw', ctx) === true, '打开已存无作业格子自动进入无作业态');
+  vm.runInContext('toggleSlotNoHw()', ctx);
+  ok(vm.runInContext('slNoHw', ctx) === false && vm.runInContext('slotEditHtml()', ctx).indexOf('disabled') === -1, '「取消无作业」切回正常表单（输入框恢复可填）');
+  documentStub.getElementById('sl-total').value = '10';
+  documentStub.getElementById('sl-correct').value = '10';
+  documentStub.getElementById('sl-wrongs').value = '';
+  vm.runInContext('saveSlot()', ctx);
+  ok(noHwRec.noHomework === false && noHwRec.total === 10, '无作业 → 正常录入转换（成绩恢复写入）');
+  // 4) 正常成绩 → 无作业：有成绩需确认
+  wb.setSlotEdit({gid:'nohw-s1', subject:'学科 / AP / 统计', idx:1});
+  wb.renderStats();
+  vm.runInContext('toggleSlotNoHw()', ctx);
+  ok(documentStub.getElementById('cf-title').textContent.indexOf('无作业') !== -1, '有成绩记录转无作业弹确认（成绩将被清除）');
+  documentStub.getElementById('cf-ok').onclick();
+  documentStub.getElementById('sl-date').value = noHwDay;
+  vm.runInContext('saveSlot()', ctx);
+  const convRec = wb.pool.records.find(r=>r.id==='nohw-r1');
+  ok(convRec.noHomework === true && convRec.total === 0, '确认后正常记录转为无作业（成绩清零）');
+  // 5) 统计口径：平均分排除无作业（该生 10/10 有成绩 + 1 无作业 → 平均 100%；次数含无作业 = 2）
+  wb.renderStats();
+  const noHwCard = documentStub.getElementById('stu-list').innerHTML;
+  ok(noHwCard.indexOf('>100%<') !== -1 && noHwCard.indexOf('50%') === -1, '学生卡正确率排除无作业记录（100% 而非 50%）');
+  ok(noHwCard.indexOf('作业次数 <b>2</b>') !== -1, '作业次数含无作业（计入已完成次数）');
+  // 清理测试数据
+  wb.pool.students = wb.pool.students.filter(s=>s.id!=='nohw-s1');
+  wb.pool.records = wb.pool.records.filter(r=>r.id!=='nohw-r1' && !(r.studentId==='nohw-s1'));
+  wb.refreshView();
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+
   /* ---- 家长绑定与推送（微信服务号）：静态结构 + 绑定状态区 + mock 提示 ---- */
   ok(html.indexOf('id="rp-push"') !== -1 && html.indexOf('推送给家长') !== -1, '报告预览弹窗含「推送给家长」按钮');
   ok(html.indexOf('id="bind-modal"') !== -1 && html.indexOf('id="bind-qr-box"') !== -1, '家长绑定二维码弹窗结构存在');
@@ -438,8 +493,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.4.2') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.4.2」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.4.3') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.4.3」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');

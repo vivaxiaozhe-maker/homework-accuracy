@@ -15,7 +15,7 @@ function computeDash(){
   const recs = start ? recsOwner.filter(r=>r.date >= start) : recsOwner;
   const missed = pool.missed.filter(m=>dashOwner==='all' || m.ownerId===dashOwner);
   const students = pool.students.filter(s=>dashOwner==='all' || s.ownerId===dashOwner);
-  const avgAcc = recs.length ? Math.round(recs.reduce((s,r)=>s+acc(r),0)/recs.length) : null;
+  const avgAcc = gradedRecs(recs).length ? Math.round(gradedRecs(recs).reduce((s,r)=>s+acc(r),0)/gradedRecs(recs).length) : null;  // 无作业不参与正确率
   // 已归档学生的未交不算逾期（学习已结束，不再催办）
   const isActiveMissed = m => { const st = pool.students.find(x=>x.id===m.studentId); return !(st && st.archived); };
   const openMiss = missed.filter(m=>!m.resolved && isActiveMissed(m));
@@ -26,8 +26,9 @@ function computeDash(){
   for(let i=29; i>=0; i--){
     const d = offsetDay(-i);
     const dr = recsOwner.filter(r=>r.date===d);
+    const drG = gradedRecs(dr);  // 柱高含无作业（录入次数），柱色只算有成绩的
     trend.push({ date:d, cnt:dr.length,
-      avg: dr.length ? Math.round(dr.reduce((s,r)=>s+acc(r),0)/dr.length) : null });
+      avg: drG.length ? Math.round(drG.reduce((s,r)=>s+acc(r),0)/drG.length) : null });
   }
 
   // 助教维度对比（按范围内录入次数降序；≥7 天未录入标「沉默」）
@@ -38,14 +39,14 @@ function computeDash(){
     const lastDate = allRs.length ? allRs.reduce((a,b)=>a.date>b.date?a:b).date : null;
     return { user:u, stuCnt: pool.students.filter(s=>s.ownerId===u.id && !s.archived).length,
       recCnt: rs.length,
-      avg: rs.length ? Math.round(rs.reduce((s,r)=>s+acc(r),0)/rs.length) : null,
+      avg: gradedRecs(rs).length ? Math.round(gradedRecs(rs).reduce((s,r)=>s+acc(r),0)/gradedRecs(rs).length) : null,
       missCnt: ms.filter(m=>!m.resolved).length,
       overdueCnt: ms.filter(m=>isOverdueMissed(m, pool.students.find(x=>x.id===m.studentId))).length,
       lastDate: lastDate,
       silent: !lastDate || lastDate <= offsetDay(-7) };
   }).sort((a,b)=>b.recCnt-a.recCnt);
 
-  // 学科维度：一级类目 + 具体科目（均按记录数降序）
+  // 学科维度：一级类目 + 具体科目（均按记录数降序；次数含无作业——计入已完成，正确率只算有成绩的）
   const catMap = {}, subMapD = {};
   recs.forEach(r=>{
     const sub = r.subject || '未指定';
@@ -55,10 +56,10 @@ function computeDash(){
     (subMapD[sub] = subMapD[sub] || []).push(r);
   });
   const cats = Object.keys(catMap).map(k=>({ name:k, cnt:catMap[k].length,
-    avg: Math.round(catMap[k].reduce((s,r)=>s+acc(r),0)/catMap[k].length),
+    avg: gradedRecs(catMap[k]).length ? Math.round(gradedRecs(catMap[k]).reduce((s,r)=>s+acc(r),0)/gradedRecs(catMap[k]).length) : null,
     stuCnt: new Set(catMap[k].map(r=>r.studentId)).size })).sort((a,b)=>b.cnt-a.cnt);
   const subs = Object.keys(subMapD).map(k=>({ key:k, name:shortSubject(k), cnt:subMapD[k].length,
-    avg: Math.round(subMapD[k].reduce((s,r)=>s+acc(r),0)/subMapD[k].length),
+    avg: gradedRecs(subMapD[k]).length ? Math.round(gradedRecs(subMapD[k]).reduce((s,r)=>s+acc(r),0)/gradedRecs(subMapD[k]).length) : null,
     stuCnt: new Set(subMapD[k].map(r=>r.studentId)).size })).sort((a,b)=>b.cnt-a.cnt);
 
   // 预警一：低分学生（范围内平均正确率 <60%，按 ownerId+姓名 组合同名合并）
@@ -70,13 +71,14 @@ function computeDash(){
   });
   const lowStus = Object.values(lowMap).map(g=>{
     const subA = {};
-    g.recs.forEach(r=>{ const k = r.subject || '未指定'; (subA[k] = subA[k] || []).push(r); });
+    const gRecs = gradedRecs(g.recs);  // 低分预警只看有成绩的记录（无作业不算低分）
+    gRecs.forEach(r=>{ const k = r.subject || '未指定'; (subA[k] = subA[k] || []).push(r); });
     return { name: g.name, ownerId: g.ownerId,
-      avg: Math.round(g.recs.reduce((s,r)=>s+acc(r),0)/g.recs.length),
+      avg: gRecs.length ? Math.round(gRecs.reduce((s,r)=>s+acc(r),0)/gRecs.length) : null,
       lowSubs: Object.keys(subA)
         .map(k=>({ name: shortSubject(k), avg: Math.round(subA[k].reduce((s,r)=>s+acc(r),0)/subA[k].length) }))
         .filter(x=>x.avg<60).sort((a,b)=>a.avg-b.avg) };
-  }).filter(g=>g.avg<60).sort((a,b)=>a.avg-b.avg);
+  }).filter(g=>g.avg !== null && g.avg<60).sort((a,b)=>a.avg-b.avg);
 
   // 预警二：逾期未交（当前状态指标，不受时间范围影响），按逾期天数降序
   const overdueList = overdue.map(m=>{
@@ -166,15 +168,15 @@ function renderDashboard(){
   document.getElementById('dash-cats').innerHTML = d.cats.length ? d.cats.map(c=>
     '<div class="dash-cat-row"><span class="cat-name">' + esc(c.name) + '</span>' +
     '<span>记录 <b>' + c.cnt + '</b> 次</span>' +
-    '<span>平均正确率 <b style="color:' + (c.avg>=85?'var(--mint-d)':(c.avg>=60?'#B9802A':'var(--red)')) + '">' + c.avg + '%</b></span>' +
+    '<span>平均正确率 <b style="color:' + (c.avg===null?'var(--ink2)':(c.avg>=85?'var(--mint-d)':(c.avg>=60?'#B9802A':'var(--red)'))) + '">' + (c.avg===null?'—（均无作业）':c.avg + '%') + '</b></span>' +
     '<span>涉及学生 <b>' + c.stuCnt + '</b> 人</span></div>').join('')
     : '<p class="hint">范围内暂无作业记录。</p>';
   document.getElementById('dash-subs').innerHTML = d.subs.map(x=>{
-    const color = x.avg>=85 ? '#5FB89A' : (x.avg>=60 ? '#E8A94C' : '#DE6B6B');
+    const color = x.avg===null ? '#C9C2B0' : (x.avg>=85 ? '#5FB89A' : (x.avg>=60 ? '#E8A94C' : '#DE6B6B'));
     return '<div class="subj-row">' +
-      '<div class="subj-name' + (x.avg<60?' low':'') + '" title="' + esc(x.key) + '">' + esc(x.name) + '</div>' +
-      '<div class="subj-bar"><div class="subj-fill" style="width:' + x.avg + '%;background:' + color + '"></div>' +
-      '<span class="subj-pct">' + x.avg + '%</span></div>' +
+      '<div class="subj-name' + (x.avg!==null && x.avg<60?' low':'') + '" title="' + esc(x.key) + '">' + esc(x.name) + '</div>' +
+      '<div class="subj-bar"><div class="subj-fill" style="width:' + (x.avg===null?0:x.avg) + '%;background:' + color + '"></div>' +
+      '<span class="subj-pct">' + (x.avg===null?'—':x.avg + '%') + '</span></div>' +
       '<div class="subj-cnt" style="flex-basis:96px">' + x.cnt + ' 次 · ' + x.stuCnt + ' 人</div>' +
       '</div>';
   }).join('');

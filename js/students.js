@@ -107,7 +107,7 @@ function renderToday(){
     const st = state.students.find(x=>x.id===m.studentId);
     return !(st && st.archived);  // 已归档学生的未交不计入待办统计
   }).length;
-  const recent = state.records.filter(r=>r.date>=weekAgo);
+  const recent = gradedRecs(state.records.filter(r=>r.date>=weekAgo));  // 无作业记录不参与正确率统计
   const avgAcc = recent.length ? Math.round(recent.reduce((s,r)=>s+acc(r),0)/recent.length) : null;
   document.getElementById('quick-grid').innerHTML =
     '<div class="quick"><div class="num">' + new Set(activeStudents().map(s=>s.name.trim())).size + '</div><div class="lbl">学生总数</div></div>' +
@@ -320,8 +320,8 @@ function renderStats(){
     }
   }
 
-  // 柱状图：每个科目 → 范围内所有学生的平均正确率
-  const chartRecs = state.records.filter(r=>filtered.some(g=>g.ids.includes(r.studentId)));
+  // 柱状图：每个科目 → 范围内所有学生的平均正确率（排除无作业记录——无作业不产生正确率）
+  const chartRecs = gradedRecs(state.records.filter(r=>filtered.some(g=>g.ids.includes(r.studentId))));
   const subjMap = {};
   chartRecs.forEach(r=>{
     const k = r.subject || '未指定';
@@ -390,15 +390,16 @@ function renderStats(){
   }
   const renderStuCard = g=>{
     const recs = state.records.filter(r=>g.ids.includes(r.studentId)).sort((a,b)=>a.date<b.date?-1:1);
-    const avg = recs.length ? Math.round(recs.reduce((x,r)=>x+acc(r),0)/recs.length) : null;
+    const recsG = gradedRecs(recs);  // 有成绩的记录（无作业不参与正确率，但计入作业次数）
+    const avg = recsG.length ? Math.round(recsG.reduce((x,r)=>x+acc(r),0)/recsG.length) : null;
     const misses = state.missed.filter(m=>g.ids.includes(m.studentId));
     const openMiss = misses.filter(m=>!m.resolved);
     const s = {id:g.ids[0], name:g.name, sample:g.sample};  // 组内第一个条目用于操作
 
-    // 趋势迷你折线（最近 8 次）
+    // 趋势迷你折线（最近 8 次有成绩的记录；无作业不占点）
     let trend = '<span class="hint">暂无记录</span>';
-    if(recs.length){
-      const last = recs.slice(-8);
+    if(recsG.length){
+      const last = recsG.slice(-8);
       const pts = last.map((r,i)=>{
         const x = 6 + i*(108/Math.max(1,last.length-1 || 1));
         const y = 34 - acc(r)*0.28;
@@ -422,7 +423,8 @@ function renderStats(){
     if(orderedSubjects.length){
       subHtml = '<div class="sub-acc">' + orderedSubjects.map(k=>{
         const arr = subMap[k] || [];
-        const sa = arr.length ? Math.round(arr.reduce((x,r)=>x+acc(r),0)/arr.length) : null;
+        const arrG = gradedRecs(arr);  // 徽章正确率排除无作业（次数仍含无作业——计入已完成）
+        const sa = arrG.length ? Math.round(arrG.reduce((x,r)=>x+acc(r),0)/arrG.length) : null;
         const isActive = quickEntry && quickEntry.gid===s.id && quickEntry.subject===k;
         const isRenaming = renaming && renaming.gid===s.id && renaming.subject===k;
         const repStuCmt = state.students.find(x=>x.id===s.id);
@@ -446,7 +448,7 @@ function renderStats(){
           (hasCmt ? '<span class="sub-cmt-dot" title="已有老师评语"></span>' : '') +
           (mockDate ? '<span class="mock-tag booked" title="已预约 ' + esc(mockDate) + ' 模考">约</span>' : '') +
           (mockScore!==null ? '<span class="mock-tag score" title="结课模考分数">模考 ' + esc(mockScore) + '</span>' : '') +
-          (arr.length ? '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>' : '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">未录入</span>') +
+          (sa !== null ? '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>' : '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">' + (arr.length ? '—' : '未录入') + '</span>') +
           '<span class="sub-cnt" title="' + (planCnt!==null ? '已完成 ' + arr.length + ' 次，应完成 ' + planCnt + ' 次' : '已录入 ' + arr.length + ' 次') + '">' + (planCnt!==null ? arr.length + '/' + planCnt : arr.length) + ' 次</span>' +
           '<span class="edit-ico" onclick="startRenameSubject(\'' + s.id + '\',\'' + esc(k) + '\',event)" title="修改科目名">✎</span></span>';
       }).join('') + '</div>';
@@ -482,7 +484,7 @@ function renderStats(){
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>新增科目</button>' +
       '</div>' +
       '<div class="stu-nums"><span>作业次数 <b>' + recs.length + '</b></span><span>未交次数 <b style="color:var(--red)">' + misses.length + '</b></span>' +
-      (recs.length ? '<span>最近正确率 <b>' + acc(recs[recs.length-1]) + '%</b></span>' : '') +
+      (lastGradedRec(recs) ? '<span>最近正确率 <b>' + acc(lastGradedRec(recs)) + '%</b></span>' : '') +
       '<span style="margin-left:auto"><button class="btn ghost sm" onclick="archiveGroup([\'' + g.ids.join('\',\'') + '\'])">转为历史学生</button></span></div>' +
       subHtml +
       (addSubjGid===s.id ? addSubjPanelHtml(s.id) : '') +
@@ -518,10 +520,11 @@ function renderStats(){
 /* 销售视角只读学生卡：姓名/学校/届/归属助教/科目徽章/作业与未交次数/最近趋势；无任何操作入口（无 onclick） */
 function salesStuCard(g, isAlumni){
   const recs = state.records.filter(r=>g.ids.includes(r.studentId)).sort((a,b)=>a.date<b.date?-1:1);
+  const recsG = gradedRecs(recs);  // 无作业不参与正确率/趋势（次数计入）
   const misses = state.missed.filter(m=>g.ids.includes(m.studentId));
   let trend = '<span class="hint">暂无记录</span>';
-  if(recs.length){
-    const last = recs.slice(-8);
+  if(recsG.length){
+    const last = recsG.slice(-8);
     const pts = last.map((r,i)=>{
       const x = 6 + i*(108/Math.max(1,last.length-1 || 1));
       const y = 34 - acc(r)*0.28;
@@ -534,11 +537,14 @@ function salesStuCard(g, isAlumni){
   const subKeys = Object.keys(subMap);
   const subHtml = subKeys.length ? '<div class="sub-acc">' + subKeys.map(k=>{
     const arr = subMap[k];
-    const sa = Math.round(arr.reduce((x,r)=>x+acc(r),0)/arr.length);
+    const arrG = gradedRecs(arr);  // 徽章正确率排除无作业（次数含无作业——计入已完成）
+    const sa = arrG.length ? Math.round(arrG.reduce((x,r)=>x+acc(r),0)/arrG.length) : null;
     const isOpen = salesSubj && salesSubj.gid===g.ids[0] && salesSubj.subject===k;
     return '<span class="sub-chip' + (isOpen?' active':'') + '" onclick="toggleSalesSubject(\'' + g.ids[0] + '\',\'' + esc(k) + '\')" title="点击查看该科目详情（只读）">' +
       '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
-      '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>' +
+      (sa === null
+        ? '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">—</span>'  // 仅无作业记录：无正确率
+        : '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>') +
       '<span class="sub-cnt">' + arr.length + ' 次</span></span>';
   }).join('') + '</div>' : '';
   return '<div class="stu-card">' +
@@ -551,7 +557,7 @@ function salesStuCard(g, isAlumni){
     trend + '</div>' +
     '<div class="stu-nums"><span>' + (isAlumni ? '历史作业' : '作业次数') + ' <b>' + recs.length + '</b></span>' +
     '<span>未交次数 <b style="color:var(--red)">' + misses.length + '</b></span>' +
-    (recs.length ? '<span>最近正确率 <b>' + acc(recs[recs.length-1]) + '%</b></span>' : '') +
+    (lastGradedRec(recs) ? '<span>最近正确率 <b>' + acc(lastGradedRec(recs)) + '%</b></span>' : '') +
     '</div>' +
     subHtml +
     (salesSubj && salesSubj.gid===g.ids[0] ? salesSubjectPanel(g, salesSubj.subject) : '') +
@@ -588,6 +594,14 @@ function salesCheckinGrid(g, subject){
     }
     const r = it && it.type==='rec' ? it.rec : null;
     if(r){
+      if(r.noHomework){  // 销售只读：无作业格子同样中性展示（无正确率与错题）
+        return '<div class="ci-slot nohw" title="本次无作业">' +
+          '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">无作业</span></div>' +
+          '<div class="ci-date">' + r.date + '</div>' +
+          '<div class="ci-acc" style="color:var(--ink2)">—</div>' +
+          '<div class="ci-wrongs">本次无作业</div>' +
+          '</div>';
+      }
       const ra = acc(r);
       const acls = ra>=85?'good':(ra>=60?'mid':'bad');
       return '<div class="ci-slot done" title="第 ' + idx + ' 次：' + r.date + '，正确率 ' + ra + '%' +
@@ -710,6 +724,12 @@ function salesApiPanel(st, subject){
           '<div class="ci-wrongs">错题 0</div></div>';
       }
       if(it && it.type==='rec'){
+        if(it.noHomework){  // 无作业格子（服务端明细带 noHomework 标记）
+          return '<div class="ci-slot nohw" title="本次无作业">' +
+            '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">无作业</span></div>' +
+            '<div class="ci-date">' + it.date + '</div><div class="ci-acc" style="color:var(--ink2)">—</div>' +
+            '<div class="ci-wrongs">本次无作业</div></div>';
+        }
         const ra = it.acc;
         const acls = ra>=85?'good':(ra>=60?'mid':'bad');
         return '<div class="ci-slot done" title="第 ' + idx + ' 次：' + it.date + '，正确率 ' + ra + '%' +
@@ -895,6 +915,8 @@ function saveQuickEntry(){
 }
 /* ================= 应完成次数 + 作业打卡（合并作业录入与详细记录） ================= */
 let slotEdit = null;  // {gid, subject, idx} 当前展开编辑的打卡格子
+let slNoHw = false;   // 「本次无作业」态（第四次态）：随格子开闭重置；打开已存的无作业记录时自动开启
+let slTmpVals = null; // 切入无作业前的表单值暂存（「取消无作业」切回时恢复）
 function countSubjectRecs(gid, subject){
   return state.records.filter(r=>r.studentId===gid && r.subject===subject).length;
 }
@@ -1064,6 +1086,14 @@ function checkinGridHtml(){
     }
     const r = it && it.type==='rec' ? it.rec : null;
     if(r){
+      if(r.noHomework){  // 无作业格子（第四次态）：中性灰蓝，只显示「无作业」+ 日期，不显示百分比与错题
+        return '<div class="ci-slot nohw" onclick="openSlot(' + idx + ')" title="本次无作业（点击查看/修改）">' +
+          '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">无作业</span></div>' +
+          '<div class="ci-date">' + r.date + '</div>' +
+          '<div class="ci-acc" style="color:var(--ink2)">—</div>' +
+          '<div class="ci-wrongs">本次无作业</div>' +
+          '</div>';
+      }
       const ra = acc(r);
       const acls = ra>=85?'good':(ra>=60?'mid':'bad');
       return '<div class="ci-slot done" onclick="openSlot(' + idx + ')" title="第 ' + idx + ' 次：' + r.date + '，正确率 ' + ra + '%' +
@@ -1089,9 +1119,42 @@ function openSlot(idx){
   } else {
     slotEdit = {gid:quickEntry.gid, subject:quickEntry.subject, idx:idx};
   }
+  // 无作业态随格子开闭重置；打开已存的无作业记录时自动进入无作业态（日期可改、可切回正常录入）
+  slNoHw = false;
+  if(slotEdit){
+    const it = subjectItems(slotEdit.gid, slotEdit.subject)[slotEdit.idx-1];
+    if(it && it.type==='rec' && it.rec.noHomework) slNoHw = true;
+  }
   renderAll();
   // 表单打开后立即计算一次：有已存记录且非满分无错题时，错题号立即显示必填红框
-  if(slotEdit && document.getElementById('sl-wrongs')) slCalc();
+  if(slotEdit && !slNoHw && document.getElementById('sl-wrongs')) slCalc();
+}
+/* 「本次无作业」切换：正常成绩 → 无作业时若已有成绩内容需确认（成绩将被清除）；无作业 → 正常直接切回并恢复暂存值 */
+function toggleSlotNoHw(){
+  if(!slotEdit) return;
+  if(!slNoHw){
+    const items = subjectItems(slotEdit.gid, slotEdit.subject);
+    const r = items[slotEdit.idx-1] && items[slotEdit.idx-1].type==='rec' ? items[slotEdit.idx-1].rec : null;
+    const filledEl = document.getElementById('sl-total');
+    const hasScore = (r && r.total > 0) || (filledEl && filledEl.value !== '');
+    if(hasScore){
+      askConfirm('本次无作业', '切换为「本次无作业」后，本次的题数、正确数与错题号将被清除。确定吗？', ()=>{
+        slTmpVals = {
+          total: filledEl ? filledEl.value : '',
+          correct: document.getElementById('sl-correct') ? document.getElementById('sl-correct').value : '',
+          wrongs: document.getElementById('sl-wrongs') ? document.getElementById('sl-wrongs').value : ''
+        };
+        slNoHw = true;
+        renderAll();
+      });
+      return;
+    }
+    slNoHw = true;
+    renderAll();
+    return;
+  }
+  slNoHw = false;  // 取消无作业：切回正常表单（恢复切入前的填写值）
+  renderAll();
 }
 /* 当次作业编辑区 HTML */
 function slotEditHtml(){
@@ -1110,6 +1173,11 @@ function slotEditHtml(){
     if(!r){
       return '<div class="slot-edit"><div class="se-title">第 ' + slotEdit.idx + ' 次作业</div>' +
         '<div style="font-size:13px;color:var(--red);padding:4px 0">该次作业未完成（未录入记录）。</div>' +
+        '<div class="se-actions"><button class="btn ghost sm" onclick="openSlot(' + slotEdit.idx + ')">关闭</button></div></div>';
+    }
+    if(r.noHomework){  // 无作业记录：只读文案（无成绩可展示）
+      return '<div class="slot-edit"><div class="se-title">第 ' + slotEdit.idx + ' 次作业（' + esc(shortSubject(slotEdit.subject)) + '）</div>' +
+        '<div style="font-size:13px;color:var(--ink2);padding:4px 0">该次无作业（' + r.date + '）。</div>' +
         '<div class="se-actions"><button class="btn ghost sm" onclick="openSlot(' + slotEdit.idx + ')">关闭</button></div></div>';
     }
     const ra = acc(r);
@@ -1140,20 +1208,23 @@ function slotEditHtml(){
       '</div></div>';
   }
   return '<div class="slot-edit">' +
-    '<div class="se-title">' + (r ? '修改' : '录入') + '第 ' + slotEdit.idx + ' 次作业（' + esc(shortSubject(slotEdit.subject)) + '）</div>' +
+    '<div class="se-title">' + (r ? '修改' : '录入') + '第 ' + slotEdit.idx + ' 次作业（' + esc(shortSubject(slotEdit.subject)) + '）' + (slNoHw ? '<span class="tag sample">本次无作业</span>' : '') + '</div>' +
     '<div class="se-grid">' +
     '<input id="sl-date" type="date" value="' + (r ? r.date : todayStr()) + '">' +
-    '<input id="sl-total" type="number" min="1" inputmode="numeric" placeholder="总题数" value="' + (r ? r.total : '') + '" oninput="slCalc()">' +
-    '<input id="sl-correct" type="number" min="0" inputmode="numeric" placeholder="正确题目数" value="' + (r ? r.correct : '') + '" oninput="slCalc()">' +
-    '<div class="se-calc" id="sl-calc">' + (r ? '已保存：错误数 <b>' + (r.total-r.correct) + '</b>　正确率 <b>' + acc(r) + '%</b>' : '错误数 <b>—</b>　正确率 <b>—</b>') + '</div>' +
-    '<input id="sl-wrongs" class="se-full" placeholder="错题号（用逗号分隔，可空）" value="' + (r && r.wrongs ? esc(r.wrongs.join(',')) : '') + '">' +
+    '<input id="sl-total" type="number" min="1" inputmode="numeric" placeholder="总题数" value="' + (slNoHw ? '' : (r ? r.total : (slTmpVals ? slTmpVals.total : ''))) + '" oninput="slCalc()"' + (slNoHw ? ' disabled' : '') + '>' +
+    '<input id="sl-correct" type="number" min="0" inputmode="numeric" placeholder="正确题目数" value="' + (slNoHw ? '' : (r ? r.correct : (slTmpVals ? slTmpVals.correct : ''))) + '" oninput="slCalc()"' + (slNoHw ? ' disabled' : '') + '>' +
+    '<div class="se-calc" id="sl-calc">' + (slNoHw ? '本次无作业，仅需选择日期' : (r ? '已保存：错误数 <b>' + (r.total-r.correct) + '</b>　正确率 <b>' + acc(r) + '%</b>' : '错误数 <b>—</b>　正确率 <b>—</b>')) + '</div>' +
+    '<input id="sl-wrongs" class="se-full" placeholder="错题号（用逗号分隔，可空）" value="' + (slNoHw ? '' : (r && r.wrongs ? esc(r.wrongs.join(',')) : (slTmpVals ? esc(slTmpVals.wrongs) : ''))) + '"' + (slNoHw ? ' disabled' : '') + '>' +
     '</div>' +
     '<div class="se-actions">' +
     '<button class="btn mint sm" onclick="saveSlot()">' + (r ? '保存修改' : '完成打卡') + '</button>' +
     '<button class="btn ghost sm" onclick="openSlot(' + slotEdit.idx + ')">取消</button>' +
     (r ? '<button class="btn danger sm" onclick="deleteSlot()">删除该次记录</button>' : '') +
     '<span style="margin-left:auto"></span>' +
-    '<button class="btn danger sm" onclick="markMissedToday()" title="按本表单选择的日期登记该生该科目未交，并在打卡格子中生成对应的一次（正确率 0%、错题 0）；日期留空默认今天，可补登历史日期">今日未交</button>' +
+    '<button class="btn ghost sm" onclick="toggleSlotNoHw()">' + (slNoHw ? '取消无作业' : '本次无作业') + '</button>' +
+    '<button class="btn danger sm" onclick="markMissedToday()" ' + (slNoHw
+      ? 'disabled title="无作业态下不可登记未交；如需登记请先「取消无作业」"'
+      : 'title="按本表单选择的日期登记该生该科目未交，并在打卡格子中生成对应的一次（正确率 0%、错题 0）；日期留空默认今天，可补登历史日期"') + '>今日未交</button>' +
     '</div></div>';
 }
 /* 当次编辑实时计算 */
@@ -1184,28 +1255,57 @@ function slCalc(){
     }
   }
 }
-/* 保存当次打卡：有记录则更新，无记录则新增 */
+/* 保存当次打卡：有记录则更新，无记录则新增；无作业态（slNoHw）走第四次态分支（只校验日期，成绩清零） */
 function saveSlot(){
   if(!slotEdit) return;
   const st0 = pool.students.find(x=>x.id===slotEdit.gid);
   if(!st0 || !canWriteOwner(st0.ownerId)){ toast('没有权限操作该数据'); return; }
   const date = document.getElementById('sl-date').value || todayStr();
+  const items = subjectItems(slotEdit.gid, slotEdit.subject);
+  const it = items[slotEdit.idx-1];
+  const r = it && it.type==='rec' ? it.rec : null;
+  const miss = it && it.type==='miss' ? it.miss : null;
+  /* ---- 无作业保存：只校验日期；total/correct/wrongs 清零；正常 → 无作业转换在 toggleSlotNoHw 已确认 ---- */
+  if(slNoHw){
+    if(r){
+      if(!canWriteOwner(r.ownerId)){ toast('没有权限操作该数据'); return; }
+      r.date = date; r.total = 0; r.correct = 0; r.wrongs = []; r.noHomework = true;
+      logAction('修改作业（无作业）', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject), '日期 ' + date, {ownerId: r.ownerId});
+      apiPersist(HttpApi.updateRecord(r.id, {date: date, total: 0, correct: 0, wrongs: [], subject: r.subject, noHomework: true}),
+        rr=>{ if(rr && rr.pushed) toast('作业成绩已推送给家长'); });
+    } else {
+      const newRec = {id:uid(), studentId:slotEdit.gid, date:date, total:0, correct:0,
+        wrongs:[], subject:slotEdit.subject, images:[], pdfs:[], ownerId:st0.ownerId, noHomework:true};
+      pool.records.push(newRec);
+      logAction('录入作业（无作业）', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject), '日期 ' + date, {ownerId: st0.ownerId});
+      apiPersist(HttpApi.addRecord({id: newRec.id, studentId: newRec.studentId, date: date, total: 0, correct: 0,
+        wrongs: [], subject: newRec.subject, images: newRec.images, pdfs: newRec.pdfs, noHomework: true}),
+        rr=>{ if(rr && rr.pushed) toast('作业成绩已推送给家长'); });
+      // 未交格子本期不提供转无作业入口（slotEditHtml 未交分支无该按钮），此分支仅为防御
+      if(miss){
+        miss.resolved = true; miss.resolution = 'made-up'; miss.resolvedAt = todayStr();
+        apiPersist(HttpApi.resolveMissed(miss.id));
+      }
+    }
+    slNoHw = false; slTmpVals = null;
+    slotEdit = null;
+    save();
+    renderAll();
+    toast('已打卡：本次无作业');
+    return;
+  }
   const total = parseInt(document.getElementById('sl-total').value, 10);
   const correct = parseInt(document.getElementById('sl-correct').value, 10);
   if(isNaN(total) || total<=0){ toast('请填写有效的总题数'); return; }
   if(isNaN(correct) || correct<0 || correct>total){ toast('正确题目数需在 0 到总题数之间'); return; }
   const wrongs = document.getElementById('sl-wrongs').value.split(/[,，、\s]+/).map(s=>s.trim()).filter(Boolean);
   if(correct < total && wrongs.length === 0){ toast('正确题目数小于总题数，请填写错题号'); return; }
-  const items = subjectItems(slotEdit.gid, slotEdit.subject);
-  const it = items[slotEdit.idx-1];
-  const r = it && it.type==='rec' ? it.rec : null;
-  const miss = it && it.type==='miss' ? it.miss : null;
   if(r){
     if(!canWriteOwner(r.ownerId)){ toast('没有权限操作该数据'); return; }
-    r.date = date; r.total = total; r.correct = correct; r.wrongs = wrongs;
+    r.date = date; r.total = total; r.correct = correct; r.wrongs = wrongs; r.noHomework = false;  // 无作业 → 正常转换
     logAction('修改作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
       '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: r.ownerId});
-    apiPersist(HttpApi.updateRecord(r.id, {date: date, total: total, correct: correct, wrongs: wrongs, subject: r.subject}),
+    apiPersist(HttpApi.updateRecord(r.id, {date: date, total: total, correct: correct, wrongs: wrongs, subject: r.subject, noHomework: false}),
       rr=>{ if(rr && rr.pushed) toast('作业成绩已推送给家长'); });
   } else {
     const newRec = {id:uid(), studentId:slotEdit.gid, date:date, total:total, correct:correct,
@@ -1222,6 +1322,7 @@ function saveSlot(){
       apiPersist(HttpApi.resolveMissed(miss.id));
     }
   }
+  slTmpVals = null;  // 正常保存后清掉无作业切换的暂存值
   slotEdit = null;
   save();
   renderAll();

@@ -147,6 +147,13 @@ function ok(cond, name){
   r = await req('POST', '/api/push/nope', { studentId: stuA, subject: subj }, T1);
   ok(r.status === 404, '未知推送类型 404');
 
+  /* ---- 无作业记录的模板字段：character_string 不支持中文，最近一条为无作业时填「-」 ---- */
+  await req('POST', '/api/records', { studentId: stuA, date: '2026-09-17', subject: subj, noHomework: true }, T1);
+  push._resetRateLimit();
+  r = await req('POST', '/api/push/homework', { studentId: stuA, subject: subj }, T1);
+  ok(r.status === 200 && sendCalls()[sendCalls().length - 1].body.data.character_string18.value === '-',
+    '最近一条为无作业记录时，作业通知正确率字段填「-」（不写中文，避免 47003）');
+
   console.log('\nM10 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();
   try{ fs.unlinkSync(TEST_DB); fs.unlinkSync(TEST_DB + '-wal'); fs.unlinkSync(TEST_DB + '-shm'); }catch(e){}

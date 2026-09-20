@@ -506,7 +506,8 @@ function renderAlumni(){
     if(orderedSubjects.length){
       subHtml = '<div class="sub-acc">' + orderedSubjects.map(k=>{
         const arr = subMap[k] || [];
-        const sa = arr.length ? Math.round(arr.reduce((x,r)=>x+acc(r),0)/arr.length) : null;
+        const arrG = gradedRecs(arr);  // 徽章正确率排除无作业（次数含无作业——计入已完成）
+        const sa = arrG.length ? Math.round(arrG.reduce((x,r)=>x+acc(r),0)/arrG.length) : null;
         const isActive = quickEntry && quickEntry.gid===s.id && quickEntry.subject===k;
         const repStuCmt = state.students.find(x=>x.id===s.id);
         const hasCmt = !!(repStuCmt && repStuCmt.subjComments && repStuCmt.subjComments[k]);
@@ -521,7 +522,7 @@ function renderAlumni(){
           (hasCmt ? '<span class="sub-cmt-dot" title="已有老师评语"></span>' : '') +
           (mockDate ? '<span class="mock-tag booked" title="已预约 ' + esc(mockDate) + ' 模考">约</span>' : '') +
           (mockScore!==null ? '<span class="mock-tag score" title="结课模考分数">模考 ' + esc(mockScore) + '</span>' : '') +
-          (arr.length ? '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>' : '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">未录入</span>') +
+          (sa !== null ? '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>' : '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">' + (arr.length ? '—' : '未录入') + '</span>') +
           '<span class="sub-cnt" title="' + (planCnt!==null ? '已完成 ' + arr.length + ' 次，应完成 ' + planCnt + ' 次' : '已录入 ' + arr.length + ' 次') + '">' + (planCnt!==null ? arr.length + '/' + planCnt : arr.length) + ' 次</span></span>';
       }).join('') + '</div>';
     }
