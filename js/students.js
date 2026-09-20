@@ -238,10 +238,12 @@ async function refreshSubjectTree(){
 let stuQuery = '';
 let stuTaFilter = 'all';  // 学生明细助教维度筛选（仅教务可见）：'all' 或助教 id
 let stuTaExpanded = {};  // 「全部学生」分组展开状态：ownerId → true 表示已展开（默认折叠）
-let subAccExpanded = {};  // 学生卡「各科平均正确率」展开状态：代表学生 id → true（默认折叠，手动展开）
 function setStuTaFilter(v){ stuTaFilter = v; renderStats(); }
 function toggleTaGroup(oid){ stuTaExpanded[oid] = !stuTaExpanded[oid]; renderStats(); }
-function toggleSubAcc(gid){ subAccExpanded[gid] = !subAccExpanded[gid]; renderStats(); }
+/* 「各科目平均正确率」图表卡片默认折叠（html 里 stats-chart-card 带 collapsed 类），点击标题手动展开 */
+function toggleBarChart(){
+  document.getElementById('stats-chart-card').classList.toggle('collapsed');
+}
 document.getElementById('stu-search').addEventListener('input', function(){
   stuQuery = this.value.trim();
   renderStats();
@@ -418,7 +420,7 @@ function renderStats(){
     });
     let subHtml = '';
     if(orderedSubjects.length){
-      const chips = '<div class="sub-acc">' + orderedSubjects.map(k=>{
+      subHtml = '<div class="sub-acc">' + orderedSubjects.map(k=>{
         const arr = subMap[k] || [];
         const sa = arr.length ? Math.round(arr.reduce((x,r)=>x+acc(r),0)/arr.length) : null;
         const isActive = quickEntry && quickEntry.gid===s.id && quickEntry.subject===k;
@@ -448,12 +450,6 @@ function renderStats(){
           '<span class="sub-cnt" title="' + (planCnt!==null ? '已完成 ' + arr.length + ' 次，应完成 ' + planCnt + ' 次' : '已录入 ' + arr.length + ' 次') + '">' + (planCnt!==null ? arr.length + '/' + planCnt : arr.length) + ' 次</span>' +
           '<span class="edit-ico" onclick="startRenameSubject(\'' + s.id + '\',\'' + esc(k) + '\',event)" title="修改科目名">✎</span></span>';
       }).join('') + '</div>';
-      // 各科平均正确率默认折叠，点击标题手动展开；该生正处于快速录入/科目重命名时强制展开，避免操作上下文被收起
-      const subAccOpen = !!subAccExpanded[s.id] || (quickEntry && quickEntry.gid===s.id) || (renaming && renaming.gid===s.id);
-      subHtml = '<div class="sub-acc-toggle" onclick="toggleSubAcc(\'' + s.id + '\')" title="点击展开/收起各科平均正确率">' +
-        '<span class="chev">' + (subAccOpen ? '▾' : '▸') + '</span>各科平均正确率' +
-        '<span class="cnt">' + orderedSubjects.length + ' 个科目</span></div>' +
-        (subAccOpen ? chips : '');
     }
 
     let missHtml = '';

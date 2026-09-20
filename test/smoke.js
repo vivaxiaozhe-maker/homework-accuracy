@@ -59,7 +59,7 @@ const ctx = vm.createContext({
 
 /* ---------- 加载页面脚本 ---------- */
 const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-/* 前端已拆分为 js/*.js（v1.4.1）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+/* 前端已拆分为 js/*.js（v1.4.2）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
 const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
 if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
 const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
@@ -170,7 +170,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.4.1') !== -1, '登录页版本号升至 v1.4.1');
+  ok(html.indexOf('id="login-ver">v1.4.2') !== -1, '登录页版本号升至 v1.4.2');
 
   /* ---- topbar 已移除「数据范围」下拉（教务恒为全部数据视角） ---- */
   ok(html.indexOf('id="scope-select"') === -1 && html.indexOf('scope-wrap') === -1, 'topbar 无数据范围下拉与身份提示');
@@ -261,6 +261,14 @@ function ok(cond, name){
     '单选 C：仅显示陈姓学生');
   const chartC = documentStub.getElementById('bar-chart').innerHTML;
   ok(chartC.indexOf('AP·物理1') !== -1 && chartC.indexOf('AP·微积分BC') === -1, '图表随首字母联动过滤');
+  // 「各科目平均正确率」图表卡片：默认折叠（html 带 collapsed 类），点击标题展开/收起
+  ok(html.indexOf('class="card collapsed" id="stats-chart-card"') !== -1, '图表卡片默认折叠');
+  const chartCard = documentStub.getElementById('stats-chart-card');
+  chartCard.classList.add('collapsed');
+  vm.runInContext("toggleBarChart()", ctx);
+  ok(!chartCard.classList.contains('collapsed'), '点击标题展开图表');
+  vm.runInContext("toggleBarChart()", ctx);
+  ok(chartCard.classList.contains('collapsed'), '再次点击收起图表');
   vm.runInContext("toggleLetter('stu','S')", ctx);
   letterHtml = documentStub.getElementById('stu-list').innerHTML;
   ok(letterHtml.indexOf('陈星宇') !== -1 && letterHtml.indexOf('苏晚晴') !== -1 && letterHtml.indexOf('林小满') === -1,
@@ -430,8 +438,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.4.1') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.4.1」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.4.2') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.4.2」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
