@@ -230,13 +230,17 @@ async function openBindModal(gid){
   box.innerHTML = '<img src="' + esc(r.qrUrl) + '" alt="家长绑定二维码" style="width:220px;height:220px;border-radius:12px;border:1px solid var(--line)">';
 }
 
-/* 「已绑定家长」管理弹窗：查看绑定列表（openid 脱敏）；教务可直解，助教走「申请解绑」（审批制） */
+/* 「已绑定家长」管理弹窗：查看绑定列表（openid 脱敏）；教务可直解，助教走「申请解绑」（审批制）
+   每名学生最多绑 2 名家长：未满员时给「+ 绑定新家长」入口，满员时提示需先解绑 */
 function maskOpenid(o){ return o && o.length > 10 ? o.slice(0, 6) + '…' + o.slice(-4) : o; }
+const MAX_BINDS = 2;
 async function openBindsModal(gid){
   if(!gid) return;
   if(!USE_API){ toast('演示环境暂不支持绑定管理（正式环境可用）'); return; }
   const list = document.getElementById('binds-list');
+  const foot = document.getElementById('binds-foot');
   list.innerHTML = '<p class="hint">加载中…</p>';
+  foot.innerHTML = '';
   document.getElementById('binds-modal').classList.add('show');
   const r = await HttpApi.listBinds(gid);
   if(!r.ok){ list.innerHTML = '<p class="hint">' + esc(r.msg || '加载失败') + '</p>'; return; }
@@ -246,18 +250,30 @@ async function openBindsModal(gid){
     const ur = await HttpApi._req('GET', '/api/unbind-requests?status=pending');
     if(ur && ur.ok && Array.isArray(ur.requests)) pendingBindIds = ur.requests.map(x=>x.bindId);
   }
-  if(!r.binds.length){ list.innerHTML = '<p class="hint">暂无绑定的家长。</p>'; return; }
+  const cnt = r.binds.length;
   const isAdmin = currentUser && currentUser.role === 'admin';
-  list.innerHTML = r.binds.map(b=>
-    '<div class="acct-row" style="align-items:center"><div class="grow"><b>' + esc(maskOpenid(b.openid)) + '</b>' +
-    (pendingBindIds.indexOf(b.id) !== -1 ? ' <span class="tag amber">申请中</span>' : '') +
-    '<div class="hint" style="margin-top:2px">绑定于 ' + esc(String(b.bound_at).slice(0, 10)) + '</div></div>' +
-    (isAdmin
-      ? '<button class="btn danger sm" onclick="unbindParent(\'' + gid + '\',\'' + b.id + '\')">解绑</button>'
-      : (pendingBindIds.indexOf(b.id) !== -1
-          ? ''
-          : '<button class="btn ghost sm" onclick="requestUnbind(\'' + gid + '\',\'' + b.id + '\')">申请解绑</button>')) +
-    '</div>').join('');
+  list.innerHTML = cnt
+    ? r.binds.map(b=>
+        '<div class="acct-row" style="align-items:center"><div class="grow"><b>' + esc(maskOpenid(b.openid)) + '</b>' +
+        (pendingBindIds.indexOf(b.id) !== -1 ? ' <span class="tag amber">申请中</span>' : '') +
+        '<div class="hint" style="margin-top:2px">绑定于 ' + esc(String(b.bound_at).slice(0, 10)) + '</div></div>' +
+        (isAdmin
+          ? '<button class="btn danger sm" onclick="unbindParent(\'' + gid + '\',\'' + b.id + '\')">解绑</button>'
+          : (pendingBindIds.indexOf(b.id) !== -1
+              ? ''
+              : '<button class="btn ghost sm" onclick="requestUnbind(\'' + gid + '\',\'' + b.id + '\')">申请解绑</button>')) +
+        '</div>').join('')
+    : '<p class="hint">暂无绑定的家长。</p>';
+  // 底部：已绑定 N/2 计数 + 未满员给绑定入口；满员给上限提示（需先解绑才能绑新微信）
+  foot.innerHTML = '<div class="hint" style="margin-bottom:8px">已绑定 ' + cnt + ' / ' + MAX_BINDS + ' 名家长</div>' +
+    (cnt >= MAX_BINDS
+      ? '<div class="bind-limit-tip">该学生已绑定 ' + MAX_BINDS + ' 名家长（上限）。如需绑定新的微信，请先解绑其中一位。</div>'
+      : '<button class="btn mint sm" onclick="openBindFromBinds(\'' + gid + '\')">+ 绑定新家长</button>');
+}
+/* 从「已绑定家长」弹窗跳到绑定二维码弹窗（同一学生二维码不变，可重复转发） */
+function openBindFromBinds(gid){
+  document.getElementById('binds-modal').classList.remove('show');
+  openBindModal(gid);
 }
 /* 助教「申请解绑」：确认后创建审批申请，该行变为「申请中」 */
 function requestUnbind(gid, bindId){

@@ -5,9 +5,13 @@
 const express = require('express');
 const db = require('../db');
 const wx = require('../wechat');
-const { uid } = require('../util');
+const { uid, logAudit } = require('../util');
 
 const router = express.Router();
+
+/* 每个学生最多绑定的有效家长数（unbound=0 计数）；超额时拒绝绑定，需先解绑一位 */
+const MAX_BINDS = 2;
+const BIND_LIMIT_REPLY = '该学生已绑定 2 名家长（上限）。如需绑定新的微信，请先联系助教解绑其中一位。';
 
 /* GET：服务器配置验证 */
 router.get('/callback', (req, res) => {
@@ -42,7 +46,15 @@ router.post('/callback', express.text({ type: ['text/xml', 'application/xml', 't
     if(!st || !openid){
       return res.send(wx.replyText(openid, toUser, '欢迎关注火箭学院。如需接收孩子的作业报告，请向助教获取学生专属二维码扫码绑定。'));
     }
-    // 幂等绑定：已有有效绑定 → 不重复；曾取关 → 恢复；无记录 → 新建
+    // 幂等绑定：已在有效绑定里 → 直接回复成功；曾取关 → 恢复；无记录 → 新建
+    // 上限 2 名：超额（且当前 openid 不在有效绑定中）一律拒绝，避免家长以为绑定成功却收不到推送
+    const validBinds = db.prepare('SELECT openid FROM parent_binds WHERE student_id = ? AND unbound = 0').all(st.id);
+    const alreadyIn = validBinds.some(b => b.openid === openid);
+    if(!alreadyIn && validBinds.length >= MAX_BINDS){
+      logAudit(null, '家长绑定被拒', 'student', st.name,
+        '已达 ' + MAX_BINDS + ' 名上限，openid ' + openid.slice(0, 6) + '…', st.owner_id);
+      return res.send(wx.replyText(openid, toUser, BIND_LIMIT_REPLY));
+    }
     const exist = db.prepare('SELECT * FROM parent_binds WHERE student_id = ? AND openid = ?').get(st.id, openid);
     if(exist){
       if(exist.unbound) db.prepare('UPDATE parent_binds SET unbound = 0, bound_at = ? WHERE id = ?').run(new Date().toISOString(), exist.id);

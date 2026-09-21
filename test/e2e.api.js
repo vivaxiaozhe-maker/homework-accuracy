@@ -80,7 +80,7 @@ function ok(cond, name){
   const sessionStore = ctx.sessionStorage;  // vm context 内同一引用
 
   const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-  /* 前端已拆分为 js/*.js（v1.4.3）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+  /* 前端已拆分为 js/*.js（v1.4.4）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
   const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
   if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
   const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
@@ -94,7 +94,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.4.3', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.4.4', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -402,6 +402,15 @@ function ok(cond, name){
   await vm.runInContext('openBindsModal("' + sid + '")', ctx);
   const bindsHtmlTa = documentStub.getElementById('binds-list').innerHTML;
   ok(bindsHtmlTa.indexOf('申请解绑') !== -1 && bindsHtmlTa.indexOf('>解绑<') === -1, '助教绑定管理弹窗显示「申请解绑」（无直解按钮）');
+  // 上限 2 名：仅绑 1 名时弹窗给「+ 绑定新家长」入口，点击切到二维码弹窗
+  const bindsFoot1 = documentStub.getElementById('binds-foot').innerHTML;
+  ok(bindsFoot1.indexOf('已绑定 1 / 2 名家长') !== -1 && bindsFoot1.indexOf('+ 绑定新家长') !== -1,
+    '绑定 1 名家长时弹窗显示计数与「+ 绑定新家长」入口');
+  vm.runInContext('openBindFromBinds("' + sid + '")', ctx);
+  await sleep(200);
+  ok(!documentStub.getElementById('binds-modal').classList.contains('show')
+    && documentStub.getElementById('bind-modal').classList.contains('show'),
+    '「+ 绑定新家长」关闭绑定列表弹窗并打开二维码弹窗');
   // 助教直解接口被拒
   const ubDeny = await wb.HttpApi.unbindParent(sid, 'bind_e2e_1');
   ok(!ubDeny.ok && ubDeny.msg.indexOf('申请') !== -1, '助教直接解绑接口被拒并提示走申请（403）');
@@ -428,6 +437,16 @@ function ok(cond, name){
     .run('bind_e2e_2', sid, 'openid_e2e_2_zz_ww', '2026-09-16T01:00:00.000Z');
   const ub = await wb.HttpApi.unbindParent(sid, 'bind_e2e_2');
   ok(ub.ok, '教务直接解绑不受影响（无需申请）');
+  // 满 2 名家长：弹窗显示上限提示且不再渲染绑定入口
+  dbE2e.prepare('INSERT INTO parent_binds (id, student_id, openid, bound_at, unbound) VALUES (?,?,?,?,0)')
+    .run('bind_e2e_3', sid, 'openid_e2e_3_aa_bb', '2026-09-16T02:00:00.000Z');
+  dbE2e.prepare('INSERT INTO parent_binds (id, student_id, openid, bound_at, unbound) VALUES (?,?,?,?,0)')
+    .run('bind_e2e_4', sid, 'openid_e2e_4_cc_dd', '2026-09-16T03:00:00.000Z');
+  await vm.runInContext('openBindsModal("' + sid + '")', ctx);
+  const bindsFoot2 = documentStub.getElementById('binds-foot').innerHTML;
+  ok(bindsFoot2.indexOf('已绑定 2 / 2 名家长') !== -1 && bindsFoot2.indexOf('已绑定 2 名家长（上限）') !== -1
+    && bindsFoot2.indexOf('+ 绑定新家长') === -1, '满 2 名家长时弹窗显示上限提示且无绑定入口');
+  dbE2e.prepare("DELETE FROM parent_binds WHERE id IN ('bind_e2e_3','bind_e2e_4')").run();  // 复原，不影响后续用例
 
   /* ---- 教务管理改名 + 推送开关卡（API 模式；桩服务器无 WECHAT_* 不影响开关存取） ---- */
   wb.switchTab('data');

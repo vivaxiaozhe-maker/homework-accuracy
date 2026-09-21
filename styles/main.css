@@ -352,6 +352,8 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 }
 .mock-score-shown{font-size:14px;color:var(--ink)}
 .mock-score-shown b{color:#B9802A;font-size:19px;margin:0 2px}
+/* 「已绑定家长」弹窗：满 2 名家长上限提示（未满员时此处为「+ 绑定新家长」入口） */
+.bind-limit-tip{background:#FDF3E3;border:1px solid #F0DCB4;color:#8A6420;font-size:13px;line-height:1.6;padding:8px 12px;border-radius:10px}
 .mock-tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;line-height:1.5}
 .mock-tag.booked{background:var(--amber-l);color:#B9802A;border:1px solid #F0D9AC}
 .mock-tag.score{background:var(--mint-l);color:var(--mint-d);border:1px solid #BFE3D4}

@@ -127,6 +127,24 @@ function sign(token, ts, nonce){
   // 另一家长 SCAN 绑定（一学生多家长）
   await req('POST', '/api/wechat/callback' + cbQuery(), eventXml('SCAN', 'openid_p2', bindToken), null, true);
   ok(db.prepare('SELECT COUNT(*) AS c FROM parent_binds WHERE student_id = ? AND unbound = 0').get(stuA).c === 2, '一学生可绑定多家长');
+  /* ---- 上限 2 名：第 3 位家长扫码被拒（不写行 + 审计留痕） ---- */
+  r = await req('POST', '/api/wechat/callback' + cbQuery(), eventXml('SCAN', 'openid_p3', bindToken), null, true);
+  ok(r.status === 200 && r.text.indexOf('已绑定 2 名家长') !== -1, '满 2 名后第 3 位家长扫码被拒（回复上限提示）');
+  ok(db.prepare('SELECT COUNT(*) AS c FROM parent_binds WHERE student_id = ? AND openid = ?').get(stuA, 'openid_p3').c === 0,
+    '被拒时不写绑定行');
+  ok(db.prepare("SELECT COUNT(*) AS c FROM audit_logs WHERE action = '家长绑定被拒'").get().c === 1, '超额拒绝写审计日志');
+  // 腾出名额（取关一位）→ 新家长可绑定
+  db.prepare('UPDATE parent_binds SET unbound = 1 WHERE student_id = ? AND openid = ?').run(stuA, 'openid_p2');
+  r = await req('POST', '/api/wechat/callback' + cbQuery(), eventXml('subscribe', 'openid_p3', 'qrscene_' + bindToken), null, true);
+  ok(r.text.indexOf('绑定成功') !== -1, '腾出名额后新家长可正常绑定');
+  // 曾取关的家长重新关注：此时已满员（p1/p3）→ 拒绝恢复，不能绕过上限
+  r = await req('POST', '/api/wechat/callback' + cbQuery(), eventXml('subscribe', 'openid_p2', 'qrscene_' + bindToken), null, true);
+  ok(r.text.indexOf('已绑定 2 名家长') !== -1 && db.prepare('SELECT unbound FROM parent_binds WHERE openid = ?').get('openid_p2').unbound === 1,
+    '曾取关家长重新关注时若已满员，拒绝恢复绑定');
+  ok(db.prepare("SELECT COUNT(*) AS c FROM audit_logs WHERE action = '家长绑定被拒'").get().c === 2, '拒绝恢复同样写审计日志');
+  // 清理本段测试数据，恢复「p1/p2 两名有效绑定」供后续推送断言使用
+  db.prepare("DELETE FROM parent_binds WHERE student_id = ? AND openid = 'openid_p3'").run(stuA);
+  db.prepare("UPDATE parent_binds SET unbound = 0 WHERE student_id = ? AND openid = 'openid_p2'").run(stuA);
   // state 带 bindCnt
   r = await req('GET', '/api/state', null, T1);
   ok(r.data.state.students.find(s => s.id === stuA).bindCnt === 2, 'GET /api/state 学生带 bindCnt=2');
