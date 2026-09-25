@@ -125,9 +125,10 @@ function renderDashboard(){
   sel.value = dashOwner;
   document.querySelectorAll('#dash-range .role-opt').forEach(b=>b.classList.toggle('active', parseInt(b.dataset.range,10)===dashRange));
 
-  // 1. 全局概览卡
+  // 1. 全局概览卡（学生拆两张：在服务 / 已归档）
   document.getElementById('dash-overview').innerHTML =
-    '<div class="quick"><div class="num">' + d.activeStu + '</div><div class="lbl">现有学生（含历史 ' + d.archivedStu + '）</div></div>' +
+    '<div class="quick"><div class="num">' + d.activeStu + '</div><div class="lbl">在服务学生</div></div>' +
+    '<div class="quick"><div class="num">' + d.archivedStu + '</div><div class="lbl">已归档学生</div></div>' +
     '<div class="quick"><div class="num">' + d.recCnt + '</div><div class="lbl">范围内录入次数</div></div>' +
     '<div class="quick"><div class="num">' + (d.avgAcc===null?'—':d.avgAcc+'%') + '</div><div class="lbl">范围内平均正确率</div></div>' +
     '<div class="quick"><div class="num" style="color:' + (d.overdueCnt?'var(--red)':'var(--mint-d)') + '">' + d.missCnt + '</div><div class="lbl">未交次数（逾期 ' + d.overdueCnt + '）</div></div>' +

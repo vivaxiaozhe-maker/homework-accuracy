@@ -139,8 +139,8 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .field.full{grid-column:1/-1}
 .field label{font-size:13px;font-weight:600;color:var(--ink2)}
 .field input,.field select{
-  font-size:16px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:#FDFCF8;
-  color:var(--ink);min-height:48px;width:100%;font-family:inherit;
+  font-size:16px;padding:10px 14px;border:1.5px solid var(--line);border-radius:12px;background:#FDFCF8;
+  color:var(--ink);min-height:40px;width:100%;font-family:inherit;  /* 控件统一 40px 基准 */
 }
 .field input:focus,.field select:focus{outline:none;border-color:var(--mint)}
 /* 密码框右侧明文切换（登录页）：默认密文，点击眼睛图标切换 */
@@ -164,7 +164,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 /* 按钮 */
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;cursor:pointer;
-  border-radius:12px;font-size:14px;padding:10px 18px;min-height:44px;font-weight:600;font-family:inherit;
+  border-radius:12px;font-size:14px;padding:9px 16px;min-height:40px;font-weight:600;font-family:inherit;  /* 控件统一 40px 基准 */
   transition:transform .1s,box-shadow .15s,background .15s,border-color .15s;
 }
 .btn:active{transform:scale(.98)}  /* 按下微缩反馈 */
@@ -239,7 +239,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .rec-group[open] summary .chev{transform:rotate(180deg)}
 .rec-group .g-body{padding:2px 14px 14px}
 /* 统计 */
-.stu-card{border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;background:#FDFCF8}
+.stu-card{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px;background:#FDFCF8}  /* 紧凑化 */
 .stu-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .stu-head .avatar{
   width:42px;height:42px;border-radius:50%;background:var(--mint-l);color:var(--mint-d);
@@ -378,6 +378,14 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .mock-tag{display:inline-block;font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;line-height:1.5}
 .mock-tag.booked{background:var(--amber-l);color:#B9802A;border:1px solid #F0D9AC}
 .mock-tag.score{background:var(--mint-l);color:var(--mint-d);border:1px solid #BFE3D4}
+/* 模考预约已过期（灰色）：徽章与打卡面板共用 */
+.mock-tag.expired{background:#EFEAE0;color:#9A9280;border:1px solid #DCD4C2}
+.mock-booked.expired{background:#EFEAE0;color:#9A9280;border-color:#DCD4C2}
+/* 模考输入框固定左侧 label（不再只有 placeholder） */
+.mock-lbl{font-size:13px;color:var(--ink2);font-weight:600;white-space:nowrap;align-self:center}
+/* 教务管理页危险操作区：红框独立卡片（不可恢复操作集中） */
+.danger-card{border-color:#F0C6C2;background:#FFFDFB}
+.danger-card h2{color:var(--red)}
 /* 新增科目面板 */
 .add-subj-panel{margin-top:10px;border:1.5px dashed #BFE3D4;border-radius:14px;padding:14px;background:var(--mint-xl)}
 .add-subj-title{font-size:13px;font-weight:700;color:var(--mint-d);margin-bottom:8px}
@@ -570,7 +578,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 }
 .role-badge{background:var(--mint);color:#fff;font-size:11px;padding:2px 8px;border-radius:999px}
 .role-badge.admin{background:var(--amber)}
-.acct-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 4px;border-bottom:1px dashed var(--line)}
+.acct-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 2px;border-bottom:1px dashed var(--line)}  /* 紧凑化 */
 .acct-row:last-child{border-bottom:none}
 .acct-row .grow{flex:1;min-width:200px}
 .owner-tag{cursor:pointer}
@@ -629,8 +637,10 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 #stats-chart-card .chev{font-size:12px;color:var(--ink2);transition:transform .15s}
 #stats-chart-card.collapsed .chev{transform:rotate(-90deg)}
 /* 操作记录（审计日志） */
-.audit-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 4px;border-bottom:1px dashed var(--line);font-size:13px}
+/* 日志行单行化：时间/人/动作/对象一行（对象超长省略号），detail 另起一行折行 */
+.audit-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 2px;border-bottom:1px dashed var(--line);font-size:13px}
 .audit-row:last-child{border-bottom:none}
+.audit-target{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
 .audit-ts{color:var(--ink2);flex:0 0 88px;font-variant-numeric:tabular-nums}
 .audit-user{font-weight:600}
 .audit-user .role-badge{margin-left:4px}

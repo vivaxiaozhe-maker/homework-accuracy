@@ -520,7 +520,9 @@ function renderAlumni(){
           '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
           (omc>=2 ? '<span class="sub-alert" title="该科目有 ' + omc + ' 次逾期未交作业">!</span>' : '') +
           (hasCmt ? '<span class="sub-cmt-dot" title="已有老师评语"></span>' : '') +
-          (mockDate ? '<span class="mock-tag booked" title="已预约 ' + esc(mockDate) + ' 模考">约</span>' : '') +
+          (mockDate ? (isMockExpired(mockDate)
+            ? '<span class="mock-tag expired" title="预约日期已过（' + esc(mockDate) + '），可修改日期或取消预约">已过期·' + esc(mockDate.slice(5)) + '</span>'
+            : '<span class="mock-tag booked" title="已预约 ' + esc(mockDate) + ' 模考">约</span>') : '') +
           (mockScore!==null ? '<span class="mock-tag score" title="结课模考分数">模考 ' + esc(mockScore) + '</span>' : '') +
           (sa !== null ? '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>' : '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">' + (arr.length ? '—' : '未录入') + '</span>') +
           '<span class="sub-cnt" title="' + (planCnt!==null ? '已完成 ' + arr.length + ' 次，应完成 ' + planCnt + ' 次' : '已录入 ' + arr.length + ' 次') + '">' + (planCnt!==null ? arr.length + '/' + planCnt : arr.length) + ' 次</span></span>';
@@ -1015,10 +1017,14 @@ function visibleAuditLogs(){
 }
 const AUDIT_TYPE_BADGE = {record:'mint', missed:'red', plan:'amber', student:'sample', account:'sample', auth:'sample', data:'sample'};
 function auditRowHtml(l){
+  // userName/role 为 null 的多为系统动作（微信回调等，如「家长绑定被拒」），显示系统徽章，不再出现 null
+  const whoHtml = l.userName
+    ? esc(l.userName) + '<span class="role-badge' + (l.role==='admin'?' admin':'') + '">' +
+      ({admin:'教务', ta:'助教', sales:'销售'}[l.role] || l.role) + '</span>'
+    : '<span class="role-badge admin">系统 · 微信回调</span>';
   return '<div class="audit-row">' +
     '<span class="audit-ts">' + esc(l.ts.slice(5,16)) + '</span>' +
-    '<span class="audit-user">' + esc(l.userName) + '<span class="role-badge' + (l.role==='admin'?' admin':'') + '">' +
-      ({admin:'教务', ta:'助教', sales:'销售'}[l.role] || l.role) + '</span></span>' +
+    '<span class="audit-user">' + whoHtml + '</span>' +
     '<span class="tag ' + (AUDIT_TYPE_BADGE[l.targetType] || 'sample') + '">' + esc(l.action) + '</span>' +
     '<span class="audit-target">' + esc(l.targetDesc) + '</span>' +
     (l.detail ? '<div class="audit-detail">' + esc(l.detail) + '</div>' : '') +

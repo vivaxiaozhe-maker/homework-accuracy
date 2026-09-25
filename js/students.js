@@ -537,7 +537,9 @@ function renderStats(){
           '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
           (omc>=2 ? '<span class="sub-alert" title="该科目有 ' + omc + ' 次逾期未交作业">!</span>' : '') +
           (hasCmt ? '<span class="sub-cmt-dot" title="已有老师评语"></span>' : '') +
-          (mockDate ? '<span class="mock-tag booked" title="已预约 ' + esc(mockDate) + ' 模考">约</span>' : '') +
+          (mockDate ? (isMockExpired(mockDate)
+            ? '<span class="mock-tag expired" title="预约日期已过（' + esc(mockDate) + '），可修改日期或取消预约">已过期·' + esc(mockDate.slice(5)) + '</span>'
+            : '<span class="mock-tag booked" title="已预约 ' + esc(mockDate) + ' 模考">约</span>') : '') +
           (mockScore!==null ? '<span class="mock-tag score" title="结课模考分数">模考 ' + esc(mockScore) + '</span>' : '') +
           (sa !== null ? '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>' : '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">' + (arr.length ? '—' : '未录入') + '</span>') +
           '<span class="sub-cnt" title="' + (planCnt!==null ? '已完成 ' + arr.length + ' 次，应完成 ' + planCnt + ' 次' : '已录入 ' + arr.length + ' 次') + '">' + (planCnt!==null ? arr.length + '/' + planCnt : arr.length) + ' 次</span>' +
@@ -875,12 +877,14 @@ function qePanelHtml(){
   const isMockEditScore = mockEdit && mockEdit.gid===quickEntry.gid && mockEdit.subject===quickEntry.subject && mockEdit.field==='score';
   let mockBookHtml;
   if(mockDate && !isMockEditDate){
-    mockBookHtml = '<span class="mock-booked">✓ 已预约 ' + esc(mockDate) + ' 模考</span>' +
+    mockBookHtml = (isMockExpired(mockDate)
+      ? '<span class="mock-booked expired" title="预约日期已过，可修改日期或取消预约">已过期 · ' + esc(mockDate) + '（原预约模考）</span>'
+      : '<span class="mock-booked">✓ 已预约 ' + esc(mockDate) + ' 模考</span>') +
       '<button class="btn ghost sm" onclick="editMock(\'date\')">修改日期</button>' +
       '<button class="btn ghost sm" onclick="cancelMockExam()">取消预约</button>' +
       '<button class="btn ghost sm" onclick="pushManual(\'mock-book\')" title="给已绑定家长推送「考试报名成功通知」">推送报名通知</button>';
   } else {
-    mockBookHtml = '<input id="mock-date" type="date" value="' + (mockDate || todayStr()) + '">' +
+    mockBookHtml = '<span class="mock-lbl">预约日期</span><input id="mock-date" type="date" value="' + (mockDate || todayStr()) + '" aria-label="预约日期">' +
       '<button class="btn mint sm" onclick="bookMockExam()">预约模考</button>';
   }
   let mockScoreHtml;
@@ -890,7 +894,7 @@ function qePanelHtml(){
       '<button class="btn ghost sm" onclick="clearMockScore()">清除</button>' +
       '<button class="btn ghost sm" onclick="pushManual(\'mock-score\')" title="给已绑定家长推送「考试成绩通知」">推送成绩通知</button>';
   } else {
-    mockScoreHtml = '<input id="mock-score" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="结课模考分数（0-100，直接输入数字）" value="' + (mockScore!==''?esc(mockScore):'') + '">' +
+    mockScoreHtml = '<span class="mock-lbl">结课分数</span><input id="mock-score" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0-100" aria-label="结课分数" value="' + (mockScore!==''?esc(mockScore):'') + '">' +
       '<button class="btn mint sm" onclick="saveMockScore()">保存模考分数</button>';
   }
   const plan = (st && st.subjPlans && st.subjPlans[quickEntry.subject]) || '';

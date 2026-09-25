@@ -8,6 +8,8 @@ function gradedRecs(recs){ return recs.filter(r=>!r.noHomework); }
 // 最近一条有成绩的记录（无作业不算）；无则 null（recs 须已按日期升序）
 function lastGradedRec(recs){ const g = gradedRecs(recs); return g.length ? g[g.length-1] : null; }
 function accClass(a){ return a>=85 ? 'acc-good' : (a>=60 ? 'acc-mid' : 'acc-low'); }
+/* 模考预约过期判定：mockDate < 今天 → 已过期（灰色显示「已过期 · X」，可改期或取消） */
+function isMockExpired(mockDate){ return !!(mockDate && mockDate < todayStr()); }
 // 科目路径缩短显示：「学科 / AP / 微积分BC」→「AP·微积分BC」；「竞赛 / AMC10」→「AMC10」
 function shortSubject(s){
   if(!s) return '未指定';

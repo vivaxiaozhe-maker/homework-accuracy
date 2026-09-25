@@ -80,7 +80,7 @@ function ok(cond, name){
   const sessionStore = ctx.sessionStorage;  // vm context 内同一引用
 
   const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-  /* 前端已拆分为 js/*.js（v1.4.6）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+  /* 前端已拆分为 js/*.js（v1.5.0）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
   const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
   if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
   const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
@@ -94,7 +94,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.4.6', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.5.0', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -504,6 +504,26 @@ function ok(cond, name){
   const forbid = await wb.HttpApi._req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMiss.missed.id, action: 'done' });
   ok(ta2Login.ok && !forbid.ok && forbid.msg.indexOf('权限') !== -1, '助教不能处理他人名下学生的预警（403）');
   await wb.doLogin('ta1', 'ta654321', 'ta');  // 恢复
+
+  /* ---- v1.5.0 零碎项（API 模式）：看板卡拆分 + 审计系统操作人 + 教务管理页四卡 ---- */
+  await wb.doLogin('admin', 'admin456', 'admin');
+  const dashOv2 = documentStub.getElementById('dash-overview').innerHTML;
+  ok(dashOv2.indexOf('在服务学生') !== -1 && dashOv2.indexOf('已归档学生') !== -1 && dashOv2.indexOf('含历史') === -1,
+    '看板学生卡拆分为「在服务学生 / 已归档学生」（API 模式）');
+  // 审计系统操作人：访问分享页产生 user 为空的日志
+  await fetch(base + shareR2.url);
+  const audSys = await wb.HttpApi._req('GET', '/api/audit-logs?range=0&pageSize=100');
+  const sysLog = audSys.items.find(l=>l.action==='访问分享报告');
+  ok(sysLog && sysLog.userName === null, '分享页访问日志操作人为 null（系统动作）');
+  ok(vm.runInContext('auditRowHtml(' + JSON.stringify(sysLog) + ')', ctx).indexOf('系统 · 微信回调') !== -1,
+    '系统动作审计渲染「系统 · 微信回调」徽章');
+  // 教务管理页四卡顺序
+  wb.switchTab('data');
+  ok(documentStub.getElementById('page-title').textContent === '教务管理', '教务管理页标题');
+  ok(html.indexOf('id="push-config-card"') < html.indexOf('id="subj-mgmt-card"')
+    && html.indexOf('id="subj-mgmt-card"') < html.indexOf('备份与恢复')
+    && html.indexOf('备份与恢复') < html.indexOf('id="data-clean-zone"'),
+    '教务管理页四卡重排（通知设置→科目设置→备份恢复→危险操作区）');
 
   console.log('\ne2e 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();
