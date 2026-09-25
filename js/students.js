@@ -60,8 +60,12 @@ function renderToday(){
     });
 
   // 近 7 天正确率 < 60% 的记录 → 需关注
+  // 口径：只看有成绩的记录（无作业不是 0 分，gradedRecs 排除）；已归档学生不进预警
   const weekAgo = offsetDay(-7);
-  state.records.filter(r=>acc(r)<60 && r.date>=weekAgo).forEach(r=>{
+  gradedRecs(state.records.filter(r=>r.date>=weekAgo)).filter(r=>{
+    const st = state.students.find(x=>x.id===r.studentId);
+    return !(st && st.archived) && acc(r)<60;
+  }).forEach(r=>{
     html += '<div class="todo-item">' +
       '<div class="grow"><span class="who">' + esc(stuName(r.studentId)) + '</span>' +
       '<span class="tag red">正确率偏低 ' + acc(r) + '%</span>' +

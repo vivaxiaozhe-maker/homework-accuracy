@@ -59,7 +59,7 @@ const ctx = vm.createContext({
 
 /* ---------- 加载页面脚本 ---------- */
 const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-/* 前端已拆分为 js/*.js（v1.4.5）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+/* 前端已拆分为 js/*.js（v1.4.6）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
 const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
 if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
 const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
@@ -170,7 +170,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.4.5') !== -1, '登录页版本号升至 v1.4.5');
+  ok(html.indexOf('id="login-ver">v1.4.6') !== -1, '登录页版本号升至 v1.4.6');
   /* ---- 登录密码框：默认密文 + 眼睛图标切换明文 ---- */
   ok(html.indexOf('id="login-pass" type="password"') !== -1, '登录密码框默认密文');
   ok(html.indexOf('pwd-wrap') !== -1 && html.indexOf('id="login-pass-eye"') !== -1, '登录密码框带明文切换按钮');
@@ -370,6 +370,11 @@ function ok(cond, name){
   vm.runInContext('saveSlot()', ctx);
   const convRec = wb.pool.records.find(r=>r.id==='nohw-r1');
   ok(convRec.noHomework === true && convRec.total === 0, '确认后正常记录转为无作业（成绩清零）');
+  // 4.5) KK 场景回归：无作业记录不进首页「正确率偏低 0%」预警（无作业 ≠ 0 分）
+  wb.renderToday();
+  const todayHtmlNohw = documentStub.getElementById('today-list').innerHTML;
+  ok(todayHtmlNohw.indexOf('无作业测试生') === -1, '无作业记录不进首页低分预警（无作业不算 0 分）');
+  ok(todayHtmlNohw.indexOf('错题 0 道') === -1, '首页不出现无作业导致的「错题 0 道」误导文案');
   // 5) 统计口径：平均分排除无作业（该生 10/10 有成绩 + 1 无作业 → 平均 100%；次数含无作业 = 2）
   wb.renderStats();
   const noHwCard = documentStub.getElementById('stu-list').innerHTML;
@@ -497,8 +502,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.4.5') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.4.5」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.4.6') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.4.6」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');

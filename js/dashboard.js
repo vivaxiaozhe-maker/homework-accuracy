@@ -66,6 +66,7 @@ function computeDash(){
   const lowMap = {};
   recs.forEach(r=>{
     const st = pool.students.find(x=>x.id===r.studentId);
+    if(st && st.archived) return;  // 已归档学生不进预警（学习已结束）
     const key = (r.ownerId||'') + '|' + (st ? st.name.trim() : r.studentId);
     (lowMap[key] = lowMap[key] || {name: st ? st.name : '（已删除学生）', ownerId: r.ownerId, recs: []}).recs.push(r);
   });
