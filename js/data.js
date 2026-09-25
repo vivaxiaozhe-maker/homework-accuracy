@@ -21,7 +21,7 @@ const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
 const APP_VERSION = 'v1.4.6';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
-let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志）
+let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [], alertActions: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志；alertActions = 待办预警动作）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
 
@@ -123,7 +123,17 @@ function viewState(){
   return {
     students: pool.students.filter(s=>ownerInView(s.ownerId)),
     records: pool.records.filter(r=>ownerInView(r.ownerId)),
-    missed: pool.missed.filter(m=>ownerInView(m.ownerId))
+    missed: pool.missed.filter(m=>ownerInView(m.ownerId)),
+    // 预警动作：助教 = 自己操作的 + 涉及自己名下学生的（miss→missed 归属；lowAcc/planStall→refKey 学生归属）
+    alertActions: (pool.alertActions || []).filter(a=>{
+      if(a.actorId === currentUser.id) return true;
+      if(a.kind === 'miss'){
+        const m = pool.missed.find(x=>x.id===a.refKey);
+        return m ? ownerInView(m.ownerId) : false;
+      }
+      const st = pool.students.find(x=>x.id===String(a.refKey).split('|')[0]);
+      return st ? ownerInView(st.ownerId) : false;
+    })
   };
 }
 function refreshView(){ state = viewState(); }
@@ -391,7 +401,7 @@ const LocalApi = {
       }
       if(changed) this._saveUsers();
     }
-    if(!load()){ pool = {students:[], records:[], missed:[], planRequests:[], auditLogs:[]}; }
+    if(!load()){ pool = {students:[], records:[], missed:[], planRequests:[], auditLogs:[], alertActions:[]}; }
     if(fresh && !pool.students.length && !pool.records.length && !pool.missed.length){
       const tas = this._users.filter(u=>u.role==='ta');
       tas.forEach(t=>seedSamplesFor(t.id));

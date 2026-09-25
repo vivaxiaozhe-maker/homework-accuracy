@@ -1,103 +1,190 @@
 /* 学生侧业务：今日概览、科目树数据源、学生统计与图表、销售端只读视图、作业录入打卡、计划次数审批申请 */
-/* ================= 今日概览 ================= */
+/* ================= 今日概览（v1.5.0 分组改版） =================
+   四组预警按优先级排列：逾期未交 > 未交（宽限内）> 正确率偏低 > 计划停滞；
+   默认只展开最紧急的非空组，其余折叠显示组头+数量；顶部计数条点击展开对应分组并滚动定位。
+   行操作：查看记录（跳该生该科目打卡面板）/ 稍后处理（snooze 当天有效，明天再出现）/ 完成（done，进已处理事项）。
+   未交行的完成路径 = 去补录（现有补录流），删除未交保留；归档学生不进任何分组。
+   教务视角：未交只读（无补录/删除），但允许稍后处理/完成（管理职责）。 */
+let todayExpandKey = null;  // 当前展开的分组 key（null = 自动选最紧急非空组）
+// 同一 ref_key 取最新一条预警动作
+function alertActionMap(){
+  const map = {};
+  (state.alertActions || []).forEach(a=>{ map[a.kind + '|' + a.refKey] = a; });
+  return map;
+}
+function isDoneAlert(amap, kind, refKey){ const a = amap[kind + '|' + refKey]; return !!(a && a.action==='done'); }
+// snooze 当天有效（snoozeUntil >= 今天 → 今天不显示，明天再出现）
+function snoozedToday(amap, kind, refKey){
+  const a = amap[kind + '|' + refKey];
+  return !!(a && a.action==='snooze' && a.snoozeUntil && a.snoozeUntil >= todayStr());
+}
+// 行内处理状态徽章：曾被稍后处理过的显示「稍后至 X」（琥珀）
+function snoozeBadgeHtml(amap, kind, refKey){
+  const a = amap[kind + '|' + refKey];
+  return (a && a.action==='snooze') ? '<span class="tag amber">稍后至 ' + esc(a.snoozeUntil) + '</span>' : '';
+}
+/* 稍后处理：snooze 1 天（不弹二次确认，直接 toast）；mock 写 pool.alertActions，API 走 /api/alerts/action 后 resync */
+function alertSnooze(kind, refKey){
+  const a = { id: uid(), kind: kind, refKey: refKey, action: 'snooze',
+    actorId: currentUser ? currentUser.id : null, actorName: currentUser ? currentUser.name : '',
+    note: '', createdAt: new Date().toISOString(), snoozeUntil: todayStr() };
+  if(USE_API){
+    apiPersist(HttpApi._req('POST', '/api/alerts/action', { kind: kind, refKey: refKey, action: 'snooze', snoozeUntil: todayStr() }),
+      ()=>resyncState());
+  } else {
+    pool.alertActions = pool.alertActions || [];
+    pool.alertActions.push(a);
+    save(); refreshView();
+  }
+  toast('已稍后处理，明天再提醒您');
+  renderAll();
+}
+/* 完成：写 done（永久消失并进已处理事项） */
+function alertDone(kind, refKey){
+  askConfirm('完成该预警', '完成后该预警不再出现在待办，可在下方「已处理事项」中回溯。确定已完成处理吗？', ()=>{
+    const a = { id: uid(), kind: kind, refKey: refKey, action: 'done',
+      actorId: currentUser ? currentUser.id : null, actorName: currentUser ? currentUser.name : '',
+      note: '', createdAt: new Date().toISOString(), snoozeUntil: null };
+    if(USE_API){
+      apiPersist(HttpApi._req('POST', '/api/alerts/action', { kind: kind, refKey: refKey, action: 'done' }),
+        ()=>resyncState());
+    } else {
+      pool.alertActions = pool.alertActions || [];
+      pool.alertActions.push(a);
+      save(); refreshView();
+    }
+    toast('已完成处理');
+    renderAll();
+  });
+}
+/* 计数条/组头点击：展开对应分组并滚动定位 */
+function todayCatGo(key){
+  todayExpandKey = key;
+  renderToday();
+  const el = document.getElementById('today-grp-' + key);
+  if(el && el.scrollIntoView) el.scrollIntoView({ block:'start', behavior:'smooth' });  // 桩无此方法则静默
+}
 function renderToday(){
   const list = document.getElementById('today-list');
+  const catsEl = document.getElementById('today-cats');
   const t = todayStr();
-  let html = '';
+  const amap = alertActionMap();
+  const admin = isAdminView();
 
-  // 未交作业：按学生合并成一个卡片，姓名显示一次，框内按科目分列；
-  // 科目按最新未交日期倒序，科目内按日期升序编号（第N次）；
-  // 逾期判定用统一口径 isOverdueMissed（开课时间 + 7 天宽限）；未开课的未交不进今天要处理（提前排课不催办）
-  const stuGroups = {};
+  // ---- 未交：拆分为 逾期未交 / 未交（宽限内）两组（归档学生与未开课不进；done/snooze 生效的不显示）----
+  const overdueRows = [], graceRows = [];
   state.missed.filter(m=>!m.resolved).forEach(m=>{
     const st = state.students.find(x=>x.id===m.studentId);
     if(st && st.archived) return;  // 已归档 = 学习已结束：不进待办（数据保留在历史学生卡）
     const fc = m.subject && st && st.subjFirstClass && st.subjFirstClass[m.subject];
-    if(fc && fc > todayStr()) return;  // 未开课：不进入今天要处理
-    (stuGroups[m.studentId] = stuGroups[m.studentId] || []).push(m);
+    if(fc && fc > t) return;  // 未开课：不进入今天要处理
+    if(isDoneAlert(amap, 'miss', m.id) || snoozedToday(amap, 'miss', m.id)) return;
+    (isOverdueMissed(m, st) ? overdueRows : graceRows).push(m);
   });
-  Object.entries(stuGroups)
-    .map(([stu, arr])=>{
-      const subMap = {};
-      arr.forEach(m=>{
-        const key = m.subject || '';
-        (subMap[key] = subMap[key] || []).push(m);
-      });
-      const subs = Object.entries(subMap).map(([sub, subArr])=>{
-        subArr.sort((a,b)=>a.date<b.date?-1:1);
-        return {sub, arr: subArr, latest: subArr[subArr.length-1].date};
-      }).sort((a,b)=>a.latest>b.latest?-1:1);
-      return {stu, subs, latest: subs[0] ? subs[0].latest : ''};
-    })
-    .sort((a,b)=>a.latest>b.latest?-1:1)
-    .forEach(g=>{
-      const sample = g.subs.some(s=>s.arr.some(m=>m.sample));
-      const total = g.subs.reduce((n,s)=>n+s.arr.length,0);
-      html += '<div class="miss-group">' +
-        '<div class="miss-group-head">' +
-        '<span class="grow"><span class="who">' + esc(stuName(g.stu)) + '</span>' +
-        (sample ? '<span class="tag sample">示例</span>' : '') +
-        '</span>' +
-        '<span class="cnt">' + total + ' 次未交</span>' +
-        '</div>';
-      g.subs.forEach(s=>{
-        html += '<div class="miss-sub">' +
-          '<div class="miss-sub-name"><span class="tag mint">' + esc(shortSubject(s.sub || '未指定科目')) + '</span></div>';
-        s.arr.forEach((m,i)=>{
-          const overdue = isOverdueMissed(m, state.students.find(x=>x.id===m.studentId));
-          html += '<div class="todo-item' + (overdue?' overdue':'') + '">' +
-            '<div class="grow"><span class="idx-tag">第' + (i+1) + '次</span>' +
-            (overdue ? '<span class="tag red" title="开课后超过 7 天未补交">逾期</span>' : '<span class="tag amber" title="宽限期内（开课后 7 天内）或未填开课时间的未交">未交</span>') +
-            '<span class="miss-date">' + m.date + '</span></div>' +
-            (isAdminView() ? '' :  // 教务视角未交提醒只读，不显示补录/删除按钮
-              '<button class="btn mint sm" onclick="resolveMissed(\'' + m.id + '\')" title="跳转到该生该科目的打卡面板补录这次作业；填写并保存后，该条未交才算补交完成">去补录</button>' +
-              '<button class="btn ghost sm" onclick="removeMissed(\'' + m.id + '\')" title="删除该未交记录">删除</button>') +
-            '</div>';
-        });
-        html += '</div>';
-      });
-      html += '</div>';
-    });
+  overdueRows.sort((a,b)=>a.date<b.date?-1:1);  // 最久未交在前
+  graceRows.sort((a,b)=>a.date<b.date?-1:1);
 
-  // 近 7 天正确率 < 60% 的记录 → 需关注
-  // 口径：只看有成绩的记录（无作业不是 0 分，gradedRecs 排除）；已归档学生不进预警
+  // ---- 正确率偏低：近 7 天 <60% 有成绩记录，按学生+科目聚合为一条（取该科目最低分记录）----
   const weekAgo = offsetDay(-7);
-  gradedRecs(state.records.filter(r=>r.date>=weekAgo)).filter(r=>{
+  const lowMap = {};
+  gradedRecs(state.records.filter(r=>r.date>=weekAgo)).forEach(r=>{
     const st = state.students.find(x=>x.id===r.studentId);
-    return !(st && st.archived) && acc(r)<60;
-  }).forEach(r=>{
-    html += '<div class="todo-item">' +
-      '<div class="grow"><span class="who">' + esc(stuName(r.studentId)) + '</span>' +
-      '<span class="tag red">正确率偏低 ' + acc(r) + '%</span>' +
-      (r.sample ? '<span class="tag sample">示例</span>' : '') +
-      '<div style="font-size:13px;color:var(--ink2)">' + r.date + ' 作业，错题 ' + (r.total-r.correct) + ' 道，建议安排订正</div></div>' +
-      (isAdminView() ? '' : '<button class="btn mint sm" onclick="gotoCorrect(\'' + r.studentId + '\')">录入订正</button>') +
-      '</div>';
+    if(st && st.archived) return;
+    if(acc(r) >= 60) return;
+    const key = r.studentId + '|' + (r.subject || '');
+    if(!lowMap[key] || acc(r) < acc(lowMap[key].rec)) lowMap[key] = { rec: r, refKey: key };
   });
+  const lowRows = Object.values(lowMap)
+    .filter(x=>!isDoneAlert(amap, 'lowAcc', x.refKey) && !snoozedToday(amap, 'lowAcc', x.refKey));
 
-  // 计划停滞提醒：科目已设定应完成次数，但超过 7 天没有任何新作业记录
-  // 基准日 = max(计划设定日 subjPlanSetAt, 该科目最近一次作业记录日)；旧数据无 setAt 时以最近记录日为基准（无记录则不提醒）
-  // 未开课（首次课程时间在未来）不提醒
+  // ---- 计划停滞：科目已设定应完成次数，但超过 7 天没有新作业记录（基准日 = max(设定日, 最近记录日)；未开课不提醒）----
+  const stallRows = [];
   state.students.filter(s=>!s.archived && s.subjPlans).forEach(st=>{
     Object.keys(st.subjPlans).forEach(sub=>{
       const fc = st.subjFirstClass && st.subjFirstClass[sub];
-      if(fc && fc > t) return;  // 未开课：不提醒
+      if(fc && fc > t) return;
       const setAt = st.subjPlanSetAt && st.subjPlanSetAt[sub];
       const recs = state.records.filter(r=>r.studentId===st.id && r.subject===sub);
       const lastRec = recs.length ? recs.reduce((a,b)=>a.date>b.date?a:b).date : null;
       const base = [setAt, lastRec].filter(Boolean).sort().pop();
       if(!base) return;  // 无设定时间且无记录：不提醒（避免上线当天刷屏）
       const days = Math.round((new Date(t) - new Date(base)) / 86400000);
-      if(days > 7){
-        html += '<div class="todo-item">' +
-          '<div class="grow"><span class="who">' + esc(st.name) + '</span>' +
-          '<span class="tag amber">计划停滞</span>' +
-          '<div style="font-size:13px;color:var(--ink2)">「' + esc(shortSubject(sub)) + '」已 ' + days + ' 天未更新（应完成 ' + st.subjPlans[sub] + ' 次）</div></div>' +
-          (isAdminView() ? '' : '<button class="btn mint sm" onclick="gotoPlanEntry(\'' + st.id + '\',\'' + esc(sub) + '\')">去录入</button>') +
-          '</div>';
+      const refKey = st.id + '|' + sub;
+      if(days > 7 && !isDoneAlert(amap, 'planStall', refKey) && !snoozedToday(amap, 'planStall', refKey)){
+        stallRows.push({ st: st, sub: sub, days: days, refKey: refKey });
       }
     });
   });
+
+  // ---- 行渲染 ----
+  const renderMissRow = m =>
+    '<div class="todo-item' + (overdueRows.indexOf(m)!==-1?' overdue':'') + '">' +
+    '<div class="grow"><span class="who">' + esc(stuName(m.studentId)) + '</span>' +
+    '<span class="tag mint">' + esc(shortSubject(m.subject || '未指定科目')) + '</span>' +
+    (m.sample ? '<span class="tag sample">示例</span>' : '') +
+    (admin ? '<span class="tag sample">归属 ' + esc(ownerName(m.ownerId)) + '</span>' : '') +
+    (overdueRows.indexOf(m)!==-1
+      ? '<span class="tag red" title="开课后超过 7 天未补交">逾期</span>'
+      : '<span class="tag amber" title="宽限期内（开课后 7 天内）或未填开课时间的未交">未交</span>') +
+    snoozeBadgeHtml(amap, 'miss', m.id) +
+    '<div style="font-size:13px;color:var(--ink2)">未交日期 ' + m.date + '</div></div>' +
+    // 未交行的完成路径 = 去补录（现有补录流）；教务只读不显示
+    (admin ? '' :
+      '<button class="btn mint sm" onclick="resolveMissed(\'' + m.id + '\')" title="跳转到该生该科目的打卡面板补录这次作业；填写并保存后，该条未交才算补交完成">去补录</button>' +
+      '<button class="btn ghost sm" onclick="removeMissed(\'' + m.id + '\')" title="删除该未交记录">删除</button>') +
+    '<button class="btn ghost sm" onclick="alertSnooze(\'miss\',\'' + m.id + '\')" title="今天不再提醒，明天再出现">稍后处理</button>' +
+    '</div>';
+  const renderLowRow = x => {
+    const r = x.rec;
+    return '<div class="todo-item">' +
+      '<div class="grow"><span class="who">' + esc(stuName(r.studentId)) + '</span>' +
+      '<span class="tag mint">' + esc(shortSubject(r.subject || '未指定科目')) + '</span>' +
+      '<span class="tag red">正确率偏低 ' + acc(r) + '%</span>' +
+      (r.sample ? '<span class="tag sample">示例</span>' : '') +
+      (admin ? '<span class="tag sample">归属 ' + esc(ownerName(r.ownerId)) + '</span>' : '') +
+      snoozeBadgeHtml(amap, 'lowAcc', x.refKey) +
+      '<div style="font-size:13px;color:var(--ink2)">' + r.date + ' 作业，错题 ' + (r.total-r.correct) + ' 道，建议安排订正</div></div>' +
+      (admin ? '' : '<button class="btn mint sm" onclick="gotoCorrect(\'' + r.studentId + '\')">录入订正</button>') +
+      '<button class="btn ghost sm" onclick="alertSnooze(\'lowAcc\',\'' + esc(x.refKey) + '\')">稍后处理</button>' +
+      '<button class="btn ghost sm" onclick="alertDone(\'lowAcc\',\'' + esc(x.refKey) + '\')">完成</button>' +
+      '</div>';
+  };
+  const renderStallRow = x =>
+    '<div class="todo-item">' +
+    '<div class="grow"><span class="who">' + esc(x.st.name) + '</span>' +
+    '<span class="tag mint">' + esc(shortSubject(x.sub)) + '</span>' +
+    '<span class="tag amber">计划停滞</span>' +
+    (admin ? '<span class="tag sample">归属 ' + esc(ownerName(x.st.ownerId)) + '</span>' : '') +
+    snoozeBadgeHtml(amap, 'planStall', x.refKey) +
+    '<div style="font-size:13px;color:var(--ink2)">「' + esc(shortSubject(x.sub)) + '」已 ' + x.days + ' 天未更新（应完成 ' + x.st.subjPlans[x.sub] + ' 次）</div></div>' +
+    (admin ? '' : '<button class="btn mint sm" onclick="gotoPlanEntry(\'' + x.st.id + '\',\'' + esc(x.sub) + '\')">去录入</button>') +
+    '<button class="btn ghost sm" onclick="alertSnooze(\'planStall\',\'' + esc(x.refKey) + '\')">稍后处理</button>' +
+    '<button class="btn ghost sm" onclick="alertDone(\'planStall\',\'' + esc(x.refKey) + '\')">完成</button>' +
+    '</div>';
+
+  // ---- 分组 + 计数条 ----
+  const groups = [
+    { key:'overdueMiss', label:'逾期未交', rows: overdueRows, render: renderMissRow },
+    { key:'miss', label:'未交（宽限内）', rows: graceRows, render: renderMissRow },
+    { key:'lowAcc', label:'正确率偏低', rows: lowRows, render: renderLowRow },
+    { key:'planStall', label:'计划停滞', rows: stallRows, render: renderStallRow }
+  ];
+  const nonEmpty = groups.filter(g=>g.rows.length);
+  if(todayExpandKey===null || !nonEmpty.some(g=>g.key===todayExpandKey)) todayExpandKey = nonEmpty.length ? nonEmpty[0].key : null;
+  if(catsEl){
+    catsEl.innerHTML = nonEmpty.length > 1 ? nonEmpty.map(g=>
+      '<span class="sub-chip' + (g.key===todayExpandKey?' active':'') + '" onclick="todayCatGo(\'' + g.key + '\')">' +
+      g.label + ' ' + g.rows.length + '</span>').join('') : '';
+  }
+  let html = nonEmpty.map(g=>{
+    const open = g.key===todayExpandKey;
+    return '<div class="today-grp" id="today-grp-' + g.key + '">' +
+      '<div class="today-grp-head" onclick="todayCatGo(\'' + g.key + '\')">' +
+      '<span class="chev">' + (open?'▾':'▸') + '</span><b>' + g.label + '</b>' +
+      '<span class="cnt">' + g.rows.length + (g.key==='miss' ? ' 次未交' : ' 条') + '</span></div>' +
+      // 折叠组仍渲染行（CSS 隐藏），保证内容可检索/可测试
+      '<div class="today-grp-body"' + (open?'':' style="display:none"') + '>' + g.rows.map(g.render).join('') + '</div></div>';
+  }).join('');
 
   if(!html){
     html = '<div class="empty-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" fill="#E4F3EC" stroke="none"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>今天没有待处理事项，全部完成！</div>';

@@ -268,6 +268,37 @@ function ok(cond, name){
   const detailItems = r.data.student.subjects.find(s=>s.subject==='学科 / AP / 微积分BC').items;
   ok(detailItems.some(i=>i.noHomework === true), '搜索明细行带 noHomework 标记');
 
+  /* ---- 待办预警动作接口（/api/alerts/action；state 同步 alertActions） ---- */
+  r = await req('POST', '/api/missed', { studentId: stuA, date: today(), subject: '学科 / AP / 微积分BC' }, T1);
+  const alertMissId = r.data.missed.id;
+  r = await req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMissId, action: 'snooze', snoozeUntil: today() }, T1);
+  ok(r.status === 200 && r.data.ok, '预警稍后处理（snooze）成功');
+  r = await req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMissId, action: 'snooze' }, T1);
+  ok(r.status === 400, 'snooze 缺 snoozeUntil 400');
+  r = await req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMissId, action: 'snooze', snoozeUntil: '09-25' }, T1);
+  ok(r.status === 400, 'snoozeUntil 格式错误 400');
+  r = await req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMissId, action: 'nope', snoozeUntil: today() }, T1);
+  ok(r.status === 400, 'action 非法 400');
+  r = await req('POST', '/api/alerts/action', { kind: 'nope', refKey: alertMissId, action: 'done' }, T1);
+  ok(r.status === 400, 'kind 非法 400');
+  r = await req('POST', '/api/alerts/action', { kind: 'miss', refKey: 'no-such', action: 'done' }, T1);
+  ok(r.status === 404, 'miss refKey 不存在 404');
+  r = await req('POST', '/api/alerts/action', { kind: 'lowAcc', refKey: 'no-such|x', action: 'done' }, T1);
+  ok(r.status === 404, 'lowAcc/planStall refKey 学生不存在 404');
+  r = await req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMissId, action: 'done' }, T2);
+  ok(r.status === 403, '助教不能处理他人名下学生的预警（403）');
+  r = await req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMissId, action: 'done' }, TS);
+  ok(r.status === 403, '销售无预警操作权限（403）');
+  r = await req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMissId, action: 'done' }, T1);
+  ok(r.status === 200, '预警完成（done）成功');
+  ok(db.prepare("SELECT * FROM audit_logs WHERE action IN ('预警稍后处理','预警完成')").all().length >= 2, '预警 snooze/done 写审计日志');
+  r = await req('GET', '/api/state', null, T1);
+  const aa = r.data.state.alertActions;
+  ok(Array.isArray(aa) && aa.filter(a=>a.refKey===alertMissId).length === 2, 'state 同步带 alertActions（同 ref_key 两条动作）');
+  ok(aa.find(a=>a.refKey===alertMissId && a.action==='done').actorName === '王助教', 'alertActions 带操作人姓名');
+  r = await req('GET', '/api/state', null, T2);
+  ok(!(r.data.state.alertActions || []).some(a=>a.refKey===alertMissId), '助教 state 不含他人名下学生的预警动作');
+
   console.log('\nM3 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();
   try{ fs.unlinkSync(TEST_DB); fs.unlinkSync(TEST_DB + '-wal'); fs.unlinkSync(TEST_DB + '-shm'); }catch(e){}

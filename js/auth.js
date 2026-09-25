@@ -770,7 +770,7 @@ function doLogout(){
   unbindReqCache = [];   // 解绑申请缓存随会话清空
   pushConfigCache = Object.assign({}, PUSH_CFG_DEFAULT);  // 推送开关缓存复位
   if(USE_API){  // API 模式登出清空服务端快照，避免下个登录用户看到残留数据
-    pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [] };
+    pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [], alertActions: [] };
     refreshView();
   }
   document.getElementById('pwd-modal').classList.remove('show');
@@ -941,12 +941,39 @@ function renderDoneZone(){
         name: st ? st.name : '（已删除学生）', subject: r.subject, oldPlan: r.oldPlan, newPlan: r.newPlan,
         reqBy: reqUser ? reqUser.name : '未知' });
     });
+  // 预警处理记录（今日待办的 完成/稍后处理；助教只看自己操作的，教务全部）
+  (state.alertActions || []).filter(a=>a.createdAt && a.createdAt.slice(0,10) >= winStart).forEach(a=>{
+    if(!isAdminView() && a.actorId !== currentUser.id) return;
+    let name = '', subject = '', reason = '';
+    if(a.kind==='miss'){
+      const m = pool.missed.find(x=>x.id===a.refKey);
+      const st = m ? pool.students.find(x=>x.id===m.studentId) : null;
+      name = st ? st.name : '（已删除学生）'; subject = m ? (m.subject || '') : '';
+      reason = '未交日期 ' + (m ? m.date : a.refKey);
+    } else {
+      const parts = String(a.refKey).split('|');
+      const st = pool.students.find(x=>x.id===parts[0]);
+      name = st ? st.name : '（已删除学生）'; subject = parts.slice(1).join('|');
+      reason = a.kind==='lowAcc' ? '正确率偏低预警' : '计划停滞预警';
+    }
+    items.push({ kind:'alert', at:a.createdAt.slice(0,10), action:a.action,
+      name:name, subject:subject, reason:reason, actor:a.actorName || '未知' });
+  });
   items.sort((a,b)=> a.at===b.at ? 0 : (a.at<b.at ? 1 : -1));  // 按处理时间倒序
   if(!items.length){ zone.style.display = 'none'; return; }
   zone.style.display = '';
   document.getElementById('done-zone-title').textContent = '已处理事项（近 30 天）· ' + items.length + ' 条';
   const shown = doneZoneExpand ? items : items.slice(0,10);
   let html = shown.map(it=>{
+    if(it.kind==='alert'){
+      const dn = it.action==='done';
+      return '<div class="todo-item">' +
+        '<div class="grow"><span class="tag ' + (dn ? 'mint' : 'amber') + '">' + (dn ? '预警完成' : '稍后处理') + '</span>' +
+        '<span class="who">' + esc(it.name) + '</span>' +
+        (it.subject ? '<span class="tag mint">' + esc(shortSubject(it.subject)) + '</span>' : '') +
+        '<div style="font-size:13px;color:var(--ink2)">' + esc(it.reason) + ' · 操作人 ' + esc(it.actor) + ' · 处理于 ' + it.at + '</div></div>' +
+        '</div>';
+    }
     if(it.kind==='miss'){
       const del = it.resolution==='deleted';
       return '<div class="todo-item">' +

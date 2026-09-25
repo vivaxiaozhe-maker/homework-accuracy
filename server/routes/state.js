@@ -26,7 +26,23 @@ router.get('/', (req, res) => {
   const planRequests = (isAdmin
     ? db.prepare('SELECT * FROM plan_requests').all()
     : db.prepare('SELECT * FROM plan_requests WHERE owner_id = ?').all(req.user.id)).map(reqToJson);
-  res.json({ ok: true, state: { students, records, missed, planRequests } });
+  // 待办预警动作（alert_actions）随 state 全量同步（少一次请求）。
+  // 助教口径：自己操作的 + 涉及自己名下学生的（miss→missed 归属；lowAcc/planStall→ref_key 学生归属）
+  const alertRows = db.prepare('SELECT * FROM alert_actions ORDER BY created_at').all();
+  const ownerOfRef = (kind, refKey) => {
+    if(kind === 'miss'){
+      const m = db.prepare('SELECT owner_id FROM missed WHERE id = ?').get(refKey);
+      return m ? m.owner_id : null;
+    }
+    const st = db.prepare('SELECT owner_id FROM students WHERE id = ?').get(String(refKey).split('|')[0]);
+    return st ? st.owner_id : null;
+  };
+  const alertActions = alertRows
+    .filter(a => isAdmin || a.actor_id === req.user.id || ownerOfRef(a.kind, a.ref_key) === req.user.id)
+    .map(a => ({ id: a.id, kind: a.kind, refKey: a.ref_key, action: a.action,
+      actorId: a.actor_id, actorName: a.actor_name, note: a.note || '',
+      createdAt: a.created_at, snoozeUntil: a.snooze_until || null }));
+  res.json({ ok: true, state: { students, records, missed, planRequests, alertActions } });
 });
 
 module.exports = router;

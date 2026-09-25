@@ -83,6 +83,7 @@ app.use('/api/reports', reports.router);  // 分享链接生成/撤销（登录 
 app.use('/api/subjects', require('./routes/subjects'));  // 科目树（GET 全角色可读，PUT 仅教务）
 app.use('/api/unbind-requests', require('./routes/unbind'));  // 解绑申请列表/审批（助教发起走 students 路由）
 app.use('/api', require('./routes/push'));  // 推送开关 /api/push-config + 手动推送 /api/push/*
+app.use('/api', require('./routes/alerts'));  // 首页待办预警操作 /api/alerts/action
 
 // 未匹配的 /api 路由 → 404 JSON（避免落到静态页）
 app.use('/api', (req, res) => res.status(404).json({ ok: false, msg: '接口不存在' }));

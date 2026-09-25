@@ -481,6 +481,30 @@ function ok(cond, name){
   const sharePg2 = await (await fetch(base + shareR2.url)).text();
   ok(sharePg2.indexOf('本次无作业') !== -1 && sharePg2.indexOf('2026-09-18') !== -1, '落地页无作业行渲染「本次无作业」+ 日期');
 
+  /* ---- 待办预警动作接口全流程（snooze/done + state 同步 + 归属校验 + 前端分组渲染） ---- */
+  await wb.doLogin('ta1', 'ta654321', 'ta');
+  const alertMiss = await wb.HttpApi.addMissed({ studentId: sid, date: '2026-09-24', subject: subj });
+  ok(alertMiss.ok, '造一条未交记录（预警测试用）');
+  await wb.resyncState();
+  // 前端分组渲染：未交进入「未交（宽限内）」组
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf('today-grp-miss') !== -1
+    && documentStub.getElementById('today-list').innerHTML.indexOf('2026-09-24') !== -1, '未交进入分组待办渲染');
+  const snz = await wb.HttpApi._req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMiss.missed.id, action: 'snooze', snoozeUntil: '2026-09-25' });
+  ok(snz.ok, '预警稍后处理接口成功');
+  await wb.resyncState();
+  ok((wb.pool.alertActions || []).some(a=>a.kind==='miss' && a.refKey===alertMiss.missed.id && a.action==='snooze'),
+    'state 同步带 alertActions（snooze 动作）');
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf('2026-09-24') === -1, 'snooze 后该预警今天不再显示');
+  const doneR = await wb.HttpApi._req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMiss.missed.id, action: 'done' });
+  ok(doneR.ok, '预警完成接口成功');
+  await wb.resyncState();
+  ok((wb.pool.alertActions || []).filter(a=>a.refKey===alertMiss.missed.id).length === 2, '同一 ref_key 两条动作均同步（前端取最新生效）');
+  // 归属校验：ta2 不能处理 ta1 名下预警
+  const ta2Login = await wb.Api.login('ta2', 'ta123456', 'ta');
+  const forbid = await wb.HttpApi._req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMiss.missed.id, action: 'done' });
+  ok(ta2Login.ok && !forbid.ok && forbid.msg.indexOf('权限') !== -1, '助教不能处理他人名下学生的预警（403）');
+  await wb.doLogin('ta1', 'ta654321', 'ta');  // 恢复
+
   console.log('\ne2e 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();
   try{ fs.unlinkSync(TEST_DB); fs.unlinkSync(TEST_DB + '-wal'); fs.unlinkSync(TEST_DB + '-shm'); }catch(e){}

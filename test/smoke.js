@@ -387,6 +387,56 @@ function ok(cond, name){
   wb.doLogout();
   await wb.doLogin('admin', 'admin456', 'admin');
 
+  /* ---- 首页待办分组改版 + 预警稍后/完成（mock 全流程） ---- */
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  const dAgo = n => vm.runInContext('offsetDay(' + n + ')', ctx);
+  wb.pool.students.push({id:'al-s1', name:'预警测试生', ownerId:ta1.id, subjFirstClass:{'学科 / AP / 统计': dAgo(-30)}});
+  wb.pool.missed.push({id:'al-m1', studentId:'al-s1', date:dAgo(-10), subject:'学科 / AP / 统计', resolved:false, ownerId:ta1.id});  // 逾期（开课后超 7 天）
+  wb.pool.missed.push({id:'al-m2', studentId:'al-s1', date:dAgo(-1), subject:'学科 / AP / 统计', resolved:false, ownerId:ta1.id});   // 宽限内
+  wb.refreshView();
+  vm.runInContext('todayExpandKey = null', ctx);  // 重置展开状态（登录时已渲染过一轮），让默认展开重新自动选择
+  wb.renderToday();
+  const catsHtml = documentStub.getElementById('today-cats').innerHTML;
+  ok(catsHtml.indexOf('逾期未交') !== -1 && catsHtml.indexOf('未交（宽限内）') !== -1, '分类计数条渲染分组（逾期未交/未交宽限内）');
+  const todayHtmlA = documentStub.getElementById('today-list').innerHTML;
+  ok(todayHtmlA.indexOf('id="today-grp-overdueMiss"') !== -1 && todayHtmlA.indexOf('id="today-grp-miss"') !== -1,
+    '分组结构渲染（today-grp 组块：逾期 + 宽限内）');
+  ok(todayHtmlA.indexOf('id="today-grp-overdueMiss"') < todayHtmlA.indexOf('id="today-grp-miss"'), '分组按优先级排列（逾期在前）');
+  ok(/id="today-grp-overdueMiss"[\s\S]*?today-grp-body">/.test(todayHtmlA), '默认展开最紧急非空组（逾期未交）');
+  ok(/id="today-grp-miss"[\s\S]*?today-grp-body" style="display:none">/.test(todayHtmlA), '其余组默认折叠');
+  // 计数条点击切换展开组
+  vm.runInContext("todayCatGo('miss')", ctx);
+  ok(/id="today-grp-miss"[\s\S]*?today-grp-body">/.test(documentStub.getElementById('today-list').innerHTML), '点击计数条展开「未交（宽限内）」组');
+  // 稍后处理：行消失 + toast + 写 pool.alertActions + 已处理区出现「稍后处理」
+  vm.runInContext("alertSnooze('miss','al-m2')", ctx);
+  ok(alerts[alerts.length-1].indexOf('已稍后处理') !== -1, '稍后处理 toast 反馈');
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf(dAgo(-1)) === -1, 'snooze 后该未交今天不再显示');
+  ok((wb.pool.alertActions || []).some(a=>a.kind==='miss' && a.refKey==='al-m2' && a.action==='snooze' && a.snoozeUntil === dAgo(0)),
+    'snooze 写入 alertActions（snoozeUntil 当天有效）');
+  ok(documentStub.getElementById('done-list').innerHTML.indexOf('稍后处理') !== -1
+    && documentStub.getElementById('done-list').innerHTML.indexOf('预警测试生') !== -1, '稍后处理记录进「已处理事项」区');
+  // 完成：二次确认后永久消失 + 已处理区出现「预警完成」
+  vm.runInContext("alertDone('miss','al-m1')", ctx);
+  documentStub.getElementById('cf-ok').onclick();
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf(dAgo(-10)) === -1, '完成后逾期行不再显示');
+  ok(documentStub.getElementById('done-list').innerHTML.indexOf('预警完成') !== -1, '完成记录进「已处理事项」区');
+  // 正确率偏低按学生+科目聚合：同科目两条低分只显示一条（取最低分那条）
+  wb.pool.records.push({id:'al-r1', studentId:'al-s1', date:dAgo(-2), total:20, correct:5, wrongs:[1], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
+  wb.pool.records.push({id:'al-r2', studentId:'al-s1', date:dAgo(-1), total:20, correct:8, wrongs:[2], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
+  wb.refreshView(); wb.renderToday();
+  const lowGrpHtml = documentStub.getElementById('today-list').innerHTML;
+  ok((lowGrpHtml.match(/建议安排订正/g) || []).length === 1 && lowGrpHtml.indexOf('正确率偏低 25%') !== -1,
+    '低分预警按学生+科目聚合成一条（显示最低分 25%）');
+  // 清理
+  wb.pool.students = wb.pool.students.filter(s=>s.id!=='al-s1');
+  wb.pool.missed = wb.pool.missed.filter(m=>m.id!=='al-m1' && m.id!=='al-m2');
+  wb.pool.records = wb.pool.records.filter(r=>r.id!=='al-r1' && r.id!=='al-r2');
+  wb.pool.alertActions = [];
+  wb.refreshView();
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+
   /* ---- 家长绑定与推送（微信服务号）：静态结构 + 绑定状态区 + mock 提示 ---- */
   ok(html.indexOf('id="rp-push"') !== -1 && html.indexOf('推送给家长') !== -1, '报告预览弹窗含「推送给家长」按钮');
   ok(html.indexOf('id="bind-modal"') !== -1 && html.indexOf('id="bind-qr-box"') !== -1, '家长绑定二维码弹窗结构存在');
