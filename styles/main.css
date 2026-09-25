@@ -135,6 +135,19 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
   color:var(--ink);min-height:48px;width:100%;font-family:inherit;
 }
 .field input:focus,.field select:focus{outline:none;border-color:var(--mint)}
+/* 密码框右侧明文切换（登录页）：默认密文，点击眼睛图标切换 */
+.pwd-wrap{position:relative}
+.pwd-wrap input{padding-right:46px}
+.pwd-eye{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+  background:none;border:none;color:var(--ink2);cursor:pointer;border-radius:8px;
+}
+.pwd-eye:hover{color:var(--mint-d)}
+.pwd-eye svg{width:19px;height:19px}
+.pwd-eye .eye-closed{display:none}
+.pwd-eye.on .eye-closed{display:block}
+.pwd-eye.on .eye-open{display:none}
 .calc-preview{
   grid-column:1/-1;display:flex;gap:18px;flex-wrap:wrap;background:var(--cream);border-radius:12px;
   padding:12px 16px;font-size:14px;

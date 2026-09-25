@@ -779,6 +779,15 @@ function doLogout(){
 }
 document.getElementById('btn-login').addEventListener('click', ()=>doLogin());
 document.getElementById('login-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+/* 登录密码明文/密文切换（默认密文；图标与提示跟随状态） */
+document.getElementById('login-pass-eye').addEventListener('click', ()=>{
+  const inp = document.getElementById('login-pass');
+  const eye = document.getElementById('login-pass-eye');
+  const show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  eye.classList.toggle('on', show);
+  eye.title = show ? '隐藏密码' : '显示密码';
+});
 document.getElementById('login-user').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
 document.getElementById('btn-logout').addEventListener('click', doLogout);
 

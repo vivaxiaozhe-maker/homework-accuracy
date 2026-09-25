@@ -44,7 +44,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.4.4</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.4.5</div>
   </aside>
 
   <main>
@@ -496,7 +496,13 @@
     </div>
     <div class="field">
       <label>密码</label>
-      <input id="login-pass" type="password" autocomplete="current-password" placeholder="请输入密码">
+      <div class="pwd-wrap">
+        <input id="login-pass" type="password" autocomplete="current-password" placeholder="请输入密码">
+        <button type="button" class="pwd-eye" id="login-pass-eye" title="显示密码" aria-label="显示/隐藏密码" tabindex="-1">
+          <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg>
+        </button>
+      </div>
     </div>
     <p class="hint" id="login-err" style="color:var(--red);min-height:18px;margin-top:0"></p>
     <button class="btn mint big" id="btn-login">登 录</button>
@@ -506,7 +512,7 @@
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.4.4</div>
+    <div class="login-ver" id="login-ver">v1.4.5</div>
   </div>
 </div>
 
