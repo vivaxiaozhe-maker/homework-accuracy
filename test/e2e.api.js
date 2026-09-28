@@ -80,7 +80,7 @@ function ok(cond, name){
   const sessionStore = ctx.sessionStorage;  // vm context 内同一引用
 
   const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-  /* 前端已拆分为 js/*.js（v1.5.0）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+  /* 前端已拆分为 js/*.js（v1.5.1）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
   const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
   if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
   const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
@@ -94,7 +94,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.5.0', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.5.1', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -483,18 +483,21 @@ function ok(cond, name){
 
   /* ---- 待办预警动作接口全流程（snooze/done + state 同步 + 归属校验 + 前端分组渲染） ---- */
   await wb.doLogin('ta1', 'ta654321', 'ta');
-  const alertMiss = await wb.HttpApi.addMissed({ studentId: sid, date: '2026-09-24', subject: subj });
+  const _d = n => { const d = new Date(); d.setDate(d.getDate()+n);
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+  const missDate = _d(-1), snoozeDay = _d(0);  // 未交=昨天、稍后至今天：动态日期，避免硬编码日期随时间过期
+  const alertMiss = await wb.HttpApi.addMissed({ studentId: sid, date: missDate, subject: subj });
   ok(alertMiss.ok, '造一条未交记录（预警测试用）');
   await wb.resyncState();
   // 前端分组渲染：未交进入「未交（宽限内）」组
   ok(documentStub.getElementById('today-list').innerHTML.indexOf('today-grp-miss') !== -1
-    && documentStub.getElementById('today-list').innerHTML.indexOf('2026-09-24') !== -1, '未交进入分组待办渲染');
-  const snz = await wb.HttpApi._req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMiss.missed.id, action: 'snooze', snoozeUntil: '2026-09-25' });
+    && documentStub.getElementById('today-list').innerHTML.indexOf(missDate) !== -1, '未交进入分组待办渲染');
+  const snz = await wb.HttpApi._req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMiss.missed.id, action: 'snooze', snoozeUntil: snoozeDay });
   ok(snz.ok, '预警稍后处理接口成功');
   await wb.resyncState();
   ok((wb.pool.alertActions || []).some(a=>a.kind==='miss' && a.refKey===alertMiss.missed.id && a.action==='snooze'),
     'state 同步带 alertActions（snooze 动作）');
-  ok(documentStub.getElementById('today-list').innerHTML.indexOf('2026-09-24') === -1, 'snooze 后该预警今天不再显示');
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf(missDate) === -1, 'snooze 后该预警今天不再显示');
   const doneR = await wb.HttpApi._req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMiss.missed.id, action: 'done' });
   ok(doneR.ok, '预警完成接口成功');
   await wb.resyncState();
@@ -505,7 +508,7 @@ function ok(cond, name){
   ok(ta2Login.ok && !forbid.ok && forbid.msg.indexOf('权限') !== -1, '助教不能处理他人名下学生的预警（403）');
   await wb.doLogin('ta1', 'ta654321', 'ta');  // 恢复
 
-  /* ---- v1.5.0 零碎项（API 模式）：看板卡拆分 + 审计系统操作人 + 教务管理页四卡 ---- */
+  /* ---- v1.5.1 零碎项（API 模式）：看板卡拆分 + 审计系统操作人 + 教务管理页四卡 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
   const dashOv2 = documentStub.getElementById('dash-overview').innerHTML;
   ok(dashOv2.indexOf('在服务学生') !== -1 && dashOv2.indexOf('已归档学生') !== -1 && dashOv2.indexOf('含历史') === -1,
