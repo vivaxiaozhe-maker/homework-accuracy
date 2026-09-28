@@ -88,6 +88,12 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
   display:flex;align-items:center;gap:8px;background:var(--mint-l);border:1px solid #BFE3D4;
   border-radius:12px;padding:10px 14px;margin-bottom:18px;font-size:13px;color:var(--mint-d);
 }
+.backup-tip .bt-close{
+  margin-left:auto;flex-shrink:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+  background:none;border:none;color:var(--mint-d);opacity:.7;cursor:pointer;border-radius:6px;
+}
+.backup-tip .bt-close:hover{opacity:1;background:rgba(62,155,127,.12)}
+.backup-tip .bt-close svg{width:13px;height:13px}
 /* 卡片 */
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:20px;margin-bottom:18px}
 @media (hover:hover){

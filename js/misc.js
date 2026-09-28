@@ -241,10 +241,20 @@ function renderBanners(){
   } else { sb.style.display = 'none'; }
 
   const total = state.records.length + state.missed.length;
-  if(total >= 30){
+  // 备份提醒：超过 500 条才显示；点 ✕ 关闭后 7 个自然日内不再显示（localStorage 记关闭日期，按自然日差计算）
+  const hideFrom = localStorage.getItem('wb_backup_tip_hide');
+  const hidden = hideFrom && (new Date(todayStr()) - new Date(hideFrom)) < 7 * 86400000;
+  if(total > 500 && !hidden){
     bt.style.display = 'flex';
     bt.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>' +
-      '数据已积累 ' + total + ' 条，建议导出 JSON 备份。';
+      '数据已积累 ' + total + ' 条，建议导出 JSON 备份。' +
+      '<button class="bt-close" onclick="dismissBackupTip()" title="关闭（7 天内不再提醒）" aria-label="关闭备份提醒">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
   } else { bt.style.display = 'none'; }
+}
+/* 备份提醒 ✕ 关闭：7 个自然日内不再显示 */
+function dismissBackupTip(){
+  try{ localStorage.setItem('wb_backup_tip_hide', todayStr()); }catch(e){}
+  document.getElementById('backup-tip').style.display = 'none';
 }
 
