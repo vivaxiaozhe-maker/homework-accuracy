@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="40" viewBox="0 0 48 40" fill="none">
+<title>打开的书本</title>
+<g stroke="#67B69B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<path d="M24 11C17 5 9 4 3 6v25c7-1 14 0 21 6 7-6 14-7 21-6V6c-6-2-14-1-21 5Z"/>
+<path d="M24 11v26"/>
+<g opacity=".55"><path d="M8 12c4-.3 8 .7 11 3M8 19c4-.3 8 .7 11 3M29 15c3-2.3 7-3.3 11-3M29 22c3-2.3 7-3.3 11-3"/></g>
+</g></svg>

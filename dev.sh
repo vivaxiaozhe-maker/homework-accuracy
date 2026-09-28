@@ -6,6 +6,10 @@
 # 首次运行 npx 会下载 live-server 到缓存（一次性）；--cache /tmp 绕开本机 npm 缓存目录的 root 权限残留问题
 cd "$(dirname "$0")"
 
+# 同步部署副本（live-server 目录索引默认取 index.html；不同步会预览到旧版）
+cp 学生作业正确率.html index.html
+cp 学生作业正确率.html dist/index.html
+
 PROXY_ARGS=""
 if [ "$1" = "--api" ]; then
   echo "==> 启动本地后端（:3000，本地库 server/data.db）"
@@ -19,4 +23,4 @@ fi
 
 echo "==> 启动前端预览：http://localhost:5500（改文件自动刷新，Ctrl+C 退出）"
 npx --yes --cache /tmp/npm-cache-xueqing live-server . --port=5500 --no-browser --wait=300 \
-  --ignore=server,node_modules,.git,dist,docs,test,.tools --entry-file=index.html $PROXY_ARGS
+  --ignore=server,node_modules,.git,dist,docs,test,.tools $PROXY_ARGS

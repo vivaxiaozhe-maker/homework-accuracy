@@ -44,30 +44,17 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.5.1</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.5.2</div>
   </aside>
 
   <main>
+    <!-- 页头（v1.5.2 设计稿：纯文字品牌区 + 小书本图标 + 动态日期 + 暖金竖线标语；书页装饰为背景） -->
     <div class="topbar">
-      <!-- 学习插画 -->
-      <svg class="illus" viewBox="0 0 160 120" fill="none">
-        <ellipse cx="80" cy="106" rx="64" ry="8" fill="#EFE7D2"/>
-        <path d="M30 78c0-4 3-7 7-7h33c3 0 5 2 6 4 1-2 3-4 6-4h33c4 0 7 3 7 7v22c0 2-2 4-4 4H84c-3 0-6-2-8-4-2 2-5 4-8 4H34c-2 0-4-2-4-4V78z" fill="#fff" stroke="#3E9B7F" stroke-width="3"/>
-        <path d="M76 75v25" stroke="#3E9B7F" stroke-width="3"/>
-        <path d="M42 82h24M42 90h24M90 82h24M90 90h16" stroke="#BFE3D4" stroke-width="3" stroke-linecap="round"/>
-        <path d="M108 52l4-22 26 8-4 22" stroke="#E8A94C" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M112 30l-6-14" stroke="#E8A94C" stroke-width="4" stroke-linecap="round"/>
-        <path d="M60 44l8-8 6 6 14-14" stroke="#5FB89A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="126" cy="18" r="3" fill="#F3DFA9"/><circle cx="30" cy="40" r="3" fill="#F3DFA9"/>
-        <path d="M140 40l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z" fill="#F3DFA9"/>
-      </svg>
-      <div>
+      <div class="tb-left">
+        <img class="tb-book" src="assets/book-icon.svg" alt="">
         <!-- 顶部标题显示当前页签名称（随 switchTab 联动），产品名只在侧栏品牌区出现，避免重复 -->
         <h1 id="page-title">今日概览</h1>
-        <div class="date-pill">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-          <span id="today-str"></span>
-        </div>
+        <div class="tb-date"><span id="today-str"></span></div>
       </div>
       <div class="user-area">
         <span class="user-chip"><span id="user-name"></span><span class="role-badge" id="user-role"></span></span>
@@ -514,7 +501,7 @@
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.5.1</div>
+    <div class="login-ver" id="login-ver">v1.5.2</div>
   </div>
 </div>
 

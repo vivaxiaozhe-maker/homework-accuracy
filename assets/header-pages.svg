@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="300" viewBox="0 0 960 300" fill="none">
+<title>抽象书页页头装饰</title>
+<defs>
+ <linearGradient id="mint" x1="0" y1="0" x2="0" y2="300" gradientUnits="userSpaceOnUse">
+  <stop stop-color="#9CCDBB" stop-opacity=".18"/>
+  <stop offset=".40" stop-color="#9CCDBB" stop-opacity=".42"/>
+  <stop offset=".73" stop-color="#9CCDBB" stop-opacity=".25"/>
+  <stop offset=".96" stop-color="#9CCDBB" stop-opacity="0"/>
+ </linearGradient>
+ <linearGradient id="fade" x1="0" y1="0" x2="960" y2="0" gradientUnits="userSpaceOnUse">
+  <stop stop-color="white" stop-opacity="0"/>
+  <stop offset=".22" stop-color="white"/>
+  <stop offset=".77" stop-color="white"/>
+  <stop offset="1" stop-color="white" stop-opacity="0"/>
+ </linearGradient>
+ <mask id="edge"><rect width="960" height="300" fill="url(#fade)"/></mask>
+ <linearGradient id="gold" x1="720" y1="0" x2="486" y2="280" gradientUnits="userSpaceOnUse">
+  <stop stop-color="#E5B45A" stop-opacity=".10"/>
+  <stop offset=".45" stop-color="#E5B45A" stop-opacity=".52"/>
+  <stop offset=".90" stop-color="#E5B45A" stop-opacity="0"/>
+ </linearGradient>
+</defs>
+<g mask="url(#edge)" stroke="url(#mint)" stroke-width="1.5" stroke-linecap="round">
+<path d="M 92 -40 C 308 -40, 446 60, 486 282"/>
+<path d="M 89 -20 C 308 -20, 446 74, 486 282"/>
+<path d="M 86 0 C 308 0, 446 88, 486 282"/>
+<path d="M 83 20 C 308 20, 446 102, 486 282"/>
+<path d="M 80 40 C 308 40, 446 116, 486 282"/>
+<path d="M 77 60 C 308 60, 446 130, 486 282"/>
+<path d="M 74 80 C 308 80, 446 144, 486 282"/>
+<path d="M 71 100 C 308 100, 446 158, 486 282"/>
+<path d="M 68 120 C 308 120, 446 172, 486 282"/>
+<path d="M 65 140 C 308 140, 446 186, 486 282"/>
+<path d="M 880 -58 C 688 -16, 540 146, 486 282"/>
+<path d="M 883 -38 C 688 1, 540 153, 486 282"/>
+<path d="M 886 -18 C 688 18, 540 160, 486 282"/>
+<path d="M 889 2 C 688 35, 540 167, 486 282"/>
+<path d="M 892 22 C 688 52, 540 174, 486 282"/>
+<path d="M 895 42 C 688 69, 540 181, 486 282"/>
+<path d="M 898 62 C 688 86, 540 188, 486 282"/>
+<path d="M 901 82 C 688 103, 540 195, 486 282"/>
+<path d="M 904 102 C 688 120, 540 202, 486 282"/>
+<path d="M 907 122 C 688 137, 540 209, 486 282"/>
+</g>
+<path d="M 792 -36 C 650 10, 539 114, 486 282" stroke="url(#gold)" stroke-width="1.6" stroke-linecap="round"/>
+<circle cx="557" cy="108" r="2.1" fill="#E5B45A" opacity=".37"/>
+</svg>

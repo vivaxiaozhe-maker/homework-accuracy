@@ -58,6 +58,11 @@ function ok(cond, name){
   ok(r.status === 404, '白名单：/js/../ 穿越被拒 404');
   r = await fetch(base + '/js/../../etc/passwd');
   ok(r.status === 404 || r.status === 400, '白名单：/js/../../ 穿越被拒');
+  /* v1.5.2 页头素材：/assets/* 同口径放行（限定目录内） */
+  r = await fetch(base + '/assets/book-icon.svg');
+  ok(r.status === 200 && (r.headers.get('content-type') || '').indexOf('svg') !== -1, '白名单：/assets/book-icon.svg 200 且 Content-Type 为 SVG');
+  r = await fetch(base + '/assets/../server/db.js');
+  ok(r.status === 404, '白名单：/assets/../ 穿越被拒 404');
 
   /* ---- 账号准备 ---- */
   let lr = await req('POST', '/api/login', { username: 'admin', password: 'admin123', role: 'admin' });
