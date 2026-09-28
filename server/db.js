@@ -235,6 +235,10 @@ CREATE INDEX IF NOT EXISTS idx_binds_openid ON parent_binds(openid);
 if(!db.prepare("PRAGMA table_info(students)").all().map(c => c.name).includes('bind_token')){
   db.exec('ALTER TABLE students ADD COLUMN bind_token TEXT');
 }
+/* v1.5.3：parent_binds 补 remark 列（家长备注名，如「KK妈妈」；openid 无含义，备注用于后台识别） */
+if(!db.prepare("PRAGMA table_info(parent_binds)").all().map(c => c.name).includes('remark')){
+  db.exec('ALTER TABLE parent_binds ADD COLUMN remark TEXT');
+}
 /* 推送落地页分类迁移：share_tokens 补 kind 列（homework=作业成绩/mockbook=模考报名/mockscore=模考成绩；
    旧行 NULL 按 homework 处理，复用与渲染均用 IFNULL(kind,'homework')） */
 if(!db.prepare("PRAGMA table_info(share_tokens)").all().map(c => c.name).includes('kind')){

@@ -176,13 +176,28 @@ router.post('/:id/bind-qr', async (req, res) => {
   }
 });
 
-/* GET /api/students/:id/binds：该学生的家长绑定列表（助教仅限自己名下，教务全部） */
+/* GET /api/students/:id/binds：该学生的家长绑定列表（助教仅限自己名下，教务全部）
+   返回 remark（备注名，可能为空——前端空则显示「家长 N」序号） */
 router.get('/:id/binds', (req, res) => {
   const st = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.id);
   if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
   if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
-  const binds = db.prepare('SELECT id, openid, bound_at FROM parent_binds WHERE student_id = ? AND unbound = 0 ORDER BY bound_at DESC').all(st.id);
+  const binds = db.prepare('SELECT id, openid, bound_at, remark FROM parent_binds WHERE student_id = ? AND unbound = 0 ORDER BY bound_at DESC').all(st.id);
   res.json({ ok: true, binds: binds });
+});
+
+/* PUT /api/students/:id/binds/:bindId/remark {remark}：备注家长名称（助教限自己名下；≤20 字；置空即清除备注回退序号显示） */
+router.put('/:id/binds/:bindId/remark', (req, res) => {
+  const st = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.id);
+  if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
+  if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
+  const b = db.prepare('SELECT * FROM parent_binds WHERE id = ? AND student_id = ?').get(req.params.bindId, st.id);
+  if(!b || b.unbound) return res.status(404).json({ ok: false, msg: '绑定记录不存在' });
+  const remark = String((req.body || {}).remark || '').trim().slice(0, 20);
+  db.prepare('UPDATE parent_binds SET remark = ? WHERE id = ?').run(remark || null, b.id);
+  logAudit(req.user, '备注家长', 'student', st.name,
+    (remark ? '备注为「' + remark + '」' : '清除备注') + '（openid ' + b.openid.slice(0, 6) + '…）', st.owner_id);
+  res.json({ ok: true, remark: remark });
 });
 
 /* POST /api/students/:id/binds/:bindId/unbind：手动解绑家长（软解绑 unbound=1 留痕不删行；与家长取关自动失效同口径）

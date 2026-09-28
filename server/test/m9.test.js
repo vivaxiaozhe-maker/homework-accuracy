@@ -203,6 +203,18 @@ function sign(token, ts, nonce){
     .run('bind_manual_3', stuB, 'openid_m3', '2026-09-16T02:00:00.000Z');
   r = await req('GET', '/api/students/' + stuA + '/binds', null, T1);
   ok(r.status === 200 && r.data.binds.some(b=>b.openid==='openid_m1') && r.data.binds.some(b=>b.openid==='openid_m2'), 'binds 列表含该学生的有效绑定记录');
+  /* ---- 家长备注名（v1.5.3）：openid 无含义，备注用于后台识别 ---- */
+  r = await req('PUT', '/api/students/' + stuA + '/binds/bind_manual_1/remark', { remark: '林妈妈' }, T1);
+  ok(r.status === 200 && r.data.remark === '林妈妈', '备注家长成功');
+  r = await req('GET', '/api/students/' + stuA + '/binds', null, T1);
+  ok(r.data.binds.find(b=>b.id==='bind_manual_1').remark === '林妈妈', 'binds 列表带备注名');
+  r = await req('PUT', '/api/students/' + stuA + '/binds/bind_manual_1/remark', { remark: '' }, T1);
+  ok(r.status === 200 && r.data.remark === '', '清空备注成功（回退序号显示）');
+  r = await req('PUT', '/api/students/' + stuA + '/binds/bind_manual_1/remark', { remark: 'x' }, T2);
+  ok(r.status === 403, '助教不能备注他人学生的家长（403）');
+  r = await req('PUT', '/api/students/' + stuA + '/binds/bind_no_such/remark', { remark: 'x' }, T1);
+  ok(r.status === 404, '备注不存在的绑定记录 404');
+  ok(db.prepare("SELECT COUNT(*) AS c FROM audit_logs WHERE action = '备注家长'").get().c === 2, '备注写审计日志（含清除）');
   r = await req('GET', '/api/students/' + stuA + '/binds', null, T2);
   ok(r.status === 403, '助教查他人学生绑定列表被越权拒绝');
   r = await req('POST', '/api/students/' + stuA + '/binds/bind_manual_1/unbind', {}, T1);

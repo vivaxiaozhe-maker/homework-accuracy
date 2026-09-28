@@ -234,6 +234,7 @@ async function openBindModal(gid){
    每名学生最多绑 2 名家长：未满员时给「+ 绑定新家长」入口，满员时提示需先解绑 */
 function maskOpenid(o){ return o && o.length > 10 ? o.slice(0, 6) + '…' + o.slice(-4) : o; }
 const MAX_BINDS = 2;
+let bindsCache = {};  // bindId → 绑定行（备注回填输入框用，避免把含引号的备注塞进 onclick 属性）
 async function openBindsModal(gid){
   if(!gid) return;
   if(!USE_API){ toast('演示环境暂不支持绑定管理（正式环境可用）'); return; }
@@ -244,6 +245,8 @@ async function openBindsModal(gid){
   document.getElementById('binds-modal').classList.add('show');
   const r = await HttpApi.listBinds(gid);
   if(!r.ok){ list.innerHTML = '<p class="hint">' + esc(r.msg || '加载失败') + '</p>'; return; }
+  bindsCache = {};
+  r.binds.forEach(b=>{ bindsCache[b.id] = b; });
   // 助教视角：拉取自己待审批的解绑申请，对应行标「申请中」且不再显示按钮
   let pendingBindIds = [];
   if(currentUser && currentUser.role === 'ta'){
@@ -252,11 +255,13 @@ async function openBindsModal(gid){
   }
   const cnt = r.binds.length;
   const isAdmin = currentUser && currentUser.role === 'admin';
+  // 显示名：有备注用备注；无备注按绑定早晚给「家长 N」序号（列表按绑定时间倒序，最早的为家长 1）
   list.innerHTML = cnt
-    ? r.binds.map(b=>
-        '<div class="acct-row" style="align-items:center"><div class="grow"><b>' + esc(maskOpenid(b.openid)) + '</b>' +
+    ? r.binds.map((b, i)=>
+        '<div class="acct-row" style="align-items:center"><div class="grow"><b>' + esc(b.remark || ('家长 ' + (cnt - i))) + '</b>' +
         (pendingBindIds.indexOf(b.id) !== -1 ? ' <span class="tag amber">申请中</span>' : '') +
-        '<div class="hint" style="margin-top:2px">绑定于 ' + esc(String(b.bound_at).slice(0, 10)) + '</div></div>' +
+        '<div class="hint" style="margin-top:2px">openid ' + esc(maskOpenid(b.openid)) + ' · 绑定于 ' + esc(String(b.bound_at).slice(0, 10)) + '</div></div>' +
+        '<button class="btn ghost sm" onclick="editBindRemark(\'' + gid + '\',\'' + b.id + '\')" title="给这位家长起个好识别的名字，如：KK妈妈">备注</button>' +
         (isAdmin
           ? '<button class="btn danger sm" onclick="unbindParent(\'' + gid + '\',\'' + b.id + '\')">解绑</button>'
           : (pendingBindIds.indexOf(b.id) !== -1
@@ -274,6 +279,16 @@ async function openBindsModal(gid){
 function openBindFromBinds(gid){
   document.getElementById('binds-modal').classList.remove('show');
   openBindModal(gid);
+}
+/* 备注家长名（如「KK妈妈」）：openid 对助教无意义，备注后列表显示备注名；置空回退「家长 N」序号 */
+function editBindRemark(gid, bindId){
+  const b = bindsCache[bindId];
+  askInput('备注家长名称（如：KK妈妈）', b && b.remark || '', async (v)=>{
+    const r = await HttpApi.remarkParent(gid, bindId, v);
+    if(!r.ok){ toast(r.msg || '备注失败'); return; }
+    toast(v ? '已备注' : '已清除备注');
+    openBindsModal(gid);  // 刷新列表
+  });
 }
 /* 助教「申请解绑」：确认后创建审批申请，该行变为「申请中」 */
 function requestUnbind(gid, bindId){
