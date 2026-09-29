@@ -468,8 +468,9 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 }
 .modal-mask.show{display:flex}
 /* 确认弹窗是最高决策层：z-index 400 高于一切业务弹窗（300），
-   否则绑定管理等弹窗内的「解绑」二次确认会被压在下面点不到（已踩过） */
-#confirm-modal{z-index:400}
+   否则绑定管理等弹窗内的「解绑」二次确认会被压在下面点不到（已踩过）；
+   输入弹窗同理（绑定管理弹窗内的「备注」输入框也会被压，已踩过） */
+#confirm-modal,#input-modal{z-index:400}
 .modal{background:var(--card);border-radius:18px;padding:24px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.2)}
 .modal h3{font-size:16px;margin-bottom:10px}
 .modal p{font-size:14px;color:var(--ink2);margin-bottom:18px}
