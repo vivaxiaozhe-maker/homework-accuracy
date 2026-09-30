@@ -560,8 +560,8 @@ function renderStats(){
     const repStuBind = state.students.find(x=>x.id===s.id);
     const bindCnt = repStuBind ? (repStuBind.bindCnt || 0) : 0;
     const bindTag = bindCnt > 0
-      ? ' <span class="tag mint owner-tag" onclick="openBindsModal(\'' + s.id + '\')" title="点击查看已绑定家长，可手动解绑">已绑定家长（' + bindCnt + ' 人）</span>'
-      : ' <span class="tag amber owner-tag" onclick="openBindModal(\'' + s.id + '\')" title="生成家长绑定二维码，转发给家长微信扫码即绑定">未绑定微信</span>';
+      ? ' <span class="tag mint owner-tag" onclick="openBindsModal(\'' + s.id + '\')" title="点击查看已绑定家长，可手动解绑">已绑定家长（' + bindCnt + ' 人）<span class="tag-go">›</span></span>'
+      : ' <span class="tag amber owner-tag" onclick="openBindModal(\'' + s.id + '\')" title="生成家长绑定二维码，转发给家长微信扫码即绑定">未绑定微信<span class="tag-go">›</span></span>';
 
     return '<div class="stu-card">' +
       '<div class="stu-head"><div class="avatar">' + esc(g.name.slice(0,1)) + '</div>' +
@@ -570,7 +570,7 @@ function renderStats(){
       (g.gradYear ? ' <span class="tag mint">' + g.gradYear + ' 届</span>' : '') +
       (g.ids.length>1 ? ' <span class="tag mint">同名合并 ×' + g.ids.length + '</span>' : '') +
       (g.sample?' <span class="tag sample">示例</span>':'') +
-      (isAdminView() ? ' <span class="tag mint owner-tag" onclick="openTransfer([\'' + g.ids.join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '</span>' : '') +
+      (isAdminView() ? ' <span class="tag mint owner-tag" onclick="openTransfer([\'' + g.ids.join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '<span class="tag-go">›</span></span>' : '') +
       bindTag + '</div>' +
       trend +
       '<button class="btn ghost sm" onclick="toggleAddSubject(\'' + s.id + '\')" title="为该学生添加学习科目">' +

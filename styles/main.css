@@ -599,6 +599,9 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .acct-row .grow{flex:1;min-width:200px}
 .owner-tag{cursor:pointer}
 .owner-tag:hover{background:var(--mint-d);color:#fff}
+/* 可点标签的常驻可点提示：尾部 ›（纯展示标签无此符号；不依赖 hover，手机端也可见） */
+.owner-tag .tag-go{opacity:.6;margin-left:2px;font-weight:700}
+.owner-tag:hover .tag-go{opacity:1}
 /* ---------- 教务数据看板 ---------- */
 .dash-filter{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .dash-filter .role-seg{flex:0 1 340px}
