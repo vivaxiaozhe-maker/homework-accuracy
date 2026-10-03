@@ -44,11 +44,11 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.5.6</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.5.7</div>
   </aside>
 
   <main>
-    <!-- 页头（v1.5.6 设计稿：纯文字品牌区 + 小书本图标 + 动态日期 + 暖金竖线标语；书页装饰为背景） -->
+    <!-- 页头（v1.5.7 设计稿：纯文字品牌区 + 小书本图标 + 动态日期 + 暖金竖线标语；书页装饰为背景） -->
     <div class="topbar">
       <div class="tb-left">
         <img class="tb-book" src="assets/book-icon.svg" alt="">
@@ -449,6 +449,15 @@
   </div>
 </div>
 
+<!-- 看板「有录入助教」明细弹窗 -->
+<div class="modal-mask" id="ta-entry-modal">
+  <div class="modal">
+    <h3>助教录入情况</h3>
+    <div id="ta-entry-list"></div>
+    <div class="row" style="margin-top:14px"><button class="btn ghost sm" onclick="document.getElementById('ta-entry-modal').classList.remove('show')">关闭</button></div>
+  </div>
+</div>
+
 <!-- 图片查看 -->
 <div class="modal-mask" id="img-modal">
   <div class="modal" style="max-width:640px">
@@ -501,7 +510,7 @@
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.5.6</div>
+    <div class="login-ver" id="login-ver">v1.5.7</div>
   </div>
 </div>
 

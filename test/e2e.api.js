@@ -80,7 +80,7 @@ function ok(cond, name){
   const sessionStore = ctx.sessionStorage;  // vm context 内同一引用
 
   const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-  /* 前端已拆分为 js/*.js（v1.5.6）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+  /* 前端已拆分为 js/*.js（v1.5.7）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
   const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
   if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
   const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
@@ -94,7 +94,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.5.6', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.5.7', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -446,7 +446,7 @@ function ok(cond, name){
   const bindsFoot2 = documentStub.getElementById('binds-foot').innerHTML;
   ok(bindsFoot2.indexOf('已绑定 2 / 2 名家长') !== -1 && bindsFoot2.indexOf('已绑定 2 名家长（上限）') !== -1
     && bindsFoot2.indexOf('+ 绑定新家长') === -1, '满 2 名家长时弹窗显示上限提示且无绑定入口');
-  // 家长显示名（v1.5.6）：无备注按绑定早晚显示「家长 N」，openid 退居副行；有备注显示备注
+  // 家长显示名（v1.5.7）：无备注按绑定早晚显示「家长 N」，openid 退居副行；有备注显示备注
   const bindsList2 = documentStub.getElementById('binds-list').innerHTML;
   ok(bindsList2.indexOf('家长 1') !== -1 && bindsList2.indexOf('家长 2') !== -1 && bindsList2.indexOf('openid ') !== -1,
     '无备注时按绑定早晚显示「家长 N」序号，openid 退居副行');
@@ -489,6 +489,14 @@ function ok(cond, name){
   const sharePg2 = await (await fetch(base + shareR2.url)).text();
   ok(sharePg2.indexOf('本次无作业') !== -1 && sharePg2.indexOf('2026-09-18') !== -1, '落地页无作业行渲染「本次无作业」+ 日期');
 
+  /* ---- v1.5.7：落地页打卡表与格子序列对齐（未交行 + 统计卡口径） ---- */
+  const missForReport = await wb.HttpApi.addMissed({ studentId: sid, date: '2026-09-10', subject: subj });
+  ok(missForReport.ok, '造一条未处理未交记录（落地页序列对齐测试）');
+  const sharePg3 = await (await fetch(base + shareR2.url)).text();  // 复用分享链接（落地页实时渲染）
+  ok(sharePg3.indexOf('>未交</td>') !== -1 && sharePg3.indexOf('2026-09-10') !== -1, '落地页打卡表渲染未交行（红「—」+「未交」）');
+  ok(sharePg3.indexOf('>未交</td>') < sharePg3.indexOf('2026-09-18'), '未交行按日期排序进入序列（09-10 在 09-18 前）');
+  ok(sharePg3.indexOf('>未交</div><div class="v">1 次') !== -1, '落地页统计卡「未交 1 次」（红色警示）');
+
   /* ---- 待办预警动作接口全流程（snooze/done + state 同步 + 归属校验 + 前端分组渲染） ---- */
   await wb.doLogin('ta1', 'ta654321', 'ta');
   const _d = n => { const d = new Date(); d.setDate(d.getDate()+n);
@@ -516,7 +524,7 @@ function ok(cond, name){
   ok(ta2Login.ok && !forbid.ok && forbid.msg.indexOf('权限') !== -1, '助教不能处理他人名下学生的预警（403）');
   await wb.doLogin('ta1', 'ta654321', 'ta');  // 恢复
 
-  /* ---- v1.5.6 零碎项（API 模式）：看板卡拆分 + 审计系统操作人 + 教务管理页四卡 ---- */
+  /* ---- v1.5.7 零碎项（API 模式）：看板卡拆分 + 审计系统操作人 + 教务管理页四卡 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
   const dashOv2 = documentStub.getElementById('dash-overview').innerHTML;
   ok(dashOv2.indexOf('在服务学生') !== -1 && dashOv2.indexOf('已归档学生') !== -1 && dashOv2.indexOf('含历史') === -1,

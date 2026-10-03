@@ -59,7 +59,7 @@ const ctx = vm.createContext({
 
 /* ---------- 加载页面脚本 ---------- */
 const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-/* 前端已拆分为 js/*.js（v1.5.6）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+/* 前端已拆分为 js/*.js（v1.5.7）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
 const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
 if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
 const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
@@ -170,7 +170,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  ok(html.indexOf('id="login-ver">v1.5.6') !== -1, '登录页版本号升至 v1.5.6');
+  ok(html.indexOf('id="login-ver">v1.5.7') !== -1, '登录页版本号升至 v1.5.7');
   /* ---- 登录密码框：默认密文 + 眼睛图标切换明文 ---- */
   ok(html.indexOf('id="login-pass" type="password"') !== -1, '登录密码框默认密文');
   ok(html.indexOf('pwd-wrap') !== -1 && html.indexOf('id="login-pass-eye"') !== -1, '登录密码框带明文切换按钮');
@@ -387,7 +387,7 @@ function ok(cond, name){
   wb.doLogout();
   await wb.doLogin('admin', 'admin456', 'admin');
 
-  /* ---- 备份提醒横幅（v1.5.6：>500 条才显示；✕ 关闭后 7 个自然日内不再显示） ---- */
+  /* ---- 备份提醒横幅（v1.5.7：>500 条才显示；✕ 关闭后 7 个自然日内不再显示） ---- */
   vm.runInContext('renderBanners()', ctx);
   ok(documentStub.getElementById('backup-tip').style.display === 'none', '未超 500 条不显示备份提醒');
   const bkStu = wb.pool.students.find(s=>!s.archived && s.ownerId===ta1.id);
@@ -469,7 +469,7 @@ function ok(cond, name){
   ok(html.indexOf('id="bind-modal"') !== -1 && html.indexOf('id="bind-qr-box"') !== -1, '家长绑定二维码弹窗结构存在');
   ok(html.indexOf('id="binds-modal"') !== -1 && html.indexOf('id="binds-list"') !== -1, '家长绑定管理弹窗结构存在');
   ok(allText.indexOf('tag mint owner-tag') !== -1, '归属助教标签为薄荷绿色（tag mint）');
-  /* ---- 可点标签「›」提示（v1.5.6）：归属/绑定标签带尾部符号，纯展示标签（届）不带 ---- */
+  /* ---- 可点标签「›」提示（v1.5.7）：归属/绑定标签带尾部符号，纯展示标签（届）不带 ---- */
   ok(allText.indexOf('owner-tag .tag-go') !== -1, '可点标签 › 尾部符号样式存在');
   ok((allText.match(/tag-go/g) || []).length >= 5, '归属与绑定标签均带 ›（students.js×3 + auth.js×1 + CSS）');
   ok(!/届<span class="tag-go">/.test(allText), '纯展示的「届」标签不带 ›');
@@ -504,7 +504,7 @@ function ok(cond, name){
   wb.setQuickEntry(null);
   wb.toggleTaGroup(ta1.id);  // 恢复折叠
 
-  /* ---- v1.5.6：模考过期 + 看板卡拆分 + 审计系统操作人 + 教务管理页四卡 + 控件统一 ---- */
+  /* ---- v1.5.7：模考过期 + 看板卡拆分 + 审计系统操作人 + 教务管理页四卡 + 控件统一 ---- */
   // 模考过期：徽章与打卡面板统一灰色「已过期 · X」
   bindStu.mock = { '学科 / AP / 微积分BC': { date: '2020-01-01', score: 92 } };  // 过期日期
   wb.setQuickEntry({gid: bindStu.id, subject: '学科 / AP / 微积分BC'});
@@ -541,6 +541,66 @@ function ok(cond, name){
   const alertsBeforeBinds = alerts.length;
   await vm.runInContext('openBindsModal("' + bindStu.id + '")', ctx);
   ok(alerts.length > alertsBeforeBinds && alerts[alerts.length-1].indexOf('演示环境暂不支持绑定管理') !== -1, 'mock 模式绑定管理提示演示环境不支持');
+
+  /* ---- v1.5.7：报告打卡表与格子序列对齐 + 统计卡未交口径 + PDF 头部 + 助教录入弹窗 ---- */
+  {
+    // 造数据：计划 3 次；第1次未交（较早），第2次有成绩（较晚）→ 未交行应排第 1
+    wb.doLogout();
+    await wb.doLogin('ta1', 'ta123456', 'ta');
+    wb.pool.students.push({id:'seq-s1', name:'序列测试生', ownerId:ta1.id, subjPlans:{'学科 / AP / 统计':3}, subjects:['学科 / AP / 统计']});
+    wb.pool.records.push({id:'seq-r1', studentId:'seq-s1', date:'2026-09-20', total:10, correct:9, wrongs:[3], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
+    wb.pool.missed.push({id:'seq-m1', studentId:'seq-s1', date:'2026-09-18', subject:'学科 / AP / 统计', resolved:false, ownerId:ta1.id});
+    wb.refreshView();
+    const seqStu = wb.pool.students.find(s=>s.id==='seq-s1');
+    const rptHtml = wb.reportHtml(seqStu, '学科 / AP / 统计');
+    ok(rptHtml.indexOf('>未交</td>') !== -1 && rptHtml.indexOf('>未交</td>') < rptHtml.indexOf('2026-09-20'),
+      '报告未交行进入打卡表且按日期排序（未交 09-18 排在成绩 09-20 前，与格子序列一致）');
+    ok(rptHtml.indexOf('第1次</td>') !== -1 && rptHtml.indexOf('第1次</td>') < rptHtml.indexOf('2026-09-20'), '第 N 次与格子严格对应（未交=第1次）');
+    ok(/未交<\/div><div[^>]*#DC2626[^>]*>1 次/.test(rptHtml.replace(/\n/g,'')),
+      '统计卡「未交 1 次」（有未交时红色警示）');
+    ok(rptHtml.indexOf('学校：') === -1 && rptHtml.indexOf('年级：') === -1, 'PDF 报告头部不含学校/年级（与落地页口径一致）');
+    // 无未交时统计卡中性（非红色警示）
+    wb.pool.missed = wb.pool.missed.filter(m=>m.id!=='seq-m1');
+    wb.refreshView();  // state 是 pool 的过滤快照，改 pool 后必须刷新视图
+    const rptHtml2 = wb.reportHtml(seqStu, '学科 / AP / 统计');
+    ok(/未交<\/div><div[^>]*#0F8F68[^>]*>0 次/.test(rptHtml2.replace(/\n/g,'')), '无未交时统计卡「未交 0 次」用中性/绿色');
+    // 清理
+    wb.pool.students = wb.pool.students.filter(s=>s.id!=='seq-s1');
+    wb.pool.records = wb.pool.records.filter(r=>r.id!=='seq-r1');
+    wb.refreshView();
+    wb.doLogout();
+    await wb.doLogin('admin', 'admin456', 'admin');
+  }
+  // 助教录入明细弹窗：渲染 + 未录入排前 + 空态
+  wb.setDashRange(1);  // 范围=今天：示例记录均为更早 → 全部未录入
+  vm.runInContext('openTaEntryModal()', ctx);
+  ok(documentStub.getElementById('ta-entry-modal').classList.contains('show'), '点击卡片弹出助教录入明细弹窗');
+  const taModalHtml = documentStub.getElementById('ta-entry-list').innerHTML;
+  ok(taModalHtml.indexOf('未录入') !== -1 && taModalHtml.indexOf('tag red') !== -1, '范围内未录入助教红标显示');
+  // 让 ta1 今天有一条录入 → 未录入的 ta2 排前
+  const ta1StuX = wb.pool.students.find(s=>s.ownerId===ta1.id && !s.archived);
+  wb.pool.records.push({id:'seq-r2', studentId:ta1StuX.id, date:vm.runInContext('todayStr()', ctx), total:10, correct:9, wrongs:[], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
+  vm.runInContext('openTaEntryModal()', ctx);
+  const taModalHtml2 = documentStub.getElementById('ta-entry-list').innerHTML;
+  ok(taModalHtml2.indexOf('李助教') < taModalHtml2.indexOf('王助教'), '未录入助教排前（李助教在王助教前）');
+  wb.pool.records = wb.pool.records.filter(r=>r.id!=='seq-r2');
+  wb.setDashRange(30);  // 恢复默认范围
+  // 空态（全部助教范围内均有录入）：临时给无录入助教补一条范围内记录，确定性地构造全有录入场景
+  const d0 = vm.runInContext('todayStr()', ctx);
+  const taRowsNow = wb.computeDash().taRows || [];
+  taRowsNow.filter(x=>x.recCnt===0).forEach((x,i)=>{
+    let stu0 = wb.pool.students.find(s=>s.ownerId===x.user.id && !s.archived);
+    if(!stu0){  // 名下无在服务学生的助教：补一名学生才能产生录入
+      stu0 = {id:'seq-fillstu-'+i, name:'补录学生'+i, ownerId:x.user.id};
+      wb.pool.students.push(stu0);
+    }
+    wb.pool.records.push({id:'seq-fill-'+i, studentId:stu0.id, date:d0, total:10, correct:9, wrongs:[], subject:'学科 / AP / 统计', images:[], ownerId:x.user.id});
+  });
+  vm.runInContext('openTaEntryModal()', ctx);
+  ok(documentStub.getElementById('ta-entry-list').innerHTML.indexOf('范围内全部助教均有录入') !== -1, '全部有录入时显示空态提示');
+  wb.pool.records = wb.pool.records.filter(r=>String(r.id).indexOf('seq-fill-')!==0);  // 清理补录
+  wb.pool.students = wb.pool.students.filter(s=>String(s.id).indexOf('seq-fillstu-')!==0);
+  vm.runInContext("document.getElementById('ta-entry-modal').classList.remove('show')", ctx);
 
   /* ---- 助教数据隔离 ---- */
   wb.doLogout();
@@ -613,8 +673,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.5.6') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.5.6」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.5.7') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.5.7」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -1296,7 +1356,7 @@ function ok(cond, name){
     && html.indexOf('id="stu-search"') < html.indexOf('id="stu-list"'), '搜索框位于图表与学生明细之间');
   // 今日概览卡序：快速一览在「今天要处理」之前
   ok(html.indexOf('id="quick-grid"') < html.indexOf('id="today-list"'), '快速一览放在今天要处理之前');
-  /* ---- 页头设计（v1.5.6）：topbar 改版为小书本图标 + 页签标题 + 动态日期 + 暖金竖线标语 ---- */
+  /* ---- 页头设计（v1.5.7）：topbar 改版为小书本图标 + 页签标题 + 动态日期 + 暖金竖线标语 ---- */
   ok(html.indexOf('class="tb-book"') !== -1 && html.indexOf('assets/book-icon.svg') !== -1
     && html.indexOf('class="tb-date"') !== -1, '页头含小书本图标与动态日期区');
   ok(html.indexOf('class="illus"') === -1 && html.indexOf('date-pill') === -1, '旧版学习插画与日期胶囊已移除');

@@ -132,7 +132,7 @@ function renderDashboard(){
     '<div class="quick"><div class="num">' + d.recCnt + '</div><div class="lbl">范围内录入次数</div></div>' +
     '<div class="quick"><div class="num">' + (d.avgAcc===null?'—':d.avgAcc+'%') + '</div><div class="lbl">范围内平均正确率</div></div>' +
     '<div class="quick"><div class="num" style="color:' + (d.overdueCnt?'var(--red)':'var(--mint-d)') + '">' + d.missCnt + '</div><div class="lbl">未交次数（逾期 ' + d.overdueCnt + '）</div></div>' +
-    '<div class="quick"><div class="num">' + d.taWithRecs + '/' + d.taTotal + '</div><div class="lbl">有录入助教/助教总数</div></div>' +
+    '<div class="quick" style="cursor:pointer" onclick="openTaEntryModal()" title="点击查看助教录入明细"><div class="num">' + d.taWithRecs + '/' + d.taTotal + ' <span style="font-size:14px;color:var(--ink2)">›</span></div><div class="lbl">有录入助教/助教总数</div></div>' +
     '<div class="quick"><div class="num">' + d.todayRecs + '</div><div class="lbl">今日已录入</div></div>';
   animateNums(document.getElementById('dash-overview'));  // 数字滚动动画（桩环境/减动效直接终值）
 
@@ -235,6 +235,26 @@ document.getElementById('dash-owner').addEventListener('change', function(){
   dashOwner = this.value;
   renderDashboard();
 });
+
+/* ================= 看板「有录入助教」明细弹窗（v1.5.7） =================
+   点击全局概览卡弹出：范围内未录入的助教排前（红标「未录入」+ 最近录入日期或「从未」+ 沉默标记），
+   有录入的绿标 + 次数 + 最近日期；数据复用 computeDash 的 taRows，跟随当前时间范围/助教筛选 */
+function openTaEntryModal(){
+  const d = computeDash();
+  const rows = (d.taRows || []).slice().sort((a,b)=> (a.recCnt===0?0:1)-(b.recCnt===0?0:1) || (b.recCnt-a.recCnt));
+  const noneCnt = rows.filter(x=>x.recCnt===0).length;
+  document.getElementById('ta-entry-list').innerHTML =
+    (rows.length && noneCnt===0 ? '<p class="hint" style="margin:0 0 10px">范围内全部助教均有录入。</p>' : '') +
+    rows.map(x=>{
+      const none = x.recCnt===0;
+      return '<div class="acct-row"><div class="grow"><b>' + esc(x.user.name) + '</b> ' +
+        (none ? '<span class="tag red">未录入</span>' : '<span class="tag mint">已录入 ' + x.recCnt + ' 次</span>') +
+        (x.silent ? ' <span class="tag amber">≥7 天沉默</span>' : '') +
+        (x.user.disabled ? ' <span class="tag red">已停用</span>' : '') +
+        '<div class="hint" style="margin-top:2px">最近录入：' + (x.lastDate || '从未') + '</div></div></div>';
+    }).join('') || '<p class="hint">暂无助教账号。</p>';
+  document.getElementById('ta-entry-modal').classList.add('show');
+}
 
 /* ================= 初始化 ================= */
 function renderAll(){

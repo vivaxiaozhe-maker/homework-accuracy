@@ -188,11 +188,19 @@ function invalidPage(){
 }
 
 // 报告页：结构与前端 reportHtml 对齐（学生/科目/日期、四项统计卡、打卡情况表、评语、模考、建议、落款）
+// v1.5.7：打卡表格与打卡格子同一序列——成绩记录 + 未处理未交按日期合并（同前端 subjectItems 口径：日期升序，同日期成绩在前），
+// 第 N 次与格子严格对应；统计卡「未完成」改为「未交」（未处理未交数，0 次中性卡）
 function reportPage(st, subject, recs){
   const plans = parseJson(st.subj_plans, {});
   const plan = plans[subject] || 0;
-  const done = recs.length;
-  const total = Math.max(plan, done);
+  const done = recs.length;  // 已完成 = 成绩记录 + 无作业（口径不变）
+  // 未处理未交并入序列（与前端 subjectItems 同口径排序）
+  const openMissed = db.prepare('SELECT * FROM missed WHERE student_id = ? AND subject = ? AND resolved = 0').all(st.id, subject);
+  const items = recs.map(r=>({ type:'rec', date:r.date, rec:r }))
+    .concat(openMissed.map(m=>({ type:'miss', date:m.date, miss:m })))
+    .sort((a,b)=> a.date===b.date ? (a.type==='rec'?-1:1) : (a.date<b.date?-1:1));
+  const missCnt = openMissed.length;
+  const total = Math.max(plan, items.length);
   const rate = plan > 0 ? Math.round(done / plan * 100) + '%' : '—';
   const comments = parseJson(st.subj_comments, {});
   const advice = parseJson(st.subj_advice, {});
@@ -202,7 +210,14 @@ function reportPage(st, subject, recs){
   const mk = mock[subject] || {};
   let rows = '';
   for(let i = 0; i < total; i++){
-    const r = recs[i];
+    const it = items[i];
+    if(it && it.type === 'miss'){
+      // 未交行：正确率列红「—」+ 错题列红「未交」
+      rows += '<tr><td>第' + (i+1) + '次</td><td>' + esc(it.date) + '</td>' +
+        '<td style="font-weight:700;color:#DC2626">—</td><td style="color:#DC2626">未交</td></tr>';
+      continue;
+    }
+    const r = it && it.type==='rec' ? it.rec : null;
     if(r){
       if(r.no_homework){
         // 无作业记录：正确率 —、错题列标「本次无作业」（灰色，不带颜色评级）
@@ -232,7 +247,7 @@ function reportPage(st, subject, recs){
     '<div class="cards">' +
       '<div class="card"><div class="l">应完成</div><div class="v">' + plan + ' 次</div></div>' +
       '<div class="card"><div class="l">已完成</div><div class="v">' + done + ' 次</div></div>' +
-      '<div class="card bad"><div class="l">未完成</div><div class="v">' + Math.max(0, total - done) + ' 次</div></div>' +
+      '<div class="card' + (missCnt ? ' bad' : '') + '"><div class="l">未交</div><div class="v">' + missCnt + ' 次</div></div>' +
       '<div class="card"><div class="l">完成率</div><div class="v">' + rate + '</div></div></div>' +
     '<h2>一、作业打卡情况</h2>' +
     '<table><tr><th>次数</th><th>日期</th><th>正确率</th><th>错题</th></tr>' + rows + '</table>' +

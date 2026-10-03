@@ -101,6 +101,15 @@ function ok(cond, name){
   ok(pg.text.indexOf('本次无作业') !== -1 && pg.text.indexOf('2026-09-10') !== -1, '报告页无作业行：错题列「本次无作业」+ 日期');
   ok(pg.text.indexOf('已完成</div><div class="v">3 次') !== -1, '已完成计数含无作业记录（2 次成绩 + 1 次无作业 = 3）');
 
+  /* ---- v1.5.7：打卡表与格子序列对齐（未交行 + 统计卡「未交」口径 + 序号对齐） ---- */
+  db.prepare("INSERT INTO missed (id, student_id, owner_id, date, subject, resolved) VALUES ('m7-miss-1', ?, (SELECT owner_id FROM students WHERE id = ?), '2026-09-07', ?, 0)")
+    .run(stuA, stuA, subj);
+  pg = await getText(url);
+  ok(pg.text.indexOf('>未交</td>') !== -1 && pg.text.indexOf('2026-09-07') !== -1, '落地页打卡表渲染未交行（红「—」+「未交」+ 日期）');
+  ok(pg.text.indexOf('>未交</td>') < pg.text.indexOf('2026-09-08'), '未交行按日期排最前（与格子序列同口径：日期升序）');
+  ok(pg.text.indexOf('>未交</div><div class="v">1 次') !== -1, '统计卡「未交 1 次」（未处理未交数）');
+  ok(pg.text.indexOf('已完成</div><div class="v">3 次') !== -1, '已完成计数不受未交影响（仍 3 次）');
+
   /* ---- 审计日志 ---- */
   const logRows = db.prepare("SELECT * FROM audit_logs WHERE target_type = 'student' AND (action = '生成分享链接' OR action = '访问分享报告')").all();
   ok(logRows.some(l => l.action === '生成分享链接'), '生成链接写审计日志');

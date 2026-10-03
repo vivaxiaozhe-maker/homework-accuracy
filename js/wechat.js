@@ -16,21 +16,33 @@ function loadScript(src){
   });
 }
 function subjFileName(s){ return shortSubject(s).replace(/[\\/:*?"<>|]/g,'_'); }
-/* 构建报告 HTML：白底 A4 布局（794px），全内联样式便于截图 */
+/* 构建报告 HTML：白底 A4 布局（794px），全内联样式便于截图
+   v1.5.7：打卡表格与打卡格子同一序列——成绩记录 + 未处理未交按日期合并（subjectItems 口径），第 N 次严格对应格子。
+   统计卡「未完成」改为「未交」（未处理未交数；0 次用中性卡）；待录入空格子不进统计卡。 */
 function reportHtml(st, subject){
   const gid = st.id;
-  const recs = subjectRecsSorted(gid, subject);
+  const items = subjectItems(gid, subject);  // 与打卡格子同一序列（按日期升序，同日期成绩优先于未交）
   const plan = (st.subjPlans && st.subjPlans[subject]) || 0;
-  const done = recs.length;
-  const total = Math.max(plan, done);
+  const done = items.filter(it=>it.type==='rec').length;  // 已完成 = 成绩记录 + 无作业（现状口径不变）
+  const missCnt = items.filter(it=>it.type==='miss').length;  // 未交 = 未处理未交数
+  const total = Math.max(plan, items.length);
   const rate = plan>0 ? Math.round(done/plan*100) + '%' : '—';
   const today = todayStr();
   const subjName = shortSubject(subject);
   let rows = '';
   for(let i=0;i<total;i++){
-    const r = recs[i];
+    const it = items[i];
     const idx = i+1;
     const td = 'padding:7px 10px;border:1px solid #DDE3E0;font-size:13px;color:#374151';
+    if(it && it.type==='miss'){  // 未交行：正确率列红「—」+ 错题列红「未交」
+      rows += '<tr>' +
+        '<td style="' + td + '">第' + idx + '次</td>' +
+        '<td style="' + td + '">' + esc(it.date) + '</td>' +
+        '<td style="' + td + ';font-weight:700;color:#DC2626">—</td>' +
+        '<td style="' + td + ';color:#DC2626">未交</td></tr>';
+      continue;
+    }
+    const r = it && it.type==='rec' ? it.rec : null;
     if(r){
       if(r.noHomework){  // 无作业记录：正确率 — + 错题列「本次无作业」（灰，不带评级；与落地页同口径）
         rows += '<tr>' +
@@ -47,7 +59,7 @@ function reportHtml(st, subject){
         '<td style="' + td + ';font-weight:700;color:' + (ra>=85?'#0F8F68':(ra>=60?'#B9802A':'#DC2626')) + '">' + ra + '%</td>' +
         '<td style="' + td + '">' + wrongs + '</td></tr>';
       }
-    } else {
+    } else {  // 待录入空格子（还没到/还没录）：维持「未完成」
       rows += '<tr>' +
         '<td style="' + td + '">第' + idx + '次</td>' +
         '<td style="' + td + '">未完成</td>' +
@@ -65,8 +77,6 @@ function reportHtml(st, subject){
     '<div style="border-bottom:3px solid #2FBF8F;padding-bottom:14px;margin-bottom:18px">' +
       '<div style="font-size:26px;font-weight:800;letter-spacing:1px">作业打卡报告</div>' +
       '<div style="font-size:13px;color:#6B7280;margin-top:8px">学生：<b style="color:#1F2937">' + esc(st.name) + '</b>' +
-      (st.school ? '　｜　学校：' + esc(st.school) : '') +
-      (st.gradYear ? '　｜　年级：' + esc(st.gradYear) + ' 届' : '') +
       '　｜　科目：<b style="color:#1F2937">' + esc(subjName) + '</b></div>' +
       '<div style="font-size:12px;color:#9CA3AF;margin-top:4px">生成日期：' + today + '</div>' +
     '</div>' +
@@ -75,8 +85,8 @@ function reportHtml(st, subject){
         '<div style="font-size:12px;color:#6B7280">应完成</div><div style="font-size:20px;font-weight:800;color:#0F8F68">' + plan + ' 次</div></div>' +
       '<div style="flex:1;background:#F0FBF6;border:1px solid #D8F0E5;border-radius:10px;padding:10px 14px;text-align:center">' +
         '<div style="font-size:12px;color:#6B7280">已完成</div><div style="font-size:20px;font-weight:800;color:#0F8F68">' + done + ' 次</div></div>' +
-      '<div style="flex:1;background:#FDF3F2;border:1px solid #F0C6C2;border-radius:10px;padding:10px 14px;text-align:center">' +
-        '<div style="font-size:12px;color:#6B7280">未完成</div><div style="font-size:20px;font-weight:800;color:#DC2626">' + Math.max(0,total-done) + ' 次</div></div>' +
+      '<div style="flex:1;background:' + (missCnt ? '#FDF3F2' : '#F0FBF6') + ';border:1px solid ' + (missCnt ? '#F0C6C2' : '#D8F0E5') + ';border-radius:10px;padding:10px 14px;text-align:center">' +
+        '<div style="font-size:12px;color:#6B7280">未交</div><div style="font-size:20px;font-weight:800;color:' + (missCnt ? '#DC2626' : '#0F8F68') + '">' + missCnt + ' 次</div></div>' +
       '<div style="flex:1;background:#F0FBF6;border:1px solid #D8F0E5;border-radius:10px;padding:10px 14px;text-align:center">' +
         '<div style="font-size:12px;color:#6B7280">完成率</div><div style="font-size:20px;font-weight:800;color:#0F8F68">' + rate + '</div></div>' +
     '</div>' +
