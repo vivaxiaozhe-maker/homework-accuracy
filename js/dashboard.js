@@ -32,9 +32,11 @@ function computeDash(){
   }
 
   // 助教维度对比（按范围内录入次数降序；≥7 天未录入标「沉默」）
+  // 口径：跨助教对比不受「助教筛选」下拉影响（否则选中某助教后其他人归零、被选中者跳到第一条——已踩过），时间范围过滤保留
+  const recsRange = start ? pool.records.filter(r=>r.date >= start) : pool.records;
   const taRows = tas.map(u=>{
-    const rs = recs.filter(r=>r.ownerId===u.id);
-    const ms = missed.filter(m=>m.ownerId===u.id);
+    const rs = recsRange.filter(r=>r.ownerId===u.id);
+    const ms = pool.missed.filter(m=>m.ownerId===u.id);
     const allRs = pool.records.filter(r=>r.ownerId===u.id);
     const lastDate = allRs.length ? allRs.reduce((a,b)=>a.date>b.date?a:b).date : null;
     return { user:u, stuCnt: pool.students.filter(s=>s.ownerId===u.id && !s.archived).length,
