@@ -828,7 +828,9 @@ function renderAccounts(){
   const el = document.getElementById('accounts-list');
   if(!el) return;
   const users = getUsersCache();
-  el.innerHTML = users.map(u=>{
+  // 按角色分组：教务管理员 → 助教 → 销售（组头带数量；行内容与操作按钮不变）
+  const GROUPS = [ {role:'admin', label:'教务管理员'}, {role:'ta', label:'助教'}, {role:'sales', label:'销售'} ];
+  const rowHtml = u=>{
     const stuCnt = pool.students.filter(s=>s.ownerId===u.id).length;
     const isSelf = currentUser && u.id===currentUser.id;
     return '<div class="acct-row">' +
@@ -848,7 +850,15 @@ function renderAccounts(){
           '<button class="btn ' + (u.disabled?'mint':'danger') + ' sm" onclick="toggleUser(\'' + u.id + '\')">' + (u.disabled?'启用':'停用') + '</button>'
         : '') +
       '</div>';
-  }).join('') || '<p class="hint">暂无账号</p>';
+  };
+  let html = '';
+  GROUPS.forEach(g=>{
+    const us = users.filter(u=>u.role===g.role);
+    if(!us.length) return;
+    html += '<div class="ta-group-head">' + g.label + '<span class="cnt">' + us.length + ' 个账号</span></div>' +
+      us.map(rowHtml).join('');
+  });
+  el.innerHTML = html || '<p class="hint">暂无账号</p>';
 }
 /* 教务「计划修改审批」区块：待审批列表（已处理记录并入「已处理事项」统一回溯区） */
 function renderPlanRequests(){
