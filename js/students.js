@@ -578,6 +578,8 @@ function renderStats(){
       '</div>' +
       '<div class="stu-nums"><span>作业次数 <b>' + recs.length + '</b></span><span>未交次数 <b style="color:var(--red)">' + misses.length + '</b></span>' +
       (lastGradedRec(recs) ? '<span>最近正确率 <b>' + acc(lastGradedRec(recs)) + '%</b></span>' : '') +
+      // 最近录入时间：弱色纯文字（无徽章底色），与统计信息同行归组，不抢视觉焦点；无记录不显示
+      (recs.length ? '<span class="last-rec">最近录入 ' + recs.reduce((a,b)=>a.date>b.date?a:b).date + '</span>' : '') +
       '<span style="margin-left:auto"><button class="btn ghost sm" onclick="archiveGroup([\'' + g.ids.join('\',\'') + '\'])">转为历史学生</button></span></div>' +
       subHtml +
       (addSubjGid===s.id ? addSubjPanelHtml(s.id) : '') +
