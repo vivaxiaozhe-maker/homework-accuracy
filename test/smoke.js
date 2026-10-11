@@ -59,7 +59,7 @@ const ctx = vm.createContext({
 
 /* ---------- 加载页面脚本 ---------- */
 const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-/* 前端已拆分为 js/*.js（v1.6.0）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+/* 前端已拆分为 js/*.js（v1.6.1）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
 const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
 if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
 const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
@@ -170,7 +170,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  /* ---- 账号列表按角色分组（v1.6.0）：教务管理员 → 助教 → 销售，组头带数量 ---- */
+  /* ---- 账号列表按角色分组（v1.6.1）：教务管理员 → 助教 → 销售，组头带数量 ---- */
   const accGrp = documentStub.getElementById('accounts-list').innerHTML;
   ok(accGrp.indexOf('教务管理员') !== -1 && accGrp.indexOf('助教<span class="cnt">') !== -1
     && accGrp.indexOf('销售<span class="cnt">') !== -1, '账号列表按角色分组显示组头');
@@ -178,7 +178,7 @@ function ok(cond, name){
     && accGrp.indexOf('助教<span class="cnt">') < accGrp.indexOf('销售<span class="cnt">'), '组序：教务管理员 → 助教 → 销售');
   ok(/教务管理员<span class="cnt">1 个账号/.test(accGrp) && /助教<span class="cnt">3 个账号/.test(accGrp)
     && /销售<span class="cnt">1 个账号/.test(accGrp), '分组数量正确（教务 1 / 助教 3 / 销售 1）');
-  ok(html.indexOf('id="login-ver">v1.6.0') !== -1, '登录页版本号升至 v1.6.0');
+  ok(html.indexOf('id="login-ver">v1.6.1') !== -1, '登录页版本号升至 v1.6.1');
   /* ---- 登录密码框：默认密文 + 眼睛图标切换明文 ---- */
   ok(html.indexOf('id="login-pass" type="password"') !== -1, '登录密码框默认密文');
   ok(html.indexOf('pwd-wrap') !== -1 && html.indexOf('id="login-pass-eye"') !== -1, '登录密码框带明文切换按钮');
@@ -395,7 +395,7 @@ function ok(cond, name){
   wb.doLogout();
   await wb.doLogin('admin', 'admin456', 'admin');
 
-  /* ---- 备份提醒横幅（v1.6.0：>500 条才显示；✕ 关闭后 7 个自然日内不再显示） ---- */
+  /* ---- 备份提醒横幅（v1.6.1：>500 条才显示；✕ 关闭后 7 个自然日内不再显示） ---- */
   vm.runInContext('renderBanners()', ctx);
   ok(documentStub.getElementById('backup-tip').style.display === 'none', '未超 500 条不显示备份提醒');
   const bkStu = wb.pool.students.find(s=>!s.archived && s.ownerId===ta1.id);
@@ -477,7 +477,7 @@ function ok(cond, name){
   ok(html.indexOf('id="bind-modal"') !== -1 && html.indexOf('id="bind-qr-box"') !== -1, '家长绑定二维码弹窗结构存在');
   ok(html.indexOf('id="binds-modal"') !== -1 && html.indexOf('id="binds-list"') !== -1, '家长绑定管理弹窗结构存在');
   ok(allText.indexOf('tag mint owner-tag') !== -1, '归属助教标签为薄荷绿色（tag mint）');
-  /* ---- 可点标签「›」提示（v1.6.0）：归属/绑定标签带尾部符号，纯展示标签（届）不带 ---- */
+  /* ---- 可点标签「›」提示（v1.6.1）：归属/绑定标签带尾部符号，纯展示标签（届）不带 ---- */
   ok(allText.indexOf('owner-tag .tag-go') !== -1, '可点标签 › 尾部符号样式存在');
   ok((allText.match(/tag-go/g) || []).length >= 5, '归属与绑定标签均带 ›（students.js×3 + auth.js×1 + CSS）');
   ok(!/届<span class="tag-go">/.test(allText), '纯展示的「届」标签不带 ›');
@@ -491,17 +491,25 @@ function ok(cond, name){
   ok(alerts[alerts.length-1].indexOf('演示环境暂不支持绑定') !== -1, 'mock 模式绑定提示演示环境不支持');
   wb.setQuickEntry(null);
 
-  /* ---- 学生卡「最近录入时间」（v1.6.0）：弱色纯文字；无记录不显示 ---- */
+  /* ---- 学生卡「最近录入时间」（v1.6.x）：弱色纯文字、基线对齐、当年省年份；无记录不显示 ---- */
   const lrRecs = wb.pool.records.filter(r=>r.studentId===bindStu.id);
   const lrMax = lrRecs.reduce((a,b)=>a.date>b.date?a:b).date;
+  const lrShort = lrMax.slice(0,4) === String(new Date().getFullYear()) ? lrMax.slice(5) : lrMax;
   const stuListLr = documentStub.getElementById('stu-list').innerHTML;
-  ok(stuListLr.indexOf('最近录入 ' + lrMax) !== -1 && stuListLr.indexOf('class="last-rec"') !== -1,
-    '有记录学生卡显示最近录入时间（取该生最大日期，弱色纯文字）');
+  ok(stuListLr.indexOf('录入 ' + lrShort) !== -1 && stuListLr.indexOf('class="last-rec"') !== -1,
+    '有记录学生卡显示最近录入时间（当年省年份：录入 MM-DD）');
+  ok(/\.stu-nums\{[^}]*align-items:baseline/.test(allText), '统计行基线对齐（最近录入与数字不错位）');
+  // 跨年记录保留完整日期避免歧义（用未来的排课记录测：最新日期跨年 → 显示完整 YYYY-MM-DD）
+  const nextYear = (new Date().getFullYear() + 1) + '-01-05';
+  wb.pool.records.push({id:'lr-future', studentId:bindStu.id, date:nextYear, total:10, correct:9, wrongs:[], subject:'学科 / AP / 微积分BC', images:[], ownerId:ta1.id});
+  wb.renderStats();
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('录入 ' + nextYear) !== -1, '跨年日期显示完整 YYYY-MM-DD');
+  wb.pool.records = wb.pool.records.filter(r=>r.id!=='lr-future');  // 清理
   wb.pool.students.push({id:'norec-s1', name:'无记录测试生', ownerId:ta1.id});
   wb.renderStats();
   ok(documentStub.getElementById('stu-list').innerHTML.indexOf('无记录测试生') !== -1, '无记录学生卡渲染');
   const norecCard = documentStub.getElementById('stu-list').innerHTML.split('无记录测试生')[1].split('stu-card')[0];
-  ok(norecCard.indexOf('最近录入') === -1, '无记录学生卡不显示最近录入时间');
+  ok(norecCard.indexOf('录入 ') === -1 && norecCard.indexOf('最近录入') === -1, '无记录学生卡不显示最近录入时间');
   wb.pool.students = wb.pool.students.filter(s=>s.id!=='norec-s1');  // 清理
   wb.setQuickEntry(null);
   wb.toggleTaGroup(ta1.id);  // 恢复折叠
@@ -526,7 +534,7 @@ function ok(cond, name){
   wb.setQuickEntry(null);
   wb.toggleTaGroup(ta1.id);  // 恢复折叠
 
-  /* ---- v1.6.0：模考过期 + 看板卡拆分 + 审计系统操作人 + 教务管理页四卡 + 控件统一 ---- */
+  /* ---- v1.6.1：模考过期 + 看板卡拆分 + 审计系统操作人 + 教务管理页四卡 + 控件统一 ---- */
   // 模考过期：徽章与打卡面板统一灰色「已过期 · X」
   bindStu.mock = { '学科 / AP / 微积分BC': { date: '2020-01-01', score: 92 } };  // 过期日期
   wb.setQuickEntry({gid: bindStu.id, subject: '学科 / AP / 微积分BC'});
@@ -564,7 +572,7 @@ function ok(cond, name){
   await vm.runInContext('openBindsModal("' + bindStu.id + '")', ctx);
   ok(alerts.length > alertsBeforeBinds && alerts[alerts.length-1].indexOf('演示环境暂不支持绑定管理') !== -1, 'mock 模式绑定管理提示演示环境不支持');
 
-  /* ---- v1.6.0：报告打卡表与格子序列对齐 + 统计卡未交口径 + PDF 头部 + 助教录入弹窗 ---- */
+  /* ---- v1.6.1：报告打卡表与格子序列对齐 + 统计卡未交口径 + PDF 头部 + 助教录入弹窗 ---- */
   {
     // 造数据：计划 3 次；第1次未交（较早），第2次有成绩（较晚）→ 未交行应排第 1
     wb.doLogout();
@@ -695,8 +703,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.6.0') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.6.0」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.6.1') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.6.1」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -761,7 +769,7 @@ function ok(cond, name){
     && documentStub.getElementById('dash-alert-miss').innerHTML.indexOf('看板低分测试') !== -1
     && documentStub.getElementById('dash-alert-sleep').innerHTML.indexOf('看板沉睡测试') !== -1,
     '三类预警名单已渲染到页面');
-  /* ---- 助教行下钻：筛选下拉同步 + 选中跳变/归零回归（v1.6.0） ---- */
+  /* ---- 助教行下钻：筛选下拉同步 + 选中跳变/归零回归（v1.6.1） ---- */
   const rowsBefore = wb.computeDash().taRows;  // 未选中（dashOwner='all'）基线
   wb.dashDrillTa(ta2.id);
   ok(wb.dashOwner === ta2.id && documentStub.getElementById('dash-owner').value === ta2.id, '点击助教行下钻后筛选下拉同步为该助教');
@@ -1384,7 +1392,7 @@ function ok(cond, name){
     && html.indexOf('id="stu-search"') < html.indexOf('id="stu-list"'), '搜索框位于图表与学生明细之间');
   // 今日概览卡序：快速一览在「今天要处理」之前
   ok(html.indexOf('id="quick-grid"') < html.indexOf('id="today-list"'), '快速一览放在今天要处理之前');
-  /* ---- 页头设计（v1.6.0）：topbar 改版为小书本图标 + 页签标题 + 动态日期 + 暖金竖线标语 ---- */
+  /* ---- 页头设计（v1.6.1）：topbar 改版为小书本图标 + 页签标题 + 动态日期 + 暖金竖线标语 ---- */
   ok(html.indexOf('class="tb-book"') !== -1 && html.indexOf('assets/book-icon.svg') !== -1
     && html.indexOf('class="tb-date"') !== -1, '页头含小书本图标与动态日期区');
   ok(html.indexOf('class="illus"') === -1 && html.indexOf('date-pill') === -1, '旧版学习插画与日期胶囊已移除');
