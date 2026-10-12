@@ -6,6 +6,8 @@
    未交行的完成路径 = 去补录（现有补录流），删除未交保留；归档学生不进任何分组。
    教务视角：未交只读（无补录/删除），但允许稍后处理/完成（管理职责）。 */
 let todayExpandKey = null;  // 当前展开的分组 key（null = 自动选最紧急非空组）
+let todayTaFilter = {};  // 组 key → 助教 ownerId / 'all'（教务视角的组内筛选，重渲染保持）
+function todayTaSet(key, oid){ todayTaFilter[key] = oid; renderToday(); }
 // 同一 ref_key 取最新一条预警动作
 function alertActionMap(){
   const map = {};
@@ -164,10 +166,10 @@ function renderToday(){
 
   // ---- 分组 + 计数条 ----
   const groups = [
-    { key:'overdueMiss', label:'逾期未交', rows: overdueRows, render: renderMissRow },
-    { key:'miss', label:'未交（宽限内）', rows: graceRows, render: renderMissRow },
-    { key:'lowAcc', label:'正确率偏低', rows: lowRows, render: renderLowRow },
-    { key:'planStall', label:'计划停滞', rows: stallRows, render: renderStallRow }
+    { key:'overdueMiss', label:'逾期未交', rows: overdueRows, render: renderMissRow, ownerOf: m=>m.ownerId },
+    { key:'miss', label:'未交（宽限内）', rows: graceRows, render: renderMissRow, ownerOf: m=>m.ownerId },
+    { key:'lowAcc', label:'正确率偏低', rows: lowRows, render: renderLowRow, ownerOf: x=>x.rec.ownerId },
+    { key:'planStall', label:'计划停滞', rows: stallRows, render: renderStallRow, ownerOf: x=>x.st.ownerId }
   ];
   const nonEmpty = groups.filter(g=>g.rows.length);
   if(todayExpandKey===null || !nonEmpty.some(g=>g.key===todayExpandKey)) todayExpandKey = nonEmpty.length ? nonEmpty[0].key : null;
@@ -178,12 +180,26 @@ function renderToday(){
   }
   let html = nonEmpty.map(g=>{
     const open = g.key===todayExpandKey;
+    // 教务视角：组内按助教筛选 chips（全部 + 各助教带条数，按条数降序；助教视角只看自己名下无需筛选）
+    let chipsHtml = '', rows = g.rows;
+    if(admin && g.rows.length){
+      const cntMap = {};
+      g.rows.forEach(r=>{ const o = g.ownerOf(r) || ''; cntMap[o] = (cntMap[o]||0)+1; });
+      const sel = todayTaFilter[g.key] || 'all';
+      chipsHtml = '<div class="ta-chips today-ta-chips">' +
+        '<span class="sub-chip' + (sel==='all'?' active':'') + '" onclick="todayTaSet(\'' + g.key + '\',\'all\')">全部 ' + g.rows.length + '</span>' +
+        Object.keys(cntMap).sort((a,b)=>cntMap[b]-cntMap[a]).map(oid=>
+          '<span class="sub-chip' + (sel===oid?' active':'') + '" onclick="todayTaSet(\'' + g.key + '\',\'' + oid + '\')">' +
+          esc(ownerName(oid)) + ' ' + cntMap[oid] + '</span>').join('') +
+        '</div>';
+      if(sel !== 'all') rows = rows.filter(r=>(g.ownerOf(r)||'')===sel);
+    }
     return '<div class="today-grp" id="today-grp-' + g.key + '">' +
       '<div class="today-grp-head" onclick="todayCatGo(\'' + g.key + '\')">' +
       '<span class="chev">' + (open?'▾':'▸') + '</span><b>' + g.label + '</b>' +
       '<span class="cnt">' + g.rows.length + (g.key==='miss' ? ' 次未交' : ' 条') + '</span></div>' +
       // 折叠组仍渲染行（CSS 隐藏），保证内容可检索/可测试
-      '<div class="today-grp-body"' + (open?'':' style="display:none"') + '>' + g.rows.map(g.render).join('') + '</div></div>';
+      '<div class="today-grp-body"' + (open?'':' style="display:none"') + '>' + chipsHtml + rows.map(g.render).join('') + '</div></div>';
   }).join('');
 
   if(!html){

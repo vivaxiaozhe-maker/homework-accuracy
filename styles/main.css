@@ -140,6 +140,8 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .today-grp-head .cnt{margin-left:auto;font-size:12px;font-weight:700;color:var(--ink2)}
 .today-grp-body{padding:0 10px 6px}
 .today-grp-body .todo-item:last-child{margin-bottom:4px}
+/* 组内按助教筛选 chips（仅教务视角渲染） */
+.today-ta-chips{margin:2px 0 8px}
 /* 快捷统计 */
 .quick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .quick{
