@@ -166,7 +166,7 @@ function renderToday(){
 
   // ---- 分组 + 计数条 ----
   const groups = [
-    { key:'overdueMiss', label:'逾期未交', rows: overdueRows, render: renderMissRow, ownerOf: m=>m.ownerId },
+    { key:'overdueMiss', label:'逾期', rows: overdueRows, render: renderMissRow, ownerOf: m=>m.ownerId },
     { key:'miss', label:'未交（宽限内）', rows: graceRows, render: renderMissRow, ownerOf: m=>m.ownerId },
     { key:'lowAcc', label:'正确率偏低', rows: lowRows, render: renderLowRow, ownerOf: x=>x.rec.ownerId },
     { key:'planStall', label:'计划停滞', rows: stallRows, render: renderStallRow, ownerOf: x=>x.st.ownerId }
