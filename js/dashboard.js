@@ -197,7 +197,7 @@ function renderDashboard(){
     return h;
   };
   document.getElementById('dash-alert-low').innerHTML = renderAlertList(d.lowStus, 'low', '范围内没有低分学生。', g=>
-    '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(g.name) + '\')">' +
+    '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(jsStr(g.name)) + '\')">' +
     '<b>' + esc(g.name) + '</b> <span class="tag red">' + g.avg + '%</span>' +
     '<div class="meta">归属 ' + esc(ownerName(g.ownerId)) +
     (g.lowSubs.length ? ' · 低分科目：' + g.lowSubs.map(s=>esc(s.name) + ' ' + s.avg + '%').join('、') : '') + '</div>' +
@@ -208,7 +208,7 @@ function renderDashboard(){
     '<div class="meta">归属 ' + esc(ownerName(x.ownerId)) + (x.subject ? ' · ' + esc(shortSubject(x.subject)) : '') + ' · ' + x.date + '</div>' +
     '</button>');
   document.getElementById('dash-alert-sleep').innerHTML = renderAlertList(d.sleepers, 'sleep', '没有沉睡学生。', x=>
-    '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(x.name) + '\')">' +
+    '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(jsStr(x.name)) + '\')">' +
     '<b>' + esc(x.name) + '</b> <span class="tag amber">' + (x.days===null ? '从未有记录' : x.days + ' 天无记录') + '</span>' +
     '<div class="meta">归属 ' + esc(ownerName(x.ownerId)) + '</div>' +
     '</button>');

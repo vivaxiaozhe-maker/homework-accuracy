@@ -6,6 +6,7 @@
 #   ./deploy.sh --skip-prod "提交信息"    # 只提交推送（只更新演示站，不动生产）
 #   ./deploy.sh --skip-tests "提交信息"   # 跳过冒烟测试（紧急小改时用，慎用）
 set -e
+set -o pipefail  # 管道吞退出码防护：node test/smoke.js | tail -1 失败即中断部署（已走查发现）
 cd "$(dirname "$0")"
 
 WITH_SERVER=0; SKIP_PROD=0; SKIP_TESTS=0; MSG=""

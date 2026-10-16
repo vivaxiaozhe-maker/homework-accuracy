@@ -63,10 +63,14 @@ function sign(token, ts, nonce){
 
   /* ---- 账号与学生准备 ---- */
   const adminTok = (await req('POST', '/api/login', { username: 'admin', password: 'admin123', role: 'admin' })).data.token;
+  // 强制改密硬限制（v1.7.0）：admin 先改密才能建号；新号登录后先改密再开展用例
+  const chpwd = (tok, oldP) => req('POST', '/api/password', { oldPwd: oldP, newPwd: 'Xx' + Math.random().toString(36).slice(2, 8) + '!' }, tok);
+  await chpwd(adminTok, 'admin123');
   await req('POST', '/api/users', { name: '王助教', username: 'ta1', password: 'ta123456', role: 'ta' }, adminTok);
   await req('POST', '/api/users', { name: '李助教', username: 'ta2', password: 'ta123456', role: 'ta' }, adminTok);
   const T1 = (await req('POST', '/api/login', { username: 'ta1', password: 'ta123456', role: 'ta' })).data.token;
   const T2 = (await req('POST', '/api/login', { username: 'ta2', password: 'ta123456', role: 'ta' })).data.token;
+  await chpwd(T1, 'ta123456'); await chpwd(T2, 'ta123456');
   const subj = '学科 / AP / 微积分BC';
   const stuA = (await req('POST', '/api/students', { name: '林小满', school: '深外', gradYear: '2027' }, T1)).data.student.id;
   const stuB = (await req('POST', '/api/students', { name: '陈星宇', school: '杭外', gradYear: '2026' }, T2)).data.student.id;

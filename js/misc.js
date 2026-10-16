@@ -19,6 +19,10 @@ function shortSubject(s){
   return s;
 }
 function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+/* JS 字符串级转义（内联 onclick 用）：把文本嵌进 onclick="fn('...')" 单引号串时，
+   仅 HTML 转义会被浏览器解码回 ' 导致 JS 字符串逃逸（学生名/科目名带单引号即可断开，已走查发现）。
+   用法：esc(jsStr(x)) 双层——先 JS 级转义（\ ' 换行），再 HTML 属性级转义。 */
+function jsStr(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,'\\n'); }
 
 /* ================= 拼音首字母筛选（零依赖） =================
    内置「姓氏 → 拼音首字母」映射（百家姓 + 常见姓氏，普通对象，缺字随时加一行）；

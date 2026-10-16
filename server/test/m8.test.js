@@ -35,10 +35,14 @@ function ok(cond, name){
 
   /* ---- 账号准备 ---- */
   const adminTok = (await req('POST', '/api/login', { username: 'admin', password: 'admin123', role: 'admin' })).data.token;
+  // 强制改密硬限制（v1.7.0）：admin 先改密才能建号；新号登录后先改密再开展用例
+  const chpwd = (tok, oldP) => req('POST', '/api/password', { oldPwd: oldP, newPwd: 'Xx' + Math.random().toString(36).slice(2, 8) + '!' }, tok);
+  await chpwd(adminTok, 'admin123');
   await req('POST', '/api/users', { name: '王助教', username: 'ta1', password: 'ta123456', role: 'ta' }, adminTok);
   await req('POST', '/api/users', { name: '张顾问', username: 'sales1', password: 'sales123456', role: 'sales' }, adminTok);
   const T1 = (await req('POST', '/api/login', { username: 'ta1', password: 'ta123456', role: 'ta' })).data.token;
   const TS = (await req('POST', '/api/login', { username: 'sales1', password: 'sales123456', role: 'sales' })).data.token;
+  await chpwd(T1, 'ta123456'); await chpwd(TS, 'sales123456');
 
   /* ---- GET：默认树兜底 + 全角色可读 ---- */
   let r = await req('GET', '/api/subjects', null, T1);

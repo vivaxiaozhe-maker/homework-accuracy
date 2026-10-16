@@ -13,25 +13,26 @@ function renderSubjectMgmt(){
   let html = '';
   Object.keys(subjTreeDraft).forEach(l1=>{
     // 一级：分区卡片，标题行右侧操作按钮（重命名/删除，与二级系列行同款排布）
+    // 分类/系列/科目名为用户可控文本：onclick 里一律 esc(jsStr(x)) 双层转义（防单引号断开 JS 串）
     html += '<div class="st-cat"><div class="st-l1row"><b>' + esc(l1) + '</b><span class="st-ops">' +
-      '<button class="btn ghost sm st-edit" onclick="subjUiRenameL1(\'' + esc(l1) + '\')">重命名</button>' +
-      '<button class="btn danger sm" onclick="subjDelete([\'' + esc(l1) + '\'])">删除</button></span></div>';
+      '<button class="btn ghost sm st-edit" onclick="subjUiRenameL1(\'' + esc(jsStr(l1)) + '\')">重命名</button>' +
+      '<button class="btn danger sm" onclick="subjDelete([\'' + esc(jsStr(l1)) + '\'])">删除</button></span></div>';
     Object.keys(subjTreeDraft[l1]).forEach(l2=>{
       const kids = subjTreeDraft[l1][l2];
       // 二级：一行一个系列——名居左，操作按钮右对齐同行
       html += '<div class="st-l2"><b>' + esc(l2) + '</b><span class="st-ops">' +
-        '<button class="btn ghost sm" onclick="subjUiAddSubject(\'' + esc(l1) + '\',\'' + esc(l2) + '\')">+ 科目</button>' +
-        '<button class="btn ghost sm st-edit" onclick="subjUiRenameSeries(\'' + esc(l1) + '\',\'' + esc(l2) + '\')">重命名</button>' +
-        '<button class="btn danger sm" onclick="subjDelete([\'' + esc(l1) + '\',\'' + esc(l2) + '\'])">删除</button></span></div>';
+        '<button class="btn ghost sm" onclick="subjUiAddSubject(\'' + esc(jsStr(l1)) + '\',\'' + esc(jsStr(l2)) + '\')">+ 科目</button>' +
+        '<button class="btn ghost sm st-edit" onclick="subjUiRenameSeries(\'' + esc(jsStr(l1)) + '\',\'' + esc(jsStr(l2)) + '\')">重命名</button>' +
+        '<button class="btn danger sm" onclick="subjDelete([\'' + esc(jsStr(l1)) + '\',\'' + esc(jsStr(l2)) + '\'])">删除</button></span></div>';
       // 三级：标签流（仅名称 + 小 ×），自动换行
       if(kids && kids.length){
         html += '<div class="st-l3s">' + kids.map(l3=>
           '<span class="tag sample">' + esc(l3) +
-          ' <i class="st-x" onclick="subjDelete([\'' + esc(l1) + '\',\'' + esc(l2) + '\',\'' + esc(l3) + '\'])">✕</i></span>').join('') + '</div>';
+          ' <i class="st-x" onclick="subjDelete([\'' + esc(jsStr(l1)) + '\',\'' + esc(jsStr(l2)) + '\',\'' + esc(jsStr(l3)) + '\'])">✕</i></span>').join('') + '</div>';
       }
     });
     // 每个一级分区底部「+ 系列」
-    html += '<div class="st-add"><button class="btn ghost sm" onclick="subjUiAddSeries(\'' + esc(l1) + '\')">+ 系列</button></div></div>';
+    html += '<div class="st-add"><button class="btn ghost sm" onclick="subjUiAddSeries(\'' + esc(jsStr(l1)) + '\')">+ 系列</button></div></div>';
   });
   html += '<div style="margin-top:4px"><button class="btn ghost sm" onclick="subjUiAddCategory()">+ 新增一级分类</button></div>';
   document.getElementById('subj-tree-editor').innerHTML = html;
@@ -516,7 +517,7 @@ function renderAlumni(){
         const mockDate = mockSt.date || '';
         const mockScore = (mockSt.score!==undefined && mockSt.score!==null && mockSt.score!=='') ? mockSt.score : null;
         const omc = overdueMissCount(g.ids, k);
-        return '<span class="sub-chip' + (isActive?' active':'') + '" onclick="toggleQuickEntry(\'' + s.id + '\',\'' + esc(k) + '\')" title="点击查看该科目打卡情况、评语与模考">' +
+        return '<span class="sub-chip' + (isActive?' active':'') + '" onclick="toggleQuickEntry(\'' + s.id + '\',\'' + esc(jsStr(k)) + '\')" title="点击查看该科目打卡情况、评语与模考">' +
           '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
           (omc>=2 ? '<span class="sub-alert" title="该科目有 ' + omc + ' 次逾期未交作业">!</span>' : '') +
           (hasCmt ? '<span class="sub-cmt-dot" title="已有老师评语"></span>' : '') +
@@ -686,6 +687,11 @@ function enterApp(){
   });
   // 「数据管理」页的清理数据区块仅教务可见（助教只保留导出/导入；销售无此页签）
   document.getElementById('data-clean-zone').style.display = role==='admin' ? '' : 'none';
+  // 导入恢复仅 mock 演示模式可用；API（生产）模式下隐藏并给提示（数据在服务器，防误以为可本地恢复）
+  const importBtn = document.getElementById('btn-import');
+  if(importBtn) importBtn.style.display = USE_API ? 'none' : '';
+  const apiTip = document.getElementById('import-api-tip');
+  if(apiTip) apiTip.style.display = USE_API ? '' : 'none';
   // 销售端搜索框提示语 + 隐藏图表卡与新增学生入口（只读查询）
   document.getElementById('stats-chart-card').style.display = role==='sales' ? 'none' : '';
   document.getElementById('btn-open-add-stu').style.display = role==='sales' ? 'none' : '';
@@ -816,7 +822,17 @@ async function doChangePwd(oldP, newP, newP2){
   if(!res.ok){ err.textContent = res.msg; return; }
   if(currentUser) currentUser.mustChangePwd = false;  // 成功后本地同步，防同会话残留状态
   document.getElementById('pwd-modal').classList.remove('show');
-  if(pwdForced){ pwdForced = false; enterApp(); }
+  if(pwdForced){
+    pwdForced = false;
+    // 强制改密硬限制（v1.7.0）：改密前拉 state 会被后端 403——改密成功后补拉一次再进主界面
+    if(USE_API && currentUser && currentUser.role !== 'sales'){
+      const s = await HttpApi.getState();
+      if(s.ok){ pool = s.state; refreshView(); }
+      await refreshUsersCache();
+      await refreshSubjectTree();
+    }
+    enterApp();
+  }
   else toast('密码已修改，下次登录请使用新密码。');
 }
 document.getElementById('btn-chpwd').addEventListener('click', ()=>openPwdModal(false));

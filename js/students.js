@@ -147,8 +147,8 @@ function renderToday(){
       snoozeBadgeHtml(amap, 'lowAcc', x.refKey) +
       '<div style="font-size:13px;color:var(--ink2)">' + r.date + ' 作业，错题 ' + (r.total-r.correct) + ' 道，建议安排订正</div></div>' +
       (admin ? '' : '<button class="btn mint sm" onclick="gotoCorrect(\'' + r.studentId + '\')">录入订正</button>') +
-      '<button class="btn ghost sm" onclick="alertSnooze(\'lowAcc\',\'' + esc(x.refKey) + '\')">稍后处理</button>' +
-      '<button class="btn ghost sm" onclick="alertDone(\'lowAcc\',\'' + esc(x.refKey) + '\')">完成</button>' +
+      '<button class="btn ghost sm" onclick="alertSnooze(\'lowAcc\',\'' + esc(jsStr(x.refKey)) + '\')">稍后处理</button>' +
+      '<button class="btn ghost sm" onclick="alertDone(\'lowAcc\',\'' + esc(jsStr(x.refKey)) + '\')">完成</button>' +
       '</div>';
   };
   const renderStallRow = x =>
@@ -159,9 +159,9 @@ function renderToday(){
     (admin ? '<span class="tag sample">归属 ' + esc(ownerName(x.st.ownerId)) + '</span>' : '') +
     snoozeBadgeHtml(amap, 'planStall', x.refKey) +
     '<div style="font-size:13px;color:var(--ink2)">「' + esc(shortSubject(x.sub)) + '」已 ' + x.days + ' 天未更新（应完成 ' + x.st.subjPlans[x.sub] + ' 次）</div></div>' +
-    (admin ? '' : '<button class="btn mint sm" onclick="gotoPlanEntry(\'' + x.st.id + '\',\'' + esc(x.sub) + '\')">去录入</button>') +
-    '<button class="btn ghost sm" onclick="alertSnooze(\'planStall\',\'' + esc(x.refKey) + '\')">稍后处理</button>' +
-    '<button class="btn ghost sm" onclick="alertDone(\'planStall\',\'' + esc(x.refKey) + '\')">完成</button>' +
+    (admin ? '' : '<button class="btn mint sm" onclick="gotoPlanEntry(\'' + x.st.id + '\',\'' + esc(jsStr(x.sub)) + '\')">去录入</button>') +
+    '<button class="btn ghost sm" onclick="alertSnooze(\'planStall\',\'' + esc(jsStr(x.refKey)) + '\')">稍后处理</button>' +
+    '<button class="btn ghost sm" onclick="alertDone(\'planStall\',\'' + esc(jsStr(x.refKey)) + '\')">完成</button>' +
     '</div>';
 
   // ---- 分组 + 计数条 ----
@@ -549,7 +549,7 @@ function renderStats(){
             '<button class="btn danger sm" onclick="deleteSubject()" title="删除该科目及其全部作业记录、打卡计划、评语、模考信息">删除科目</button>' +
             '</span>';
         }
-        return '<span class="sub-chip' + (isActive?' active':'') + '" onclick="toggleQuickEntry(\'' + s.id + '\',\'' + esc(k) + '\')" title="点击录入该科目作业">' +
+        return '<span class="sub-chip' + (isActive?' active':'') + '" onclick="toggleQuickEntry(\'' + s.id + '\',\'' + esc(jsStr(k)) + '\')" title="点击录入该科目作业">' +
           '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
           (omc>=2 ? '<span class="sub-alert" title="该科目有 ' + omc + ' 次逾期未交作业">!</span>' : '') +
           (hasCmt ? '<span class="sub-cmt-dot" title="已有老师评语"></span>' : '') +
@@ -559,7 +559,7 @@ function renderStats(){
           (mockScore!==null ? '<span class="mock-tag score" title="结课模考分数">模考 ' + esc(mockScore) + '</span>' : '') +
           (sa !== null ? '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>' : '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">' + (arr.length ? '—' : '未录入') + '</span>') +
           '<span class="sub-cnt" title="' + (planCnt!==null ? '已完成 ' + arr.length + ' 次，应完成 ' + planCnt + ' 次' : '已录入 ' + arr.length + ' 次') + '">' + (planCnt!==null ? arr.length + '/' + planCnt : arr.length) + ' 次</span>' +
-          '<span class="edit-ico" onclick="startRenameSubject(\'' + s.id + '\',\'' + esc(k) + '\',event)" title="修改科目名">✎</span></span>';
+          '<span class="edit-ico" onclick="startRenameSubject(\'' + s.id + '\',\'' + esc(jsStr(k)) + '\',event)" title="修改科目名">✎</span></span>';
       }).join('') + '</div>';
     }
 
@@ -653,7 +653,7 @@ function salesStuCard(g, isAlumni){
     const arrG = gradedRecs(arr);  // 徽章正确率排除无作业（次数含无作业——计入已完成）
     const sa = arrG.length ? Math.round(arrG.reduce((x,r)=>x+acc(r),0)/arrG.length) : null;
     const isOpen = salesSubj && salesSubj.gid===g.ids[0] && salesSubj.subject===k;
-    return '<span class="sub-chip' + (isOpen?' active':'') + '" onclick="toggleSalesSubject(\'' + g.ids[0] + '\',\'' + esc(k) + '\')" title="点击查看该科目详情（只读）">' +
+    return '<span class="sub-chip' + (isOpen?' active':'') + '" onclick="toggleSalesSubject(\'' + g.ids[0] + '\',\'' + esc(jsStr(k)) + '\')" title="点击查看该科目详情（只读）">' +
       '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
       (sa === null
         ? '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">—</span>'  // 仅无作业记录：无正确率
@@ -785,7 +785,7 @@ function fillSalesApiPanel(id){
 }
 function salesApiCard(s, isAlumni){
   const subHtml = (s.subjects && s.subjects.length) ? '<div class="sub-acc">' + s.subjects.map(sub=>
-    '<span class="sub-chip" onclick="toggleSalesSubjectApi(\'' + s.id + '\',\'' + esc(sub.subject) + '\',' + isAlumni + ')" title="点击查看该科目详情（只读）">' +
+    '<span class="sub-chip" onclick="toggleSalesSubjectApi(\'' + s.id + '\',\'' + esc(jsStr(sub.subject)) + '\',' + isAlumni + ')" title="点击查看该科目详情（只读）">' +
     '<span class="sub-name">' + esc(shortSubject(sub.subject)) + '</span>' +
     '<span class="acc-badge ' + accClass(sub.avg) + '">' + sub.avg + '%</span>' +
     '<span class="sub-cnt">' + sub.cnt + ' 次</span></span>').join('') + '</div>' : '';

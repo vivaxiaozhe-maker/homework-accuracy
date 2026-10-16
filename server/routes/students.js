@@ -71,7 +71,7 @@ function setArchived(req, res, flag){
   res.json({ ok: true, updated: group.length });
 }
 
-// POST /api/students/:id/owner {ownerId}：仅教务，转移归属（records/missed 连带）
+// POST /api/students/:id/owner {ownerId}：仅教务，转移归属（records/missed/附件 files 连带）
 router.post('/:id/owner', requireRole('admin'), (req, res) => {
   const st = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.id);
   if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
@@ -80,12 +80,15 @@ router.post('/:id/owner', requireRole('admin'), (req, res) => {
   db.prepare('UPDATE students SET owner_id = ? WHERE id = ?').run(target.id, st.id);
   db.prepare('UPDATE records SET owner_id = ? WHERE student_id = ?').run(target.id, st.id);
   db.prepare('UPDATE missed SET owner_id = ? WHERE student_id = ?').run(target.id, st.id);
+  // 附件归属随记录转移（files.owner_id = 上传人；不转则原助教仍可读、新助教 403 且编辑成绩时 checkFileIds 受阻）
+  db.prepare('UPDATE files SET owner_id = ? WHERE record_id IN (SELECT id FROM records WHERE student_id = ?)')
+    .run(target.id, st.id);
   logAudit(req.user, '转移归属', 'student', st.name, '转移给 ' + target.name, target.id);
   res.json({ ok: true });
 });
 
-/* PUT /api/students/:id/subj-fields：合并式更新学生 JSON 列（用请求体整体替换对应列，前端先本地改好再整体提交）
-   字段白名单：subjComments（评语）/ subjAdvice（学习计划与建议）/ mock（模考）/ subjects（科目列表）。
+/* PUT /api/students/:id/subj-fields：合并式更新学生 JSON 列（v1.7.0 起为按键合并：传入键覆盖/新增，未传键保留；mock 支持 null 墓碑删除）
+   字段白名单：subjComments（评语）/ subjAdvice（学习计划与建议）/ mock（模考）/ subjects（科目列表，数组整体替换——列表语义）。
    注意：刻意不含 subj_plans——计划次数只能走 plan/set + 审批流，防止经此绕过审批 */
 const SUBJ_FIELD_WHITELIST = ['subjComments', 'subjAdvice', 'mock', 'subjects', 'subjFirstClass'];
 router.put('/:id/subj-fields', async (req, res) => {
@@ -98,6 +101,7 @@ router.put('/:id/subj-fields', async (req, res) => {
     return res.status(400).json({ ok: false, msg: '仅允许更新字段：' + SUBJ_FIELD_WHITELIST.join('、') });
   }
   const oldMockAll = keys.includes('mock') ? parseJson(st.mock, {}) : null;  // 模考旧值（自动推送对比用）
+  let mergedMock = null;  // 合并后的完整新值（autoMock 对比用）
   const setClauses = [];
   const params = [];
   const actions = [];
@@ -112,7 +116,8 @@ router.put('/:id/subj-fields', async (req, res) => {
       if(!v || typeof v !== 'object' || Array.isArray(v)) return res.status(400).json({ ok: false, msg: 'mock 必须是对象' });
       for(const sub of Object.keys(v)){
         const slot = v[sub] || {};
-        if(slot.date !== undefined && slot.date !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(slot.date))){
+        if(slot === null) continue;  // null = 删除墓碑（合并语义下清除该科目模考）
+        if(slot.date !== undefined && slot.date !== '' && slot.date !== null && !/^\d{4}-\d{2}-\d{2}$/.test(String(slot.date))){
           return res.status(400).json({ ok: false, msg: 'mock 日期格式应为 YYYY-MM-DD' });
         }
         if(slot.score !== undefined && slot.score !== null && slot.score !== ''){
@@ -120,7 +125,19 @@ router.put('/:id/subj-fields', async (req, res) => {
           if(!Number.isInteger(sc) || sc < 0 || sc > 100) return res.status(400).json({ ok: false, msg: 'mock 分数需在 0-100 之间' });
         }
       }
-      setClauses.push('mock = ?'); params.push(JSON.stringify(v)); actions.push('保存模考');
+      /* 合并语义（v1.7.0，防多人互踩）：读库内旧值 → 按键合并 → 写回。
+         科目键：传入覆盖/新增，null 墓碑删除；slot 内字段（date/score）同样合并，字段值 null 为删除。
+         自动推送对比照旧用「合并后的完整新值」（mergedMock 传 push.autoMock） */
+      const oldCol = parseJson(st.mock, {});
+      const merged = Object.assign({}, oldCol);
+      for(const sub of Object.keys(v)){
+        if(v[sub] === null){ delete merged[sub]; continue; }
+        merged[sub] = Object.assign({}, oldCol[sub] || {}, v[sub]);
+        for(const sk of Object.keys(merged[sub])){ if(merged[sub][sk] === null) delete merged[sub][sk]; }
+        if(!Object.keys(merged[sub]).length) delete merged[sub];  // 空 slot 不残留
+      }
+      mergedMock = merged;
+      setClauses.push('mock = ?'); params.push(JSON.stringify(merged)); actions.push('保存模考');
     } else if(k === 'subjFirstClass'){
       // 开课日期（修改不需审批，只记审计）：{科目: 'YYYY-MM-DD'}
       if(!v || typeof v !== 'object' || Array.isArray(v)) return res.status(400).json({ ok: false, msg: 'subjFirstClass 必须是对象' });
@@ -129,11 +146,13 @@ router.put('/:id/subj-fields', async (req, res) => {
           return res.status(400).json({ ok: false, msg: '开课日期格式应为 YYYY-MM-DD' });
         }
       }
-      setClauses.push('subj_first_class = ?'); params.push(JSON.stringify(v)); actions.push('修改开课日期');
+      setClauses.push('subj_first_class = ?'); params.push(JSON.stringify(Object.assign(parseJson(st.subj_first_class, {}), v))); actions.push('修改开课日期');  // 按键合并（v1.7.0）
     } else {
       if(!v || typeof v !== 'object' || Array.isArray(v)) return res.status(400).json({ ok: false, msg: k + ' 必须是对象' });
-      setClauses.push(k === 'subjComments' ? 'subj_comments = ?' : 'subj_advice = ?');
-      params.push(JSON.stringify(v));
+      // 按键合并（v1.7.0，防多人互踩）：传入的键覆盖/新增，未传的键保留
+      const col = k === 'subjComments' ? 'subj_comments' : 'subj_advice';
+      setClauses.push(col + ' = ?');
+      params.push(JSON.stringify(Object.assign(parseJson(st[col], {}), v)));
       actions.push(k === 'subjComments' ? '保存评语' : '保存学习计划与建议');
     }
   }
@@ -142,7 +161,7 @@ router.put('/:id/subj-fields', async (req, res) => {
   // 模考列变化按开关自动推送：date 变化 → 考试报名成功通知；score 变化 → 考试成绩通知（静默失败不阻塞保存）
   let pushed;
   if(oldMockAll !== null){
-    const p = await push.autoMock(req, st, oldMockAll, body.mock);
+    const p = await push.autoMock(req, st, oldMockAll, mergedMock);
     if(p.mockBook || p.mockScore) pushed = p;
   }
   res.json(Object.assign({ ok: true }, pushed ? { pushed: pushed } : {}));

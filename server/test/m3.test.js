@@ -37,6 +37,9 @@ function ok(cond, name){
   /* ---- 账号准备 ---- */
   let r = await req('POST', '/api/login', { username: 'admin', password: 'admin123', role: 'admin' });
   const adminTok = r.data.token;
+  // 强制改密硬限制（v1.7.0）：建号即待改密——admin 先改密才能建号，新号登录后也先改密再开展用例
+  const chpwd = (tok, oldP) => req('POST', '/api/password', { oldPwd: oldP, newPwd: 'Xx' + Math.random().toString(36).slice(2, 8) + '!' }, tok);
+  await chpwd(adminTok, 'admin123');
   await req('POST', '/api/users', { name: '王助教', username: 'ta1', password: 'ta123456', role: 'ta' }, adminTok);
   await req('POST', '/api/users', { name: '李助教', username: 'ta2', password: 'ta123456', role: 'ta' }, adminTok);
   await req('POST', '/api/users', { name: '张顾问', username: 'sales1', password: 'sales123456', role: 'sales' }, adminTok);
@@ -44,6 +47,7 @@ function ok(cond, name){
   const ta2 = (await req('POST', '/api/login', { username: 'ta2', password: 'ta123456', role: 'ta' })).data;
   const sales = (await req('POST', '/api/login', { username: 'sales1', password: 'sales123456', role: 'sales' })).data;
   const T1 = ta1.token, T2 = ta2.token, TS = sales.token;
+  await chpwd(T1, 'ta123456'); await chpwd(T2, 'ta123456'); await chpwd(TS, 'sales123456');
 
   /* ---- /api/state 角色口径 ---- */
   r = await req('GET', '/api/state', null, T1);
@@ -267,6 +271,33 @@ function ok(cond, name){
   r = await req('GET', '/api/search/students/cli-stu-1', null, TS);
   const detailItems = r.data.student.subjects.find(s=>s.subject==='学科 / AP / 微积分BC').items;
   ok(detailItems.some(i=>i.noHomework === true), '搜索明细行带 noHomework 标记');
+
+  /* ---- 附件随转移归属（v1.7.0）：转移后新助教可读、旧助教被拒 ---- */
+  const tfStu = (await req('POST', '/api/students', { name: '附件转移生', gradYear: '2027' }, T1)).data.student.id;
+  const tfRec = (await req('POST', '/api/records', { studentId: tfStu, date: today(), total: 10, correct: 9, wrongs: [], subject: '学科 / AP / 微积分BC' }, T1)).data.record.id;
+  const tmpFile = path.join(os.tmpdir(), 'xq-m3-file-' + Date.now() + '.png');
+  fs.writeFileSync(tmpFile, Buffer.from([0x89, 0x50, 0x4E, 0x47]));
+  db.prepare("INSERT INTO files (id, record_id, filename, mime, size, path, created_at, owner_id) VALUES ('tf-file-1', ?, '作业.png', 'image/png', 4, ?, ?, ?)")
+    .run(tfRec, tmpFile, new Date().toISOString(), ta1.user.id);
+  r = await req('GET', '/api/files/tf-file-1', null, T2);
+  ok(r.status === 403, '转移前：其他助教读附件 403');
+  r = await req('POST', '/api/students/' + tfStu + '/owner', { ownerId: ta2.user.id }, adminTok);
+  ok(r.status === 200, '教务转移归属成功');
+  r = await req('GET', '/api/files/tf-file-1', null, T2);
+  ok(r.status === 200, '转移后：新助教读附件 200（files.owner_id 已随记录转移）');
+  r = await req('GET', '/api/files/tf-file-1', null, T1);
+  ok(r.status === 403, '转移后：原助教读附件 403');
+  try{ fs.unlinkSync(tmpFile); }catch(e){}
+
+  /* ---- subj-fields 合并语义（v1.7.0 防多人互踩）：两次分别改不同科目，旧键不被覆盖 ---- */
+  await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjComments: { '学科 / AP / 微积分BC': '评语甲' } }, T1);
+  await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjComments: { '竞赛 / AMC10': '评语乙' } }, T1);
+  const mergedC = JSON.parse(db.prepare('SELECT subj_comments FROM students WHERE id = ?').get(stuA).subj_comments);
+  ok(mergedC['学科 / AP / 微积分BC'] === '评语甲' && mergedC['竞赛 / AMC10'] === '评语乙', '评语按键合并：两次分别改不同科目均生效（旧键不被覆盖）');
+  // mock null 墓碑删除（合并语义下清除需显式 null）
+  await req('PUT', '/api/students/' + stuA + '/subj-fields', { mock: { '竞赛 / AMC10': { date: '2026-10-20' } } }, T1);
+  await req('PUT', '/api/students/' + stuA + '/subj-fields', { mock: { '竞赛 / AMC10': null } }, T1);
+  ok(!JSON.parse(db.prepare('SELECT mock FROM students WHERE id = ?').get(stuA).mock)['竞赛 / AMC10'], 'mock null 墓碑删除生效');
 
   /* ---- 待办预警动作接口（/api/alerts/action；state 同步 alertActions） ---- */
   r = await req('POST', '/api/missed', { studentId: stuA, date: today(), subject: '学科 / AP / 微积分BC' }, T1);

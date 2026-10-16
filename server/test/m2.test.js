@@ -66,6 +66,16 @@ function ok(cond, name){
   ok(r.status === 200 && r.data.ok && r.data.user.username === 'admin' && r.data.user.role === 'admin',
     'GET /api/me 返回当前用户（刷新恢复会话用）');
 
+  /* ---- 强制改密硬限制（v1.7.0）：待改密账号仅放行 /password /me /logout，其余 403 ---- */
+  r = await req('GET', '/api/users', null, adminTok);
+  ok(r.status === 403 && r.data.msg === '请先修改初始密码', '待改密账号调业务接口被硬限制 403');
+  r = await req('POST', '/api/password', { oldPwd: 'admin123', newPwd: 'admin456' }, adminTok);
+  ok(r.status === 200 && r.data.ok === true, '待改密账号改密（/password 放行）');
+  r = await req('GET', '/api/users', null, adminTok);
+  ok(r.status === 200, '改密后业务接口恢复（200）');
+  // 后续用例统一用新密码
+  const adminPwd = 'admin456';
+
   r = await req('GET', '/api/users', null, adminTok);
   ok(r.status === 200 && Array.isArray(r.data.users) && r.data.users.length === 1, '教务 GET /api/users 返回账号列表');
   ok(r.data.users[0].pass_hash === undefined && r.data.users[0].stuCnt === 0, '账号列表不含 pass_hash，附学生数统计');
@@ -81,8 +91,8 @@ function ok(cond, name){
   const ta1Row0 = r.data.users.find(u => u.id === ta1Id);
   const adminRow0 = r.data.users.find(u => u.username === 'admin');
   ok(ta1Row0 && ta1Row0.tempPassword === 'ta123456', '待改密账号列表返回 tempPassword');
-  ok(adminRow0 && adminRow0.mustChangePwd === true && adminRow0.tempPassword === undefined,
-    '待改密但无 temp_password 的账号（种子 admin）不返回 tempPassword');
+  ok(adminRow0 && adminRow0.mustChangePwd === false && adminRow0.tempPassword === undefined,
+    '已改密账号不返回 tempPassword（admin 已在硬限制用例中改密）');
 
   r = await req('POST', '/api/users', { name: '重复', username: 'ta1', password: 'abcdef', role: 'ta' }, adminTok);
   ok(r.status === 400 && r.data.ok === false, '重复 username 被拒（400）');
@@ -99,6 +109,8 @@ function ok(cond, name){
 
   r = await req('GET', '/api/users', null, taTokA);
   ok(r.status === 403 && r.data.ok === false, '非教务调 users 接口 403');
+  r = await req('GET', '/api/state', null, taTokA);
+  ok(r.status === 403 && r.data.msg === '请先修改初始密码', '待改密助教调 /api/state 被硬限制 403');
 
   /* ---- 修改密码 ---- */
   r = await req('POST', '/api/password', { oldPwd: 'bad', newPwd: 'ta654321' }, taTokA);

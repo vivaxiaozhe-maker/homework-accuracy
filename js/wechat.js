@@ -396,9 +396,14 @@ function cancelMockExam(){
   const st = getMockStu();
   if(st && st.mock && st.mock[quickEntry.subject]){
     delete st.mock[quickEntry.subject].date;
-    if(!Object.keys(st.mock[quickEntry.subject]).length) delete st.mock[quickEntry.subject];
+    const slotEmpty = !Object.keys(st.mock[quickEntry.subject]).length;
+    if(slotEmpty) delete st.mock[quickEntry.subject];
     logAction('取消模考预约', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '', {ownerId: st.ownerId});
-    apiPersist(HttpApi.updateSubjFields(st.id, {mock: st.mock}));
+    // 服务端 v1.7.0 起为按键合并：删除需 null 墓碑（整 slot 删空 → slot 置 null；仅删日期 → date 置 null）
+    const patch = JSON.parse(JSON.stringify(st.mock));
+    if(slotEmpty) patch[quickEntry.subject] = null;
+    else patch[quickEntry.subject] = Object.assign({}, patch[quickEntry.subject], { date: null });
+    apiPersist(HttpApi.updateSubjFields(st.id, {mock: patch}));
   }
   mockEdit = null;
   save();
@@ -423,9 +428,14 @@ function clearMockScore(){
   const st = getMockStu();
   if(st && st.mock && st.mock[quickEntry.subject]){
     delete st.mock[quickEntry.subject].score;
-    if(!Object.keys(st.mock[quickEntry.subject]).length) delete st.mock[quickEntry.subject];
+    const slotEmpty = !Object.keys(st.mock[quickEntry.subject]).length;
+    if(slotEmpty) delete st.mock[quickEntry.subject];
     logAction('清除模考分数', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '', {ownerId: st.ownerId});
-    apiPersist(HttpApi.updateSubjFields(st.id, {mock: st.mock}));
+    // 服务端 v1.7.0 起为按键合并：删除需 null 墓碑（整 slot 删空 → slot 置 null；仅删分数 → score 置 null）
+    const patch = JSON.parse(JSON.stringify(st.mock));
+    if(slotEmpty) patch[quickEntry.subject] = null;
+    else patch[quickEntry.subject] = Object.assign({}, patch[quickEntry.subject], { score: null });
+    apiPersist(HttpApi.updateSubjFields(st.id, {mock: patch}));
   }
   mockEdit = null;
   save();

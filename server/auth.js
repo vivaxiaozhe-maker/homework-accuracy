@@ -30,6 +30,10 @@ function auth(req, res, next){
   if(!sess) return res.status(401).json({ ok: false, msg: '未登录或登录已过期' });
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(sess.user_id);
   if(!user || user.disabled) return res.status(401).json({ ok: false, msg: '未登录或登录已过期' });
+  // 强制改密硬限制（v1.7.0）：待改密账号仅放行改密/查自己/登出，其余一律 403——防跳过前端强制弹窗直接调接口
+  if(user.must_change_pwd && ['/password', '/me', '/logout'].indexOf(req.path) === -1){
+    return res.status(403).json({ ok: false, msg: '请先修改初始密码' });
+  }
   req.user = user;
   req.token = token;
   next();

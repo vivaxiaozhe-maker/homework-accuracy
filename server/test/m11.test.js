@@ -57,8 +57,12 @@ function ok(cond, name){
 
   /* ---- 账号与学生数据 ---- */
   const adminTok = (await req('POST', '/api/login', { username: 'admin', password: 'admin123', role: 'admin' })).data.token;
+  // 强制改密硬限制（v1.7.0）：admin 先改密才能建号；新号登录后先改密再开展用例
+  const chpwd = (tok, oldP) => req('POST', '/api/password', { oldPwd: oldP, newPwd: 'Xx' + Math.random().toString(36).slice(2, 8) + '!' }, tok);
+  await chpwd(adminTok, 'admin123');
   await req('POST', '/api/users', { name: '王助教', username: 'ta1', password: 'ta123456', role: 'ta' }, adminTok);
   const T1 = (await req('POST', '/api/login', { username: 'ta1', password: 'ta123456', role: 'ta' })).data.token;
+  await chpwd(T1, 'ta123456');
   const subj = '学科 / AP / 微积分BC';
   const subj2 = '竞赛 / AMC10';
   // 数据全的学生（评语/建议/双科目模考/作业记录）
