@@ -407,22 +407,24 @@ document.getElementById('ns-ok').addEventListener('click', ()=>{
   renderAll();
 });
 
-/* 归档 / 恢复学生（按同名组操作，作业记录保留） */
+/* 归档 / 恢复学生（按同名组操作，作业记录保留；v1.7.1 起记录归档时间 + 可选原因） */
 function archiveGroup(ids){
   const denied = ids.some(id=>{ const s = pool.students.find(x=>x.id===id); return !s || !canWriteOwner(s.ownerId); });
   if(denied){ toast('没有权限操作该数据'); return; }
-  askConfirm('转为历史学生', '该学生将从「现有学生」移到「历史学生」，录入下拉中不再出现；科目、作业记录、打卡、评语、模考等数据完整保留，可在历史板块查看（恢复为现有学生后可继续编辑）。确定吗？', ()=>{
-    pool.students.forEach(s=>{ if(ids.includes(s.id)) s.archived = true; });
+  askConfirm('转为历史学生', '该学生将从「现有学生」移到「历史学生」，录入下拉中不再出现；科目、作业记录、打卡、评语、模考等数据完整保留，可在历史板块查看（恢复为现有学生后可继续编辑）。确定吗？', (reason)=>{
+    const rs = (reason || '').trim();
+    const nowIso = new Date().toISOString();
+    pool.students.forEach(s=>{ if(ids.includes(s.id)){ s.archived = true; s.archivedAt = nowIso; s.archivedReason = rs; } });
     const st0 = pool.students.find(x=>x.id===ids[0]);
-    logAction('归档学生', 'student', st0 ? st0.name : '', '转为历史学生', {ownerId: st0 ? st0.ownerId : undefined});
-    apiPersist(HttpApi.setStudentArchived(ids[0], true));  // 后端同步同名组
+    logAction('归档学生', 'student', st0 ? st0.name : '', '转为历史学生' + (rs ? '，原因：' + rs : ''), {ownerId: st0 ? st0.ownerId : undefined});
+    apiPersist(HttpApi.setStudentArchived(ids[0], true, rs));  // 后端同步同名组（含归档时间/原因）
     save(); renderAll();
-  });
+  }, { input: '归档原因（选填，如：已结课 / 已毕业）' });
 }
 function restoreGroup(ids){
   const denied = ids.some(id=>{ const s = pool.students.find(x=>x.id===id); return !s || !canWriteOwner(s.ownerId); });
   if(denied){ toast('没有权限操作该数据'); return; }
-  pool.students.forEach(s=>{ if(ids.includes(s.id)) s.archived = false; });
+  pool.students.forEach(s=>{ if(ids.includes(s.id)){ s.archived = false; s.archivedAt = null; s.archivedReason = ''; } });  // 恢复清空归档信息
   const st0 = pool.students.find(x=>x.id===ids[0]);
   logAction('恢复学生', 'student', st0 ? st0.name : '', '恢复为现有学生', {ownerId: st0 ? st0.ownerId : undefined});
   apiPersist(HttpApi.setStudentArchived(ids[0], false));
@@ -431,6 +433,8 @@ function restoreGroup(ids){
 
 /* 历史学生列表（完整明细同步：科目正确率、评语、模考、打卡计划、未交记录；只读查看） */
 let alumniQuery = '';  // 历史学生搜索词（姓名/学校部分匹配）
+let alumniRange = 'all';  // 归档时间范围筛选（v1.7.1）：'all' 全部 / '30d' 近 30 天归档
+function setAlumniRange(v){ alumniRange = v; renderAlumni(); }
 document.getElementById('alumni-search').addEventListener('input', function(){
   alumniQuery = this.value.trim();
   renderAlumni();
@@ -441,17 +445,29 @@ function renderAlumni(){
   archivedStudents().forEach(s=>{
     const key = (s.ownerId||'') + '|' + s.name.trim();
     let g = groups.find(x=>x.key===key);
-    if(!g){ g = {key:key, name:s.name.trim(), ownerId:s.ownerId||'', ids:[], school:'', gradYear:'', sample:false}; groups.push(g); }
+    if(!g){ g = {key:key, name:s.name.trim(), ownerId:s.ownerId||'', ids:[], school:'', gradYear:'', sample:false, archivedAt:null, archivedReason:''}; groups.push(g); }
     g.ids.push(s.id);
     if(s.sample) g.sample = true;
     if(s.school) g.school = s.school;
     if(s.gradYear) g.gradYear = s.gradYear;
+    // 归档信息（v1.7.1）：组内取最新归档时间；原因取有值者
+    if(s.archivedAt && (!g.archivedAt || s.archivedAt > g.archivedAt)) g.archivedAt = s.archivedAt;
+    if(s.archivedReason) g.archivedReason = s.archivedReason;
   });
   // 首字母筛选条（所有角色可见；与姓名/学校搜索叠加取交集）
   const alLb = document.getElementById('alumni-letter-bar');
   if(alLb) alLb.innerHTML = letterBarHtml(alumniLetters, 'alumni');
-  // 姓名/学校搜索 + 首字母筛选叠加过滤
-  const filtered = groups.filter(g=>(!alumniQuery || g.name.indexOf(alumniQuery)!==-1 || (g.school||'').indexOf(alumniQuery)!==-1) && matchLetters(g.name, alumniLetters));
+  // 归档时间范围筛选 chip 选中态同步
+  const ar30 = document.getElementById('alumni-range-30d');
+  if(ar30){
+    ar30.classList.toggle('active', alumniRange==='30d');
+    document.getElementById('alumni-range-all').classList.toggle('active', alumniRange==='all');
+  }
+  // 姓名/学校搜索 + 首字母筛选 + 归档时间范围（近 30 天/全部）叠加过滤
+  const rangeStart = alumniRange==='30d' ? offsetDay(-29) : null;
+  const filtered = groups.filter(g=>(!alumniQuery || g.name.indexOf(alumniQuery)!==-1 || (g.school||'').indexOf(alumniQuery)!==-1)
+    && matchLetters(g.name, alumniLetters)
+    && (!rangeStart || (g.archivedAt && g.archivedAt.slice(0,10) >= rangeStart)));  // 旧数据无归档时间 → 不在「近 30 天」出现
   // 销售视角：无关键字只展示示例历史学生（演示用），真实学生仍需搜索
   if(isSalesView()){
     if(USE_API){ renderSalesApiList(list, true); return; }  // API 模式：搜索走服务端
@@ -543,6 +559,7 @@ function renderAlumni(){
       (g.gradYear ? ' <span class="tag mint">' + g.gradYear + ' 届</span>' : '') +
       (g.ids.length>1 ? ' <span class="tag mint">同名合并 ×' + g.ids.length + '</span>' : '') +
       (g.sample?' <span class="tag sample">示例</span>':'') +
+      (g.archivedAt ? ' <span class="tag sample" title="归档时间">归档于 ' + esc(g.archivedAt.slice(0,10)) + (g.archivedReason ? ' · ' + esc(g.archivedReason) : '') + '</span>' : '') +
       (isAdminView() ? ' <span class="tag mint owner-tag" onclick="openTransfer([\'' + g.ids.join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '<span class="tag-go">›</span></span>' : '') + '</div>' +
       trend +
       '</div>' +
@@ -692,6 +709,11 @@ function enterApp(){
   if(importBtn) importBtn.style.display = USE_API ? 'none' : '';
   const apiTip = document.getElementById('import-api-tip');
   if(apiTip) apiTip.style.display = USE_API ? '' : 'none';
+  // 示例数据操作仅 mock 演示模式可用（生产无示例数据概念；与导入隐藏同口径）
+  const csBtn = document.getElementById('btn-clear-sample');
+  if(csBtn) csBtn.style.display = USE_API ? 'none' : '';
+  const lsBtn = document.getElementById('btn-load-sample');
+  if(lsBtn) lsBtn.style.display = USE_API ? 'none' : '';
   // 销售端搜索框提示语 + 隐藏图表卡与新增学生入口（只读查询）
   document.getElementById('stats-chart-card').style.display = role==='sales' ? 'none' : '';
   document.getElementById('btn-open-add-stu').style.display = role==='sales' ? 'none' : '';
@@ -847,7 +869,8 @@ function renderAccounts(){
   // 按角色分组：教务管理员 → 助教 → 销售（组头带数量；行内容与操作按钮不变）
   const GROUPS = [ {role:'admin', label:'教务管理员'}, {role:'ta', label:'助教'}, {role:'sales', label:'销售'} ];
   const rowHtml = u=>{
-    const stuCnt = pool.students.filter(s=>s.ownerId===u.id).length;
+    const stuCnt = pool.students.filter(s=>s.ownerId===u.id).length;  // 总数口径不变
+    const archCnt = pool.students.filter(s=>s.ownerId===u.id && s.archived).length;
     const isSelf = currentUser && u.id===currentUser.id;
     return '<div class="acct-row">' +
       '<div class="grow"><b>' + esc(u.name) + '</b> ' +
@@ -855,7 +878,9 @@ function renderAccounts(){
       (u.disabled ? ' <span class="tag red">已停用</span>' : '') +
       (u.mustChangePwd ? ' <span class="tag sample">待改密</span>' : '') +
       (isSelf ? ' <span class="tag sample">当前登录</span>' : '') +
-      '<div class="hint" style="margin-top:2px">账号 ' + esc(u.username) + ' · 学生 ' + stuCnt + ' 人 · 创建于 ' + esc((u.createdAt||'-').slice(0,10)) + '</div>' +
+      // 学生数口径（v1.7.1）：在服务数 + 有归档时补「含归档 M」
+      '<div class="hint" style="margin-top:2px">账号 ' + esc(u.username) + ' · 学生 ' + stuCnt + ' 人' +
+      (archCnt > 0 ? '（含归档 ' + archCnt + '）' : '') + ' · 创建于 ' + esc((u.createdAt||'-').slice(0,10)) + '</div>' +
       // 待改密且有初始密码：琥珀色持久展示（创建/重置写入，本人改密后由后端/本地清除）
       (u.mustChangePwd && u.tempPassword
         ? '<div class="hint" style="margin-top:2px;color:#B9802A;font-weight:600">初始密码：' + esc(u.tempPassword) + '（待本人修改）</div>'

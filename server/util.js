@@ -45,6 +45,7 @@ function shortSubject(s){
 function stuToJson(s){
   return { id: s.id, ownerId: s.owner_id, name: s.name, school: s.school || '', gradYear: s.grad_year || '',
     archived: !!s.archived, sample: !!s.sample,
+    archivedAt: s.archived_at || null, archivedReason: s.archived_reason || '',  // v1.7.1 归档时间/原因
     subjects: parseJson(s.subjects, []),
     subjPlans: parseJson(s.subj_plans, {}), subjPlanSetAt: parseJson(s.subj_plan_set_at, {}),
     subjComments: parseJson(s.subj_comments, {}), subjAdvice: parseJson(s.subj_advice, {}),

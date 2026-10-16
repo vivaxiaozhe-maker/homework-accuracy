@@ -329,6 +329,19 @@ function printReport(area){
   setTimeout(()=>{ if(area) area.style.display='none'; }, 1500);
 }
 /* 保存老师评语（按 学生×科目 存储，同名组合并共享） */
+/* ---- 评语/建议未保存提醒（v1.7.1）：input 置 dirty，保存成功清除；切科目/学生/页签时 toast 提醒（不阻塞） ---- */
+let qeDirty = { comment: false, advice: false };
+// 事件委托挂 body（textarea 随面板重渲染；DOM 桩的 body.addEventListener 为空操作，安全静默）
+document.body.addEventListener('input', function(e){
+  const id = e.target && e.target.id;
+  if(id === 'qe-comment') qeDirty.comment = true;
+  if(id === 'qe-advice') qeDirty.advice = true;
+});
+function qeDirtyToast(){
+  if(qeDirty.comment && qeDirty.advice) toast('评语与建议有未保存的修改');
+  else if(qeDirty.comment) toast('评语有未保存的修改');
+  else if(qeDirty.advice) toast('建议有未保存的修改');
+}
 function saveSubjectComment(){
   if(!quickEntry) return;
   const ta = document.getElementById('qe-comment');
@@ -338,7 +351,8 @@ function saveSubjectComment(){
     st.subjComments = st.subjComments || {};
     st.subjComments[quickEntry.subject] = text.trim();
     logAction('保存评语', 'record', auditStuDesc(st.id, quickEntry.subject), text.trim() ? text.trim().slice(0,50) : '（清空评语）', {ownerId: st.ownerId});
-    apiPersist(HttpApi.updateSubjFields(st.id, {subjComments: st.subjComments}));  // API 模式：整体提交评语列
+    apiPersist(HttpApi.updateSubjFields(st.id, {subjComments: st.subjComments}));  // API 模式：按键合并提交评语列
+    qeDirty.comment = false;  // 保存成功清除 dirty
     save();
   }
   const tip = document.getElementById('qe-comment-tip');
@@ -355,6 +369,7 @@ function saveSubjectAdvice(){
     st.subjAdvice[quickEntry.subject] = text.trim();
     logAction('保存学习计划与建议', 'record', auditStuDesc(st.id, quickEntry.subject), text.trim() ? text.trim().slice(0,50) : '（清空）', {ownerId: st.ownerId});
     apiPersist(HttpApi.updateSubjFields(st.id, {subjAdvice: st.subjAdvice}));
+    qeDirty.advice = false;  // 保存成功清除 dirty
     save();
   }
   const tip = document.getElementById('qe-advice-tip');

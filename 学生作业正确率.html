@@ -44,11 +44,11 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.7.0</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.7.1</div>
   </aside>
 
   <main>
-    <!-- 页头（v1.7.0 设计稿：纯文字品牌区 + 小书本图标 + 动态日期 + 暖金竖线标语；书页装饰为背景） -->
+    <!-- 页头（v1.7.1 设计稿：纯文字品牌区 + 小书本图标 + 动态日期 + 暖金竖线标语；书页装饰为背景） -->
     <div class="topbar">
       <div class="tb-left">
         <img class="tb-book" src="assets/book-icon.svg" alt="">
@@ -157,8 +157,8 @@
         <h2 onclick="toggleBarChart()" title="点击展开/收起"><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>各科目平均正确率（全体学生）<span style="flex:1"></span><span class="chev">▾</span></h2>
         <div class="chart-wrap" id="bar-chart"></div>
       </div>
-      <!-- 搜索框移到图表与学生明细之间 -->
-      <div class="card" style="padding:14px 20px">
+      <!-- 搜索框移到图表与学生明细之间；sticky 常驻顶部（滚动明细时筛选区不滚走） -->
+      <div class="card" id="stu-filter-card" style="padding:14px 20px">
         <div class="search-box">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input id="stu-search" placeholder="按学生姓名搜索，支持部分匹配，如：林">
@@ -184,6 +184,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input id="alumni-search" placeholder="按学生姓名或学校搜索，支持部分匹配">
         </div>
+        <!-- 归档时间范围筛选（近 30 天 / 全部） -->
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <span class="sub-chip" id="alumni-range-30d" onclick="setAlumniRange('30d')">近 30 天归档</span>
+          <span class="sub-chip active" id="alumni-range-all" onclick="setAlumniRange('all')">全部</span>
+        </div>
         <div id="alumni-letter-bar"></div>
       </div>
       <div class="card">
@@ -198,7 +203,7 @@
       <!-- 通知设置（仅教务可见可改；默认全关；mock 演示环境隐藏） -->
       <div class="card" id="push-config-card" style="display:none">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>通知设置</h2>
-        <p class="hint" style="margin-top:0">开启后，对应内容保存成功时自动推送给已绑定家长的微信；未绑定家长的学生不推送。开关与频率即时生效。</p>
+        <p class="hint" style="margin-top:0">开启后，对应内容保存成功时自动推送给已绑定家长的微信；未绑定家长的学生不推送。每 10 分钟最多推送设定次数（按类型分别计数，超额自动推送将丢弃）。开关与频率即时生效。</p>
         <div class="push-cfg-row"><span>作业成绩通知<small>（打卡录入/批改保存时）</small></span>
           <span class="push-max"><button class="push-max-btn" onclick="pushMaxStep('homework',-1)" aria-label="减少">−</button><span class="push-max-num" id="push-max-homework">3</span><span class="push-max-unit">次/10分钟</span><button class="push-max-btn" onclick="pushMaxStep('homework',1)" aria-label="增加">＋</button></span>
           <button class="switch" id="push-cfg-homework" onclick="togglePushConfig('homework')" aria-label="作业成绩通知开关"></button></div>
@@ -379,6 +384,10 @@
   <div class="modal">
     <h3 id="cf-title">确认操作</h3>
     <p id="cf-text"></p>
+    <!-- 可选输入行（归档原因等「确认 + 选填文本」场景；askConfirm opts.input 控制显隐） -->
+    <div class="field" id="cf-input-wrap" style="display:none;margin-bottom:14px">
+      <input id="cf-input" placeholder="">
+    </div>
     <div class="row">
       <button class="btn ghost sm" id="cf-cancel">取消</button>
       <button class="btn danger sm" id="cf-ok">确认执行</button>
@@ -511,7 +520,7 @@
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.7.0</div>
+    <div class="login-ver" id="login-ver">v1.7.1</div>
   </div>
 </div>
 

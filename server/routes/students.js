@@ -3,7 +3,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireRole } = require('../auth');
-const { uid, logAudit, canWrite, clientId, parseJson, stuToJson } = require('../util');
+const { uid, logAudit, canWrite, clientId, parseJson, shortSubject, stuToJson } = require('../util');
 const wx = require('../wechat');
 const push = require('../push');
 
@@ -50,7 +50,13 @@ router.put('/:id', (req, res) => {
   }
   const upd = db.prepare('UPDATE students SET name = ?, school = ?, grad_year = ? WHERE id = ?');
   group.forEach(gid => upd.run(newName, (school || '').trim(), String(gradYear), gid));
-  logAudit(req.user, '修改学生信息', 'student', newName, (school || '无学校') + ' · ' + gradYear + ' 届', st.owner_id);
+  // 审计 detail 带前后值（v1.7.1）：姓名/学校/届别逐项对比
+  const diffs = [];
+  if(newName !== st.name.trim()) diffs.push('姓名 ' + st.name.trim() + ' → ' + newName);
+  if((school || '').trim() !== (st.school || '')) diffs.push('学校 ' + (st.school || '无') + ' → ' + ((school || '').trim() || '无'));
+  if(String(gradYear) !== (st.grad_year || '')) diffs.push('届别 ' + (st.grad_year || '无') + ' → ' + gradYear);
+  logAudit(req.user, '修改学生信息', 'student', newName,
+    diffs.length ? diffs.join('；') : '内容未变化', st.owner_id);
   res.json({ ok: true, updated: group.length });
 });
 
@@ -65,9 +71,12 @@ function setArchived(req, res, flag){
   // 同名组（同 owner 同名）一并操作
   const group = db.prepare('SELECT id FROM students WHERE owner_id = ? AND TRIM(name) = ?')
     .all(st.owner_id, st.name.trim()).map(r => r.id);
-  const upd = db.prepare('UPDATE students SET archived = ? WHERE id = ?');
-  group.forEach(gid => upd.run(flag, gid));
-  logAudit(req.user, flag ? '归档学生' : '恢复学生', 'student', st.name, flag ? '转为历史学生' : '恢复为现有学生', st.owner_id);
+  // v1.7.1：归档写 archived_at + 可选原因；恢复清空
+  const reason = flag ? String((req.body && req.body.reason) || '').trim() : '';
+  const upd = db.prepare('UPDATE students SET archived = ?, archived_at = ?, archived_reason = ? WHERE id = ?');
+  group.forEach(gid => upd.run(flag, flag ? new Date().toISOString() : null, flag ? reason : null, gid));
+  logAudit(req.user, flag ? '归档学生' : '恢复学生', 'student', st.name,
+    flag ? ('转为历史学生' + (reason ? '，原因：' + reason : '')) : '恢复为现有学生', st.owner_id);
   res.json({ ok: true, updated: group.length });
 }
 
@@ -83,7 +92,9 @@ router.post('/:id/owner', requireRole('admin'), (req, res) => {
   // 附件归属随记录转移（files.owner_id = 上传人；不转则原助教仍可读、新助教 403 且编辑成绩时 checkFileIds 受阻）
   db.prepare('UPDATE files SET owner_id = ? WHERE record_id IN (SELECT id FROM records WHERE student_id = ?)')
     .run(target.id, st.id);
-  logAudit(req.user, '转移归属', 'student', st.name, '转移给 ' + target.name, target.id);
+  const oldOwner = db.prepare('SELECT name FROM users WHERE id = ?').get(st.owner_id);
+  logAudit(req.user, '转移归属', 'student', st.name,
+    '原归属 ' + (oldOwner ? oldOwner.name : '未知') + '，转移给 ' + target.name, target.id);  // v1.7.1 补前后值
   res.json({ ok: true });
 });
 
@@ -157,7 +168,21 @@ router.put('/:id/subj-fields', async (req, res) => {
     }
   }
   db.prepare('UPDATE students SET ' + setClauses.join(', ') + ' WHERE id = ?').run(...params, st.id);
-  logAudit(req.user, actions.join('、'), 'student', st.name, keys.join('、'), st.owner_id);
+  // 审计 detail（v1.7.1）：模考列补新旧值对比（日期/分数逐科目），其余列保持键名单
+  let auditDetail = keys.join('、');
+  if(keys.includes('mock') && mergedMock !== null){
+    const dp = [];
+    Object.keys(mergedMock).forEach(sub=>{
+      const o = oldMockAll[sub] || {}, n = mergedMock[sub] || {};
+      const diffs = [];
+      if(String(o.date ?? '') !== String(n.date ?? '')) diffs.push('日期 ' + (o.date || '无') + ' → ' + (n.date || '无'));
+      if(String(o.score ?? '') !== String(n.score ?? '')) diffs.push('分数 ' + (o.score ?? '无') + ' → ' + (n.score ?? '无'));
+      if(diffs.length) dp.push(shortSubject(sub) + '：' + diffs.join('，'));
+    });
+    Object.keys(oldMockAll).forEach(sub=>{ if(!(sub in mergedMock)) dp.push(shortSubject(sub) + '：已清除'); });
+    if(dp.length) auditDetail = dp.join('；');
+  }
+  logAudit(req.user, actions.join('、'), 'student', st.name, auditDetail, st.owner_id);
   // 模考列变化按开关自动推送：date 变化 → 考试报名成功通知；score 变化 → 考试成绩通知（静默失败不阻塞保存）
   let pushed;
   if(oldMockAll !== null){

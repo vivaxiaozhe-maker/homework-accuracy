@@ -80,7 +80,7 @@ function ok(cond, name){
   const sessionStore = ctx.sessionStorage;  // vm context 内同一引用
 
   const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-  /* 前端已拆分为 js/*.js（v1.7.0）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+  /* 前端已拆分为 js/*.js（v1.7.1）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
   const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
   if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
   const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
@@ -94,7 +94,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.7.0', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.7.1', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -287,7 +287,7 @@ function ok(cond, name){
   const salesMade = await wb.Api.createUser('张顾问', 'sales1', 'sales123456', 'sales');
   await wb.Api.transferStudent([sid], (await wb.Api.listUsers()).find(u=>u.username==='ta1').id);
   wb.doLogout();
-  // 强制改密硬限制（v1.7.0）：新账号登录后待改密，业务接口一律 403——先走改密流程再使用
+  // 强制改密硬限制（v1.7.1）：新账号登录后待改密，业务接口一律 403——先走改密流程再使用
   await wb.Api.login('sales1', 'sales123456', 'sales');
   await wb.HttpApi._req('POST', '/api/password', { oldPwd: 'sales123456', newPwd: 'sales654321' });
   wb.doLogout();
@@ -450,7 +450,7 @@ function ok(cond, name){
   const bindsFoot2 = documentStub.getElementById('binds-foot').innerHTML;
   ok(bindsFoot2.indexOf('已绑定 2 / 2 名家长') !== -1 && bindsFoot2.indexOf('已绑定 2 名家长（上限）') !== -1
     && bindsFoot2.indexOf('+ 绑定新家长') === -1, '满 2 名家长时弹窗显示上限提示且无绑定入口');
-  // 家长显示名（v1.7.0）：无备注按绑定早晚显示「家长 N」，openid 退居副行；有备注显示备注
+  // 家长显示名（v1.7.1）：无备注按绑定早晚显示「家长 N」，openid 退居副行；有备注显示备注
   const bindsList2 = documentStub.getElementById('binds-list').innerHTML;
   ok(bindsList2.indexOf('家长 1') !== -1 && bindsList2.indexOf('家长 2') !== -1 && bindsList2.indexOf('openid ') !== -1,
     '无备注时按绑定早晚显示「家长 N」序号，openid 退居副行');
@@ -493,7 +493,7 @@ function ok(cond, name){
   const sharePg2 = await (await fetch(base + shareR2.url)).text();
   ok(sharePg2.indexOf('本次无作业') !== -1 && sharePg2.indexOf('2026-09-18') !== -1, '落地页无作业行渲染「本次无作业」+ 日期');
 
-  /* ---- v1.7.0：落地页打卡表与格子序列对齐（未交行 + 统计卡口径） ---- */
+  /* ---- v1.7.1：落地页打卡表与格子序列对齐（未交行 + 统计卡口径） ---- */
   const missForReport = await wb.HttpApi.addMissed({ studentId: sid, date: '2026-09-10', subject: subj });
   ok(missForReport.ok, '造一条未处理未交记录（落地页序列对齐测试）');
   const sharePg3 = await (await fetch(base + shareR2.url)).text();  // 复用分享链接（落地页实时渲染）
@@ -529,7 +529,7 @@ function ok(cond, name){
   ok(ta2Login.ok && !forbid.ok && forbid.msg.indexOf('权限') !== -1, '助教不能处理他人名下学生的预警（403）');
   await wb.doLogin('ta1', 'ta654321', 'ta');  // 恢复
 
-  /* ---- v1.7.0 零碎项（API 模式）：看板卡拆分 + 审计系统操作人 + 教务管理页四卡 ---- */
+  /* ---- v1.7.1 零碎项（API 模式）：看板卡拆分 + 审计系统操作人 + 教务管理页四卡 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
   const dashOv2 = documentStub.getElementById('dash-overview').innerHTML;
   ok(dashOv2.indexOf('在服务学生') !== -1 && dashOv2.indexOf('已归档学生') !== -1 && dashOv2.indexOf('含历史') === -1,
@@ -549,7 +549,7 @@ function ok(cond, name){
     && html.indexOf('备份与恢复') < html.indexOf('id="data-clean-zone"'),
     '教务管理页四卡重排（通知设置→科目设置→备份恢复→危险操作区）');
 
-  /* ---- 走查 P1（v1.7.0）：API 模式导入恢复隐藏 + 提示 ---- */
+  /* ---- 走查 P1（v1.7.1）：API 模式导入恢复隐藏 + 提示 ---- */
   ok(documentStub.getElementById('btn-import').style.display === 'none'
     && documentStub.getElementById('import-api-tip').style.display !== 'none',
     'API 模式隐藏「导入恢复」并提示「生产环境数据在服务器，恢复数据请联系管理员」');

@@ -231,6 +231,11 @@ CREATE TABLE IF NOT EXISTS parent_binds (
 CREATE INDEX IF NOT EXISTS idx_binds_student ON parent_binds(student_id);
 CREATE INDEX IF NOT EXISTS idx_binds_openid ON parent_binds(openid);
 `);
+/* 归档日期与原因迁移（v1.7.1）：students 补 archived_at / archived_reason 列 */
+if(!db.prepare("PRAGMA table_info(students)").all().map(c => c.name).includes('archived_at')){
+  db.exec('ALTER TABLE students ADD COLUMN archived_at TEXT');
+  db.exec('ALTER TABLE students ADD COLUMN archived_reason TEXT');
+}
 /* 绑定二维码迁移：students 补 bind_token 列（扫码场景值 scene_str，首次生成二维码时写入复用） */
 if(!db.prepare("PRAGMA table_info(students)").all().map(c => c.name).includes('bind_token')){
   db.exec('ALTER TABLE students ADD COLUMN bind_token TEXT');

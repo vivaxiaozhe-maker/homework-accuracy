@@ -87,8 +87,18 @@ function ok(cond, name){
   ok(r.status === 200 && r.data.updated === 2, '归档同名组');
   r = await req('GET', '/api/state', null, T1);
   ok(r.data.state.students.every(s => s.archived), '归档后 state 中标记 archived');
+  // 归档字段（v1.7.1）：archivedAt/archivedReason 写库并随 state 带出
+  ok(r.data.state.students.every(s => s.archivedAt && typeof s.archivedAt === 'string'), '归档写 archivedAt 并随 state 同步');
   r = await req('POST', '/api/students/' + stuA + '/restore', {}, T1);
   ok(r.status === 200, '恢复为现有学生');
+  r = await req('GET', '/api/state', null, T1);
+  ok(r.data.state.students.every(s => s.archivedAt === null), '恢复后归档信息清空');
+  // 带原因归档
+  r = await req('POST', '/api/students/' + stuA + '/archive', { reason: '已结课' }, T1);
+  const archRow = db.prepare('SELECT archived_at, archived_reason FROM students WHERE id = ?').get(stuA);
+  ok(r.status === 200 && archRow.archived_reason === '已结课' && archRow.archived_at, '归档原因写库（archived_reason + archived_at）');
+  ok(db.prepare("SELECT * FROM audit_logs WHERE action = '归档学生' AND detail LIKE '%已结课%'").all().length > 0, '归档审计 detail 带原因');
+  r = await req('POST', '/api/students/' + stuA + '/restore', {}, T1);
 
   /* ---- 记录 ---- */
   r = await req('POST', '/api/records', { studentId: stuA, date: today(), total: 20, correct: 25, wrongs: [], subject: '学科 / AP / 微积分BC' }, T1);

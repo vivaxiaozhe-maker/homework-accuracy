@@ -877,6 +877,8 @@ function salesApiPanel(st, subject){
 /* ================= 卡内科目 Tab 快速录入 ================= */
 let quickEntry = null;  // {gid: 学生代表id, subject: 科目路径}
 function toggleQuickEntry(gid, subject){
+  // 评语/建议有未保存修改时提醒（不阻塞切换）
+  if(quickEntry && (quickEntry.gid!==gid || quickEntry.subject!==subject) && typeof qeDirtyToast==='function') qeDirtyToast();
   if(quickEntry && quickEntry.gid===gid && quickEntry.subject===subject){
     quickEntry = null;  // 再点一次收起
   } else {

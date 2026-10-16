@@ -92,14 +92,25 @@ function computeDash(){
     };
   }).sort((a,b)=>b.days-a.days);
 
-  // 预警三：沉睡学生（≥7 天无任何作业记录的现有学生，当前状态指标）
+  // 预警三：沉睡学生拆三类（v1.7.1 降噪）——
+  //   未开课（所有科目 firstClass 都在未来）：不进预警主列表
+  //   待首录（从未有任何记录）：单列灰色汇总「待首录 N 人」，不占红色预警条目
+  //   长期未更新（有记录但 ≥7 天无新记录）：保留为正式预警
+  const firstTimers = [];
   const sleepers = students.filter(s=>!s.archived).map(s=>{
     const rs = pool.records.filter(r=>r.studentId===s.id);
     const last = rs.length ? rs.reduce((a,b)=>a.date>b.date?a:b).date : null;
     return { name: s.name, ownerId: s.ownerId, last: last,
-      days: last ? Math.round((new Date(t) - new Date(last)) / 86400000) : null };
-  }).filter(x=>x.days===null || x.days>=7)
-    .sort((a,b)=>(b.days===null?999999:b.days)-(a.days===null?999999:a.days));
+      days: last ? Math.round((new Date(t) - new Date(last)) / 86400000) : null,
+      _fc: s.subjFirstClass || {} };
+  }).filter(x=>{
+    if(x.days !== null) return x.days >= 7;  // 长期未更新 → 正式预警
+    // 从未有记录：所有科目开课时间都在未来 → 未开课不进；否则进待首录
+    const fcs = Object.values(x._fc).filter(Boolean);
+    if(fcs.length && fcs.every(d=>d > t)) return false;  // 未开课
+    firstTimers.push(x);
+    return false;
+  }).sort((a,b)=>b.days-a.days);
 
   return { recCnt: recs.length, avgAcc: avgAcc,
     todayRecs: recsOwner.filter(r=>r.date===t).length,
@@ -108,7 +119,7 @@ function computeDash(){
     missCnt: openMiss.length, overdueCnt: overdue.length,
     taWithRecs: tas.filter(u=>recs.some(r=>r.ownerId===u.id)).length, taTotal: tas.length,
     trend: trend, taRows: taRows, cats: cats, subs: subs,
-    lowStus: lowStus, overdueList: overdueList, sleepers: sleepers };
+    lowStus: lowStus, overdueList: overdueList, sleepers: sleepers, firstTimers: firstTimers };
 }
 
 function renderDashboard(){
@@ -209,12 +220,19 @@ function renderDashboard(){
     '</button>');
   document.getElementById('dash-alert-sleep').innerHTML = renderAlertList(d.sleepers, 'sleep', '没有沉睡学生。', x=>
     '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(jsStr(x.name)) + '\')">' +
-    '<b>' + esc(x.name) + '</b> <span class="tag amber">' + (x.days===null ? '从未有记录' : x.days + ' 天无记录') + '</span>' +
+    '<b>' + esc(x.name) + '</b> <span class="tag amber">' + x.days + ' 天无记录</span>' +
     '<div class="meta">归属 ' + esc(ownerName(x.ownerId)) + '</div>' +
-    '</button>');
+    '</button>') +
+    // 待首录（从未有记录）：灰字汇总一行，点击展开名单；不占红色预警条目
+    (d.firstTimers.length
+      ? '<div class="hint" style="margin-top:8px;cursor:pointer" onclick="dashToggleAlert(\'first\')">待首录 ' + d.firstTimers.length + ' 人（从未有作业记录）' + (dashAlertExpand.first ? ' ▾' : ' ▸') + '</div>' +
+        (dashAlertExpand.first
+          ? d.firstTimers.map(x=>'<div class="hint" style="padding:2px 0 2px 12px">' + esc(x.name) + ' · 归属 ' + esc(ownerName(x.ownerId)) + '</div>').join('')
+          : '')
+      : '');
 }
-/* 预警名单折叠/展开（默认前 5 条） */
-let dashAlertExpand = { low: false, miss: false, sleep: false };
+/* 预警名单折叠/展开（默认前 5 条；first = 待首录名单展开态） */
+let dashAlertExpand = { low: false, miss: false, sleep: false, first: false };
 function dashToggleAlert(key){ dashAlertExpand[key] = !dashAlertExpand[key]; renderDashboard(); }
 /* 预警跳转：跳到「现有学生」并把姓名填入搜索框（复用现有搜索机制定位学生卡） */
 function dashGotoStudent(name){

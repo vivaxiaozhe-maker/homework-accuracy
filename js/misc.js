@@ -135,6 +135,8 @@ function archivedStudents(){ return state.students.filter(s=>s.archived); }
 /* topbar 主标题 = 当前页签名称（产品名只在侧栏品牌区出现，顶部不再重复） */
 const TAB_TITLES = { today:'今日概览', dashboard:'数据看板', stats:'现有学生', alumni:'历史学生', accounts:'账号管理', data:'教务管理', audit:'操作记录' };
 function switchTab(name){
+  // 评语/建议有未保存修改时提醒（不阻塞切页）
+  if(typeof qeDirtyToast==='function') qeDirtyToast();
   // 角色页签守卫：教务=全部 6 个；助教=今日/现有/历史/数据；销售=仅现有/历史
   const role = currentUser ? currentUser.role : null;
   const allowed = role==='admin' ? ['today','dashboard','stats','alumni','accounts','data','audit']
@@ -198,16 +200,25 @@ function animateNums(scopeEl){
     requestAnimationFrame(step);
   });
 }
-function askConfirm(title, text, cb){
+/* 确认弹窗：可选输入行（opts.input = 占位提示；回调收输入值）。归档原因等「确认 + 选填文本」场景用 */
+function askConfirm(title, text, cb, opts){
   document.getElementById('cf-title').textContent = title;
   document.getElementById('cf-text').textContent = text;
+  const iw = document.getElementById('cf-input-wrap');
+  if(iw){
+    iw.style.display = (opts && opts.input) ? '' : 'none';
+    const iv = document.getElementById('cf-input');
+    if(iv){ iv.value = ''; iv.placeholder = (opts && opts.input) || ''; }
+  }
   cfCallback = cb;
   document.getElementById('confirm-modal').classList.add('show');
 }
 document.getElementById('cf-cancel').onclick = ()=>document.getElementById('confirm-modal').classList.remove('show');
 document.getElementById('cf-ok').onclick = ()=>{
   document.getElementById('confirm-modal').classList.remove('show');
-  if(cfCallback) cfCallback();
+  const iw = document.getElementById('cf-input-wrap');
+  const v = (iw && iw.style.display !== 'none') ? document.getElementById('cf-input').value : undefined;
+  if(cfCallback) cfCallback(v);
 };
 /* 单行输入弹窗（替代浏览器原生 prompt）：askInput(标题, 默认值, 回调)。
    确认/取消用 onclick 属性挂接（与确认弹窗一致），DOM 桩环境测试可直接驱动 */
