@@ -132,9 +132,9 @@ function renderToday(){
     '<div style="font-size:13px;color:var(--ink2)">未交日期 ' + m.date + '</div></div>' +
     // 未交行的完成路径 = 去补录（现有补录流）；教务只读不显示
     (admin ? '' :
-      '<button class="btn mint sm" onclick="resolveMissed(\'' + m.id + '\')" title="跳转到该生该科目的打卡面板补录这次作业；填写并保存后，该条未交才算补交完成">去补录</button>' +
-      '<button class="btn ghost sm" onclick="removeMissed(\'' + m.id + '\')" title="删除该未交记录">删除</button>') +
-    '<button class="btn ghost sm" onclick="alertSnooze(\'miss\',\'' + m.id + '\')" title="今天不再提醒，明天再出现">稍后处理</button>' +
+      '<button class="btn mint sm" onclick="resolveMissed(\'' + esc(jsStr(m.id)) + '\')" title="跳转到该生该科目的打卡面板补录这次作业；填写并保存后，该条未交才算补交完成">去补录</button>' +
+      '<button class="btn ghost sm" onclick="removeMissed(\'' + esc(jsStr(m.id)) + '\')" title="删除该未交记录">删除</button>') +
+    '<button class="btn ghost sm" onclick="alertSnooze(\'miss\',\'' + esc(jsStr(m.id)) + '\')" title="今天不再提醒，明天再出现">稍后处理</button>' +
     '</div>';
   const renderLowRow = x => {
     const r = x.rec;
@@ -146,7 +146,7 @@ function renderToday(){
       (admin ? '<span class="tag sample">归属 ' + esc(ownerName(r.ownerId)) + '</span>' : '') +
       snoozeBadgeHtml(amap, 'lowAcc', x.refKey) +
       '<div style="font-size:13px;color:var(--ink2)">' + r.date + ' 作业，错题 ' + (r.total-r.correct) + ' 道，建议安排订正</div></div>' +
-      (admin ? '' : '<button class="btn mint sm" onclick="gotoCorrect(\'' + r.studentId + '\')">录入订正</button>') +
+      (admin ? '' : '<button class="btn mint sm" onclick="gotoCorrect(\'' + esc(jsStr(r.studentId)) + '\')">录入订正</button>') +
       '<button class="btn ghost sm" onclick="alertSnooze(\'lowAcc\',\'' + esc(jsStr(x.refKey)) + '\')">稍后处理</button>' +
       '<button class="btn ghost sm" onclick="alertDone(\'lowAcc\',\'' + esc(jsStr(x.refKey)) + '\')">完成</button>' +
       '</div>';
@@ -159,7 +159,7 @@ function renderToday(){
     (admin ? '<span class="tag sample">归属 ' + esc(ownerName(x.st.ownerId)) + '</span>' : '') +
     snoozeBadgeHtml(amap, 'planStall', x.refKey) +
     '<div style="font-size:13px;color:var(--ink2)">「' + esc(shortSubject(x.sub)) + '」已 ' + x.days + ' 天未更新（应完成 ' + x.st.subjPlans[x.sub] + ' 次）</div></div>' +
-    (admin ? '' : '<button class="btn mint sm" onclick="gotoPlanEntry(\'' + x.st.id + '\',\'' + esc(jsStr(x.sub)) + '\')">去录入</button>') +
+    (admin ? '' : '<button class="btn mint sm" onclick="gotoPlanEntry(\'' + esc(jsStr(x.st.id)) + '\',\'' + esc(jsStr(x.sub)) + '\')">去录入</button>') +
     '<button class="btn ghost sm" onclick="alertSnooze(\'planStall\',\'' + esc(jsStr(x.refKey)) + '\')">稍后处理</button>' +
     '<button class="btn ghost sm" onclick="alertDone(\'planStall\',\'' + esc(jsStr(x.refKey)) + '\')">完成</button>' +
     '</div>';
@@ -189,7 +189,7 @@ function renderToday(){
       chipsHtml = '<div class="ta-chips today-ta-chips">' +
         '<span class="sub-chip' + (sel==='all'?' active':'') + '" onclick="todayTaSet(\'' + g.key + '\',\'all\')">全部 ' + g.rows.length + '</span>' +
         Object.keys(cntMap).sort((a,b)=>cntMap[b]-cntMap[a]).map(oid=>
-          '<span class="sub-chip' + (sel===oid?' active':'') + '" onclick="todayTaSet(\'' + g.key + '\',\'' + oid + '\')">' +
+          '<span class="sub-chip' + (sel===oid?' active':'') + '" onclick="todayTaSet(\'' + g.key + '\',\'' + esc(jsStr(oid)) + '\')">' +
           esc(ownerName(oid)) + ' ' + cntMap[oid] + '</span>').join('') +
         '</div>';
       if(sel !== 'all') rows = rows.filter(r=>(g.ownerOf(r)||'')===sel);
@@ -421,7 +421,7 @@ function renderStats(){
       const chipTas = getUsersCache().filter(u=>u.role==='ta');
       chipBox.innerHTML = '<div class="ta-chips">' +
         '<span class="sub-chip' + (stuTaFilter==='all'?' active':'') + '" onclick="setStuTaFilter(\'all\')">全部学生</span>' +
-        chipTas.map(u=>'<span class="sub-chip' + (stuTaFilter===u.id?' active':'') + '" onclick="setStuTaFilter(\'' + u.id + '\')">' +
+        chipTas.map(u=>'<span class="sub-chip' + (stuTaFilter===u.id?' active':'') + '" onclick="setStuTaFilter(\'' + esc(jsStr(u.id)) + '\')">' +
           esc(u.name) + (u.disabled ? ' <span class="chip-cnt">已停用</span>' : '') + '</span>').join('') +
         '</div>';
     }
@@ -549,7 +549,7 @@ function renderStats(){
             '<button class="btn danger sm" onclick="deleteSubject()" title="删除该科目及其全部作业记录、打卡计划、评语、模考信息">删除科目</button>' +
             '</span>';
         }
-        return '<span class="sub-chip' + (isActive?' active':'') + '" onclick="toggleQuickEntry(\'' + s.id + '\',\'' + esc(jsStr(k)) + '\')" title="点击录入该科目作业">' +
+        return '<span class="sub-chip' + (isActive?' active':'') + '" onclick="toggleQuickEntry(\'' + esc(jsStr(s.id)) + '\',\'' + esc(jsStr(k)) + '\')" title="点击录入该科目作业">' +
           '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
           (omc>=2 ? '<span class="sub-alert" title="该科目有 ' + omc + ' 次逾期未交作业">!</span>' : '') +
           (hasCmt ? '<span class="sub-cmt-dot" title="已有老师评语"></span>' : '') +
@@ -559,7 +559,7 @@ function renderStats(){
           (mockScore!==null ? '<span class="mock-tag score" title="结课模考分数">模考 ' + esc(mockScore) + '</span>' : '') +
           (sa !== null ? '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>' : '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">' + (arr.length ? '—' : '未录入') + '</span>') +
           '<span class="sub-cnt" title="' + (planCnt!==null ? '已完成 ' + arr.length + ' 次，应完成 ' + planCnt + ' 次' : '已录入 ' + arr.length + ' 次') + '">' + (planCnt!==null ? arr.length + '/' + planCnt : arr.length) + ' 次</span>' +
-          '<span class="edit-ico" onclick="startRenameSubject(\'' + s.id + '\',\'' + esc(jsStr(k)) + '\',event)" title="修改科目名">✎</span></span>';
+          '<span class="edit-ico" onclick="startRenameSubject(\'' + esc(jsStr(s.id)) + '\',\'' + esc(jsStr(k)) + '\',event)" title="修改科目名">✎</span></span>';
       }).join('') + '</div>';
     }
 
@@ -576,20 +576,20 @@ function renderStats(){
     const repStuBind = state.students.find(x=>x.id===s.id);
     const bindCnt = repStuBind ? (repStuBind.bindCnt || 0) : 0;
     const bindTag = bindCnt > 0
-      ? ' <span class="tag mint owner-tag" onclick="openBindsModal(\'' + s.id + '\')" title="点击查看已绑定家长，可手动解绑">已绑定家长（' + bindCnt + ' 人）<span class="tag-go">›</span></span>'
-      : ' <span class="tag amber owner-tag" onclick="openBindModal(\'' + s.id + '\')" title="生成家长绑定二维码，转发给家长微信扫码即绑定">未绑定微信<span class="tag-go">›</span></span>';
+      ? ' <span class="tag mint owner-tag" onclick="openBindsModal(\'' + esc(jsStr(s.id)) + '\')" title="点击查看已绑定家长，可手动解绑">已绑定家长（' + bindCnt + ' 人）<span class="tag-go">›</span></span>'
+      : ' <span class="tag amber owner-tag" onclick="openBindModal(\'' + esc(jsStr(s.id)) + '\')" title="生成家长绑定二维码，转发给家长微信扫码即绑定">未绑定微信<span class="tag-go">›</span></span>';
 
     return '<div class="stu-card">' +
       '<div class="stu-head"><div class="avatar">' + esc(g.name.slice(0,1)) + '</div>' +
-      '<div class="grow"><b class="stu-name-link" onclick="openEditStudent([\'' + g.ids.join('\',\'') + '\'])" title="点击修改学生信息">' + esc(g.name) + '</b>' +
+      '<div class="grow"><b class="stu-name-link" onclick="openEditStudent([\'' + g.ids.map(id=>esc(jsStr(id))).join('\',\'') + '\'])" title="点击修改学生信息">' + esc(g.name) + '</b>' +
       (g.school ? ' <span style="font-weight:400;font-size:12px;color:var(--ink2)">' + esc(g.school) + '</span>' : '') +
       (g.gradYear ? ' <span class="tag mint">' + g.gradYear + ' 届</span>' : '') +
       (g.ids.length>1 ? ' <span class="tag mint">同名合并 ×' + g.ids.length + '</span>' : '') +
       (g.sample?' <span class="tag sample">示例</span>':'') +
-      (isAdminView() ? ' <span class="tag mint owner-tag" onclick="openTransfer([\'' + g.ids.join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '<span class="tag-go">›</span></span>' : '') +
+      (isAdminView() ? ' <span class="tag mint owner-tag" onclick="openTransfer([\'' + g.ids.map(id=>esc(jsStr(id))).join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '<span class="tag-go">›</span></span>' : '') +
       bindTag + '</div>' +
       trend +
-      '<button class="btn ghost sm" onclick="toggleAddSubject(\'' + s.id + '\')" title="为该学生添加学习科目">' +
+      '<button class="btn ghost sm" onclick="toggleAddSubject(\'' + esc(jsStr(s.id)) + '\')" title="为该学生添加学习科目">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>新增科目</button>' +
       '</div>' +
       '<div class="stu-nums"><span>作业次数 <b>' + recs.length + '</b></span><span>未交次数 <b style="color:var(--red)">' + misses.length + '</b></span>' +
@@ -598,7 +598,7 @@ function renderStats(){
       // 当年省年份（录入 09-29），跨年记录保留完整日期避免歧义
       (recs.length ? (function(){ const d = recs.reduce((a,b)=>a.date>b.date?a:b).date;
         return '<span class="last-rec">录入 ' + (d.slice(0,4) === todayStr().slice(0,4) ? d.slice(5) : d) + '</span>'; })() : '') +
-      '<span style="margin-left:auto"><button class="btn ghost sm" onclick="archiveGroup([\'' + g.ids.join('\',\'') + '\'])">转为历史学生</button></span></div>' +
+      '<span style="margin-left:auto"><button class="btn ghost sm" onclick="archiveGroup([\'' + g.ids.map(id=>esc(jsStr(id))).join('\',\'') + '\'])">转为历史学生</button></span></div>' +
       subHtml +
       (addSubjGid===s.id ? addSubjPanelHtml(s.id) : '') +
       (quickEntry && quickEntry.gid===s.id ? qePanelHtml() : '') +
@@ -612,7 +612,7 @@ function renderStats(){
     const tas = getUsersCache().filter(u=>u.role==='ta');
     const renderGroup = (key, label, gs)=>{
       const open = !!stuQuery || !!stuTaExpanded[key];
-      return '<div class="ta-group-head" style="cursor:pointer" onclick="toggleTaGroup(\'' + key + '\')" title="点击展开/收起">' +
+      return '<div class="ta-group-head" style="cursor:pointer" onclick="toggleTaGroup(\'' + esc(jsStr(key)) + '\')" title="点击展开/收起">' +
         '<span class="chev">' + (open ? '▾' : '▸') + '</span>' + label +
         '<span class="cnt">' + gs.length + ' 个学生</span></div>' +
         (open ? gs.map(renderStuCard).join('') : '');
@@ -772,7 +772,10 @@ async function renderSalesApiList(listEl, isAlumni){
   if(!r.ok){ listEl.innerHTML = '<p class="hint">查询失败，请重试。</p>'; return; }
   // 首字母筛选在服务端搜索结果上叠加（客户端后过滤）
   const letters = isAlumni ? alumniLetters : stuLetters;
-  const items = r.students.filter(s=> (isAlumni ? s.archived : !s.archived) && matchLetters(s.name, letters));
+  // 归档时间范围筛选（v1.7.2）：历史学生「近 30 天归档」在服务端结果上叠加；无归档时间的旧数据不进
+  const rangeStart = (isAlumni && alumniRange==='30d') ? offsetDay(-29) : null;
+  const items = r.students.filter(s=> (isAlumni ? s.archived : !s.archived) && matchLetters(s.name, letters)
+    && (!rangeStart || (s.archivedAt && String(s.archivedAt).slice(0,10) >= rangeStart)));
   listEl.innerHTML = items.length
     ? items.map(s=>salesApiCard(s, isAlumni)).join('')
     : '<p class="hint">没有匹配「' + esc(q) + '」的' + (isAlumni ? '历史' : '') + '学生。</p>';
@@ -785,7 +788,7 @@ function fillSalesApiPanel(id){
 }
 function salesApiCard(s, isAlumni){
   const subHtml = (s.subjects && s.subjects.length) ? '<div class="sub-acc">' + s.subjects.map(sub=>
-    '<span class="sub-chip" onclick="toggleSalesSubjectApi(\'' + s.id + '\',\'' + esc(jsStr(sub.subject)) + '\',' + isAlumni + ')" title="点击查看该科目详情（只读）">' +
+    '<span class="sub-chip" onclick="toggleSalesSubjectApi(\'' + esc(jsStr(s.id)) + '\',\'' + esc(jsStr(sub.subject)) + '\',' + isAlumni + ')" title="点击查看该科目详情（只读）">' +
     '<span class="sub-name">' + esc(shortSubject(sub.subject)) + '</span>' +
     '<span class="acc-badge ' + accClass(sub.avg) + '">' + sub.avg + '%</span>' +
     '<span class="sub-cnt">' + sub.cnt + ' 次</span></span>').join('') + '</div>' : '';
@@ -958,7 +961,7 @@ function qePanelHtml(){
           (plan ? '<span class="plan-hint">已定 ' + plan + ' 次，点击格子录入或查看当次作业</span>' : '<span class="plan-hint">填写次数并保存后，自动生成打卡格子</span>') +
           (pendReq
             ? ' <span class="tag amber">已发送教管审批（' + pendReq.oldPlan + ' → ' + pendReq.newPlan + '）</span>' +
-              '<button class="btn ghost sm" onclick="cancelPlanRequest(\'' + pendReq.id + '\')">撤回申请</button>'
+              '<button class="btn ghost sm" onclick="cancelPlanRequest(\'' + esc(jsStr(pendReq.id)) + '\')">撤回申请</button>'
             : (lastReq && lastReq.status==='rejected'
                 ? ' <span class="tag red">上次修改申请已被驳回</span>'
                 : ''))) +
@@ -1107,7 +1110,7 @@ function saveFirstClass(){
   st.subjFirstClass[quickEntry.subject] = v;
   fcEdit = null;
   logAction('修改开课日期', 'plan', auditStuDesc(st.id, quickEntry.subject), '首次课程 ' + v, {ownerId: st.ownerId});
-  apiPersist(HttpApi.updateSubjFields(st.id, {subjFirstClass: st.subjFirstClass}));
+  apiPersist(HttpApi.updateSubjFields(st.id, {subjFirstClass: {[quickEntry.subject]: v}}));  // 最小补丁：只提交当前科目键（v1.7.2）
   save();
   renderAll();
 }

@@ -309,6 +309,40 @@ function ok(cond, name){
   await req('PUT', '/api/students/' + stuA + '/subj-fields', { mock: { '竞赛 / AMC10': null } }, T1);
   ok(!JSON.parse(db.prepare('SELECT mock FROM students WHERE id = ?').get(stuA).mock)['竞赛 / AMC10'], 'mock null 墓碑删除生效');
 
+  /* ---- v1.7.2：subjComments/subjFirstClass null 墓碑 + plan/set null 删除/平移（科目删除/重命名清旧键） ---- */
+  await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjComments: { '竞赛 / AMC10': null } }, T1);
+  const tombC = JSON.parse(db.prepare('SELECT subj_comments FROM students WHERE id = ?').get(stuA).subj_comments);
+  ok(tombC['竞赛 / AMC10'] === undefined && tombC['学科 / AP / 微积分BC'] === '评语甲', 'subjComments null 墓碑删除生效（其余键保留）');
+  await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjFirstClass: { '测试 / 临时甲': '2026-09-01', '测试 / 临时乙': '2026-09-02' } }, T1);
+  await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjFirstClass: { '测试 / 临时乙': null } }, T1);
+  const tombFc = JSON.parse(db.prepare('SELECT subj_first_class FROM students WHERE id = ?').get(stuA).subj_first_class);
+  ok(tombFc['测试 / 临时乙'] === undefined && tombFc['测试 / 临时甲'] === '2026-09-01', 'subjFirstClass null 墓碑删除生效（其余键保留）');
+  await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjFirstClass: { '测试 / 临时甲': null } }, T1);  // 清理
+  r = await req('POST', '/api/plan/set', { studentId: stuA, subject: '竞赛 / AMC10', plan: 8, firstClassDate: '2026-09-02' }, T1);
+  ok(r.status === 200, 'plan/set 首次设定 AMC10 计划');
+  r = await req('POST', '/api/plan/set', { studentId: stuA, subject: '竞赛 / AMC10', plan: null }, T1);
+  ok(r.status === 200, 'plan/set null 删除计划键成功');
+  let tombPlans = JSON.parse(db.prepare('SELECT subj_plans FROM students WHERE id = ?').get(stuA).subj_plans);
+  let tombSetAt = JSON.parse(db.prepare('SELECT subj_plan_set_at FROM students WHERE id = ?').get(stuA).subj_plan_set_at);
+  ok(tombPlans['竞赛 / AMC10'] === undefined && tombSetAt['竞赛 / AMC10'] === undefined && tombPlans['学科 / AP / 微积分BC'] === 12,
+    'plan/set null 删除后旧键清除（其余科目计划保留）');
+  r = await req('POST', '/api/plan/set', { studentId: stuA, subject: '竞赛 / AMC10', plan: null }, T1);
+  ok(r.status === 200, 'plan/set null 幂等（无键也 200）');
+  await req('POST', '/api/plan/set', { studentId: stuA, subject: '竞赛 / AMC10', plan: 8, firstClassDate: '2026-09-02' }, T1);
+  r = await req('POST', '/api/plan/set', { studentId: stuA, subject: '竞赛 / AMC10', plan: null, newSubject: '竞赛 / AMC12' }, T1);
+  ok(r.status === 200, 'plan/set null + newSubject 平移成功');
+  tombPlans = JSON.parse(db.prepare('SELECT subj_plans FROM students WHERE id = ?').get(stuA).subj_plans);
+  tombSetAt = JSON.parse(db.prepare('SELECT subj_plan_set_at FROM students WHERE id = ?').get(stuA).subj_plan_set_at);
+  ok(tombPlans['竞赛 / AMC10'] === undefined && tombSetAt['竞赛 / AMC10'] === undefined
+    && tombPlans['竞赛 / AMC12'] === 8 && tombSetAt['竞赛 / AMC12'] === today(),
+    'plan/set 平移：次数与设定日期原样搬到新键');
+  r = await req('POST', '/api/plan/set', { studentId: stuA, subject: '竞赛 / AMC12', plan: null, newSubject: '学科 / AP / 微积分BC' }, T1);
+  ok(r.status === 400, 'plan/set 平移不覆盖新键已有计划（400）');
+  r = await req('POST', '/api/plan/set', { studentId: stuA, subject: '竞赛 / AMC12', plan: null, newSubject: '竞赛 / AMC12' }, T1);
+  ok(r.status === 400, 'plan/set newSubject 与旧键相同 400');
+  await req('POST', '/api/plan/set', { studentId: stuA, subject: '竞赛 / AMC12', plan: null }, T1);  // 清理
+  await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjFirstClass: { '竞赛 / AMC10': null } }, T1);  // 清理
+
   /* ---- 待办预警动作接口（/api/alerts/action；state 同步 alertActions） ---- */
   r = await req('POST', '/api/missed', { studentId: stuA, date: today(), subject: '学科 / AP / 微积分BC' }, T1);
   const alertMissId = r.data.missed.id;

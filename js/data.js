@@ -20,7 +20,7 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
-const APP_VERSION = 'v1.7.1';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.7.2';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [], alertActions: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志；alertActions = 待办预警动作）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -542,7 +542,7 @@ const HttpApi = {
   updateStudent(id, b){ return this._req('PUT', '/api/students/' + id, b); },
   setStudentArchived(id, flag, reason){
     return this._req('POST', '/api/students/' + id + (flag ? '/archive' : '/restore'),
-      flag ? { reason: reason || '' } : undefined);  // 归档可带原因（v1.7.1）
+      flag ? { reason: reason || '' } : undefined);  // 归档可带原因（v1.7.2）
   },
   // 转移归属：后端为单 id 接口，同名组逐个调用；本地乐观更新，失败重取（服务端校验目标助教）
   async transferStudent(ids, newOwnerId){
@@ -611,13 +611,14 @@ const HttpApi = {
 };
 
 /* ---- 写路径持久化帮手（仅 API 模式生效；mock 模式为纯本地行为，零变化） ---- */
-// 异步持久化：失败 → 提示 + 重取 state 回滚本地乐观更新；onOk 可拿到响应回填（如学生的 createdAt；id 已由客户端生成贯穿，不再回填 id）
-function apiPersist(promise, onOk){
+// 异步持久化：失败 → 提示 + onFail（恢复 dirty 等）+ 重取 state 回滚本地乐观更新；onOk 可拿到响应回填（如学生的 createdAt；id 已由客户端生成贯穿，不再回填 id）
+function apiPersist(promise, onOk, onFail){
   if(!USE_API || !promise || typeof promise.then !== 'function') return;
+  const fail = ()=>{ toast('保存失败，请检查网络后重试'); if(onFail) onFail(); resyncState(); };
   promise.then(r => {
-    if(r && r.ok === false){ toast('保存失败，请检查网络后重试'); resyncState(); return; }
+    if(r && r.ok === false){ fail(); return; }
     if(onOk) onOk(r);
-  }).catch(() => { toast('保存失败，请检查网络后重试'); resyncState(); });
+  }).catch(fail);
 }
 // 从服务端重取全量状态（回滚/同步用）
 async function resyncState(){

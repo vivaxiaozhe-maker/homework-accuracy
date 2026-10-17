@@ -15,20 +15,40 @@ function stuDesc(s, subject){ return (s ? s.name : '（已删除学生）') + (s
 
 // POST /api/plan/set {studentId, subject, plan, firstClassDate}：首次设定直存（助教/教务；已有值则拒绝，走申请）
 // firstClassDate 必填（YYYY-MM-DD，允许未来日期——提前排课场景），写入 subj_first_class
+// plan 传 null：删除该科目计划键（删除/重命名科目时清理旧键用，v1.7.2；幂等，无 firstClassDate 要求）
 router.post('/plan/set', requireRole('ta', 'admin'), (req, res) => {
   const { studentId, subject, plan, firstClassDate } = req.body || {};
   const st = getStu(studentId);
   if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
   if(st.archived) return res.status(400).json({ ok: false, msg: '历史学生不可设置计划' });
   if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
+  const plans = parseJson(st.subj_plans, {});
+  const setAt = parseJson(st.subj_plan_set_at, {});
+  if(plan === null){
+    const newSubject = req.body ? req.body.newSubject : undefined;
+    if(newSubject !== undefined && (typeof newSubject !== 'string' || !newSubject.trim() || newSubject === subject)){
+      return res.status(400).json({ ok: false, msg: 'newSubject 无效' });
+    }
+    if(plans[subject] === undefined && setAt[subject] === undefined) return res.json({ ok: true });
+    if(newSubject){
+      // 重命名平移：旧键值原样搬到新键（次数/设定日期不变，不算计划修改，无需审批）；新键已有值则拒绝覆盖
+      if(plans[newSubject] !== undefined) return res.status(400).json({ ok: false, msg: '新科目已有计划次数' });
+      if(plans[subject] !== undefined) plans[newSubject] = plans[subject];
+      if(setAt[subject] !== undefined) setAt[newSubject] = setAt[subject];
+    }
+    delete plans[subject]; delete setAt[subject];
+    db.prepare('UPDATE students SET subj_plans = ?, subj_plan_set_at = ? WHERE id = ?')
+      .run(JSON.stringify(plans), JSON.stringify(setAt), st.id);
+    logAudit(req.user, '删除科目计划', 'plan', stuDesc(st, subject),
+      newSubject ? '随科目重命名平移至「' + newSubject + '」' : '随科目删除清理旧键', st.owner_id);
+    return res.json({ ok: true });
+  }
   const v = parseInt(plan, 10);
   if(!Number.isInteger(v) || v < 0) return res.status(400).json({ ok: false, msg: '请填写有效的次数（0 或正整数）' });
   if(!firstClassDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(firstClassDate))){
     return res.status(400).json({ ok: false, msg: '请选择第一次课程时间' });
   }
-  const plans = parseJson(st.subj_plans, {});
   if(plans[subject] !== undefined) return res.status(400).json({ ok: false, msg: '该科目已有计划次数，修改需提交申请' });
-  const setAt = parseJson(st.subj_plan_set_at, {});
   const firstClass = parseJson(st.subj_first_class, {});
   plans[subject] = v;
   setAt[subject] = todayStr();

@@ -98,7 +98,7 @@ router.post('/:id/owner', requireRole('admin'), (req, res) => {
   res.json({ ok: true });
 });
 
-/* PUT /api/students/:id/subj-fields：合并式更新学生 JSON 列（v1.7.0 起为按键合并：传入键覆盖/新增，未传键保留；mock 支持 null 墓碑删除）
+/* PUT /api/students/:id/subj-fields：合并式更新学生 JSON 列（v1.7.0 起为按键合并：传入键覆盖/新增，未传键保留；JSON 列均支持 null 墓碑删除，v1.7.2 补齐）
    字段白名单：subjComments（评语）/ subjAdvice（学习计划与建议）/ mock（模考）/ subjects（科目列表，数组整体替换——列表语义）。
    注意：刻意不含 subj_plans——计划次数只能走 plan/set + 审批流，防止经此绕过审批 */
 const SUBJ_FIELD_WHITELIST = ['subjComments', 'subjAdvice', 'mock', 'subjects', 'subjFirstClass'];
@@ -150,20 +150,25 @@ router.put('/:id/subj-fields', async (req, res) => {
       mergedMock = merged;
       setClauses.push('mock = ?'); params.push(JSON.stringify(merged)); actions.push('保存模考');
     } else if(k === 'subjFirstClass'){
-      // 开课日期（修改不需审批，只记审计）：{科目: 'YYYY-MM-DD'}
+      // 开课日期（修改不需审批，只记审计）：{科目: 'YYYY-MM-DD'}；null 为删除墓碑（v1.7.2，删科目/重命名清旧键用）
       if(!v || typeof v !== 'object' || Array.isArray(v)) return res.status(400).json({ ok: false, msg: 'subjFirstClass 必须是对象' });
       for(const sub of Object.keys(v)){
+        if(v[sub] === null) continue;
         if(v[sub] !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(v[sub]))){
           return res.status(400).json({ ok: false, msg: '开课日期格式应为 YYYY-MM-DD' });
         }
       }
-      setClauses.push('subj_first_class = ?'); params.push(JSON.stringify(Object.assign(parseJson(st.subj_first_class, {}), v))); actions.push('修改开课日期');  // 按键合并（v1.7.0）
+      const mergedFc = Object.assign(parseJson(st.subj_first_class, {}), v);
+      for(const sub of Object.keys(mergedFc)){ if(mergedFc[sub] === null) delete mergedFc[sub]; }
+      setClauses.push('subj_first_class = ?'); params.push(JSON.stringify(mergedFc)); actions.push('修改开课日期');  // 按键合并（v1.7.0）
     } else {
       if(!v || typeof v !== 'object' || Array.isArray(v)) return res.status(400).json({ ok: false, msg: k + ' 必须是对象' });
-      // 按键合并（v1.7.0，防多人互踩）：传入的键覆盖/新增，未传的键保留
+      // 按键合并（v1.7.0，防多人互踩）：传入的键覆盖/新增，未传的键保留；null 为删除墓碑（v1.7.2）
       const col = k === 'subjComments' ? 'subj_comments' : 'subj_advice';
+      const mergedMap = Object.assign(parseJson(st[col], {}), v);
+      for(const sub of Object.keys(mergedMap)){ if(mergedMap[sub] === null) delete mergedMap[sub]; }
       setClauses.push(col + ' = ?');
-      params.push(JSON.stringify(Object.assign(parseJson(st[col], {}), v)));
+      params.push(JSON.stringify(mergedMap));
       actions.push(k === 'subjComments' ? '保存评语' : '保存学习计划与建议');
     }
   }

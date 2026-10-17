@@ -237,6 +237,20 @@ function saveRenameSubject(){
       delete s.subjComments[oldName];
     }
   });
+  // 同步学习计划与建议的科目键名
+  state.students.forEach(s=>{
+    if(ids.includes(s.id) && s.subjAdvice && s.subjAdvice[oldName] !== undefined){
+      s.subjAdvice[newName] = s.subjAdvice[oldName];
+      delete s.subjAdvice[oldName];
+    }
+  });
+  // 同步开课日期的科目键名
+  state.students.forEach(s=>{
+    if(ids.includes(s.id) && s.subjFirstClass && s.subjFirstClass[oldName] !== undefined){
+      s.subjFirstClass[newName] = s.subjFirstClass[oldName];
+      delete s.subjFirstClass[oldName];
+    }
+  });
   // 同步模考数据的科目键名
   state.students.forEach(s=>{
     if(ids.includes(s.id) && s.mock && s.mock[oldName] !== undefined){
@@ -264,9 +278,16 @@ function saveRenameSubject(){
   save();
   renderAll();
 }
-/* API 模式科目重命名持久化：作业记录/未交逐条改科目 + 学生 JSON 列整体提交（本地已先行乐观更新） */
+/* API 模式科目重命名持久化：作业记录/未交逐条改科目 + 学生 JSON 列最小补丁（新键值 + 旧键 null 墓碑，v1.7.2；本地已先行乐观更新） */
 async function apiRenameSubjectPersist(repStu, ids, oldName, newName, snap){
   if(!USE_API) return;
+  // 重命名补丁：新键带当前值（无值则不传），旧键恒 null 墓碑
+  const renPatch = (localMap)=>{
+    const p = {};
+    if(localMap && localMap[newName] !== undefined) p[newName] = localMap[newName];
+    p[oldName] = null;
+    return p;
+  };
   try{
     for(const r of snap.recs){
       const res = await HttpApi.updateRecord(r.id, {date: r.date, total: r.total, correct: r.correct, wrongs: r.wrongs, subject: newName});
@@ -279,8 +300,17 @@ async function apiRenameSubjectPersist(repStu, ids, oldName, newName, snap){
     for(const sid of ids){
       const st = pool.students.find(x=>x.id===sid);
       if(st){
-        const res = await HttpApi.updateSubjFields(sid, {subjects: st.subjects || [], subjComments: st.subjComments || {}, subjAdvice: st.subjAdvice || {}, mock: st.mock || {}});
+        const res = await HttpApi.updateSubjFields(sid, {
+          subjects: st.subjects || [],
+          subjComments: renPatch(st.subjComments),
+          subjAdvice: renPatch(st.subjAdvice),
+          mock: renPatch(st.mock),
+          subjFirstClass: renPatch(st.subjFirstClass)
+        });
         if(!res.ok) throw new Error('fields');
+        // 计划次数走 plan/set 审批域：plan=null + newSubject 平移旧键（次数不变，无需审批）
+        const res2 = await HttpApi._req('POST', '/api/plan/set', {studentId: sid, subject: oldName, plan: null, newSubject: newName});
+        if(!res2.ok) throw new Error('plan');
       }
     }
   }catch(e){
@@ -288,8 +318,8 @@ async function apiRenameSubjectPersist(repStu, ids, oldName, newName, snap){
     resyncState();
   }
 }
-/* API 模式删除科目持久化：逐条删除该科目作业记录/未交 + 学生 JSON 列整体提交 */
-async function apiDeleteSubjectPersist(ids, snap){
+/* API 模式删除科目持久化：逐条删除该科目作业记录/未交 + 学生 JSON 列 null 墓碑清旧键（v1.7.2） */
+async function apiDeleteSubjectPersist(ids, snap, oldName){
   if(!USE_API) return;
   try{
     for(const r of snap.recs){ const res = await HttpApi.deleteRecord(r.id); if(!res.ok) throw 0; }
@@ -297,8 +327,16 @@ async function apiDeleteSubjectPersist(ids, snap){
     for(const sid of ids){
       const st = pool.students.find(x=>x.id===sid);
       if(st){
-        const res = await HttpApi.updateSubjFields(sid, {subjects: st.subjects || [], subjComments: st.subjComments || {}, subjAdvice: st.subjAdvice || {}, mock: st.mock || {}});
+        const res = await HttpApi.updateSubjFields(sid, {
+          subjects: st.subjects || [],
+          subjComments: {[oldName]: null},
+          subjAdvice: {[oldName]: null},
+          mock: {[oldName]: null},
+          subjFirstClass: {[oldName]: null}
+        });
         if(!res.ok) throw 0;
+        const res2 = await HttpApi._req('POST', '/api/plan/set', {studentId: sid, subject: oldName, plan: null});
+        if(!res2.ok) throw 0;
       }
     }
   }catch(e){ toast('保存失败，请检查网络后重试'); resyncState(); }
@@ -326,6 +364,8 @@ function deleteSubject(){
       if(ids.includes(s.id)){
         if(Array.isArray(s.subjects)) s.subjects = s.subjects.filter(x=>x!==oldName);
         if(s.subjComments) delete s.subjComments[oldName];
+        if(s.subjAdvice) delete s.subjAdvice[oldName];
+        if(s.subjFirstClass) delete s.subjFirstClass[oldName];
         if(s.mock) delete s.mock[oldName];
         if(s.subjPlans) delete s.subjPlans[oldName];
       }
@@ -336,7 +376,7 @@ function deleteSubject(){
     if(mockEdit && ids.includes(mockEdit.gid) && mockEdit.subject===oldName) mockEdit = null;
     renaming = null;
     logAction('删除科目', 'student', repStu.name, oldName + '（含 ' + nRecs + ' 条作业记录）', {ownerId: repStu.ownerId});
-    apiDeleteSubjectPersist(ids, snap);  // API 模式异步持久化（失败重取回滚）
+    apiDeleteSubjectPersist(ids, snap, oldName);  // API 模式异步持久化（失败重取回滚）
     save();
     renderAll();
   });
@@ -533,7 +573,7 @@ function renderAlumni(){
         const mockDate = mockSt.date || '';
         const mockScore = (mockSt.score!==undefined && mockSt.score!==null && mockSt.score!=='') ? mockSt.score : null;
         const omc = overdueMissCount(g.ids, k);
-        return '<span class="sub-chip' + (isActive?' active':'') + '" onclick="toggleQuickEntry(\'' + s.id + '\',\'' + esc(jsStr(k)) + '\')" title="点击查看该科目打卡情况、评语与模考">' +
+        return '<span class="sub-chip' + (isActive?' active':'') + '" onclick="toggleQuickEntry(\'' + esc(jsStr(s.id)) + '\',\'' + esc(jsStr(k)) + '\')" title="点击查看该科目打卡情况、评语与模考">' +
           '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
           (omc>=2 ? '<span class="sub-alert" title="该科目有 ' + omc + ' 次逾期未交作业">!</span>' : '') +
           (hasCmt ? '<span class="sub-cmt-dot" title="已有老师评语"></span>' : '') +
@@ -560,12 +600,12 @@ function renderAlumni(){
       (g.ids.length>1 ? ' <span class="tag mint">同名合并 ×' + g.ids.length + '</span>' : '') +
       (g.sample?' <span class="tag sample">示例</span>':'') +
       (g.archivedAt ? ' <span class="tag sample" title="归档时间">归档于 ' + esc(g.archivedAt.slice(0,10)) + (g.archivedReason ? ' · ' + esc(g.archivedReason) : '') + '</span>' : '') +
-      (isAdminView() ? ' <span class="tag mint owner-tag" onclick="openTransfer([\'' + g.ids.join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '<span class="tag-go">›</span></span>' : '') + '</div>' +
+      (isAdminView() ? ' <span class="tag mint owner-tag" onclick="openTransfer([\'' + g.ids.map(id=>esc(jsStr(id))).join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '<span class="tag-go">›</span></span>' : '') + '</div>' +
       trend +
       '</div>' +
       '<div class="stu-nums"><span>历史作业 <b>' + recs.length + '</b> 次</span><span>未交次数 <b style="color:var(--red)">' + misses.length + '</b></span>' +
       (recs.length ? '<span>最近正确率 <b>' + acc(recs[recs.length-1]) + '%</b></span>' : '') +
-      '<span style="margin-left:auto"><button class="btn ghost sm" onclick="restoreGroup([\'' + g.ids.join('\',\'') + '\'])">恢复为现有学生</button></span></div>' +
+      '<span style="margin-left:auto"><button class="btn ghost sm" onclick="restoreGroup([\'' + g.ids.map(id=>esc(jsStr(id))).join('\',\'') + '\'])">恢复为现有学生</button></span></div>' +
       subHtml +
       (quickEntry && quickEntry.gid===s.id ? qePanelHtml() : '') +
       missHtml +
@@ -887,8 +927,8 @@ function renderAccounts(){
         : '') +
       '</div>' +
       (u.role==='ta' || u.role==='sales'
-        ? '<button class="btn ghost sm" onclick="resetUserPwd(\'' + u.id + '\')">重置密码</button>' +
-          '<button class="btn ' + (u.disabled?'mint':'danger') + ' sm" onclick="toggleUser(\'' + u.id + '\')">' + (u.disabled?'启用':'停用') + '</button>'
+        ? '<button class="btn ghost sm" onclick="resetUserPwd(\'' + esc(jsStr(u.id)) + '\')">重置密码</button>' +
+          '<button class="btn ' + (u.disabled?'mint':'danger') + ' sm" onclick="toggleUser(\'' + esc(jsStr(u.id)) + '\')">' + (u.disabled?'启用':'停用') + '</button>'
         : '') +
       '</div>';
   };
@@ -915,8 +955,8 @@ function renderPlanRequests(){
     '<div class="grow"><b>' + esc(stuNameOf(r.studentId)) + '</b> <span class="tag mint">' + esc(shortSubject(r.subject)) + '</span>' +
     ' <b>' + r.oldPlan + ' → ' + r.newPlan + '</b> 次' +
     '<div class="hint" style="margin-top:2px">申请助教：' + esc(reqUserOf(r.requestedBy)) + ' · ' + esc(r.requestedAt) + ' · 理由：' + (r.reason ? esc(r.reason) : '—') + '</div></div>' +
-    '<button class="btn mint sm" onclick="reviewPlanRequest(\'' + r.id + '\',true)">通过</button>' +
-    '<button class="btn danger sm" onclick="reviewPlanRequest(\'' + r.id + '\',false)">驳回</button>' +
+    '<button class="btn mint sm" onclick="reviewPlanRequest(\'' + esc(jsStr(r.id)) + '\',true)">通过</button>' +
+    '<button class="btn danger sm" onclick="reviewPlanRequest(\'' + esc(jsStr(r.id)) + '\',false)">驳回</button>' +
     '</div>').join('') : '<p class="hint">暂无待审批的修改申请。</p>';
   const cb = document.getElementById('planreq-badge-card');
   cb.style.display = pending.length ? '' : 'none';
@@ -942,8 +982,8 @@ function renderUnbindRequests(){
     '<div class="acct-row">' +
     '<div class="grow"><b>' + esc(r.studentName || '（已删除学生）') + '</b> <span class="tag amber">解绑申请</span>' +
     '<div class="hint" style="margin-top:2px">归属助教：' + esc(r.ownerName || '未知') + ' · 家长 ' + esc(maskOpenid(r.openid || '')) + ' · ' + esc(String(r.requestedAt || '').slice(0, 10)) + '</div></div>' +
-    '<button class="btn mint sm" onclick="reviewUnbindReq(\'' + r.id + '\',true)">通过</button>' +
-    '<button class="btn danger sm" onclick="reviewUnbindReq(\'' + r.id + '\',false)">驳回</button>' +
+    '<button class="btn mint sm" onclick="reviewUnbindReq(\'' + esc(jsStr(r.id)) + '\',true)">通过</button>' +
+    '<button class="btn danger sm" onclick="reviewUnbindReq(\'' + esc(jsStr(r.id)) + '\',false)">驳回</button>' +
     '</div>').join('');
   const cb = document.getElementById('unbindreq-badge-card');
   cb.style.display = pend.length ? '' : 'none';
@@ -1204,7 +1244,7 @@ function openTransfer(ids){
   const cur = stuOwnerId(ids[0]);
   const opts = getUsersCache().filter(u=>u.role==='ta' && !u.disabled && u.id!==cur);
   if(!opts.length){ toast('暂无可转移的目标助教'); return; }
-  sel.innerHTML = opts.map(u=>'<option value="' + u.id + '">' + esc(u.name) + '（' + esc(u.username) + '）</option>').join('');
+  sel.innerHTML = opts.map(u=>'<option value="' + esc(u.id) + '">' + esc(u.name) + '（' + esc(u.username) + '）</option>').join('');
   document.getElementById('transfer-modal').classList.add('show');
 }
 document.getElementById('tf-cancel').addEventListener('click', ()=>document.getElementById('transfer-modal').classList.remove('show'));

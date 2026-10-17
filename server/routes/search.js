@@ -37,7 +37,7 @@ router.get('/students', (req, res) => {
       avg: Math.round(subMap[k].reduce((x, r) => x + accOf(r), 0) / subMap[k].length)
     }));
     return { id: s.id, name: s.name, school: s.school || '', gradYear: s.grad_year || '',
-      archived: !!s.archived, ownerName: ownerName(s.owner_id),
+      archived: !!s.archived, archivedAt: s.archived_at || null, archivedReason: s.archived_reason || '', ownerName: ownerName(s.owner_id),
       recCnt: recs.length, missCnt: missStmt.get(s.id).c,
       lastAcc: lastGraded ? accOf(lastGraded) : null, subjects };
   });

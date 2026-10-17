@@ -134,7 +134,7 @@ function renderDashboard(){
   const sel = document.getElementById('dash-owner');
   const tas = getUsersCache().filter(u=>u.role==='ta');
   sel.innerHTML = '<option value="all">全部助教</option>' +
-    tas.map(u=>'<option value="' + u.id + '">' + esc(u.name) + (u.disabled ? '（已停用）' : '') + '</option>').join('');
+    tas.map(u=>'<option value="' + esc(u.id) + '">' + esc(u.name) + (u.disabled ? '（已停用）' : '') + '</option>').join('');
   sel.value = dashOwner;
   document.querySelectorAll('#dash-range .role-opt').forEach(b=>b.classList.toggle('active', parseInt(b.dataset.range,10)===dashRange));
 
@@ -166,7 +166,7 @@ function renderDashboard(){
   // 3. 助教维度对比（点击行下钻）
   const maxTa = d.taRows.reduce((m,x)=>Math.max(m,x.recCnt),0);
   document.getElementById('dash-tas').innerHTML = d.taRows.length ? d.taRows.map(x=>
-    '<div class="dash-ta-row' + (dashOwner===x.user.id?' active':'') + '" onclick="dashDrillTa(\'' + x.user.id + '\')" title="点击下钻到该助教">' +
+    '<div class="dash-ta-row' + (dashOwner===x.user.id?' active':'') + '" onclick="dashDrillTa(\'' + esc(jsStr(x.user.id)) + '\')" title="点击下钻到该助教">' +
     '<div class="grow"><b>' + esc(x.user.name) + '</b>' +
     (x.user.disabled ? ' <span class="tag red">已停用</span>' : '') +
     (x.silent ? ' <span class="tag amber">沉默</span>' : '') +

@@ -271,19 +271,19 @@ async function openBindsModal(gid){
         '<div class="acct-row" style="align-items:center"><div class="grow"><b>' + esc(b.remark || ('家长 ' + (cnt - i))) + '</b>' +
         (pendingBindIds.indexOf(b.id) !== -1 ? ' <span class="tag amber">申请中</span>' : '') +
         '<div class="hint" style="margin-top:2px">openid ' + esc(maskOpenid(b.openid)) + ' · 绑定于 ' + esc(String(b.bound_at).slice(0, 10)) + '</div></div>' +
-        '<button class="btn ghost sm" onclick="editBindRemark(\'' + gid + '\',\'' + b.id + '\')" title="给这位家长起个好识别的名字，如：KK妈妈">备注</button>' +
+        '<button class="btn ghost sm" onclick="editBindRemark(\'' + esc(jsStr(gid)) + '\',\'' + esc(jsStr(b.id)) + '\')" title="给这位家长起个好识别的名字，如：KK妈妈">备注</button>' +
         (isAdmin
-          ? '<button class="btn danger sm" onclick="unbindParent(\'' + gid + '\',\'' + b.id + '\')">解绑</button>'
+          ? '<button class="btn danger sm" onclick="unbindParent(\'' + esc(jsStr(gid)) + '\',\'' + esc(jsStr(b.id)) + '\')">解绑</button>'
           : (pendingBindIds.indexOf(b.id) !== -1
               ? ''
-              : '<button class="btn ghost sm" onclick="requestUnbind(\'' + gid + '\',\'' + b.id + '\')">申请解绑</button>')) +
+              : '<button class="btn ghost sm" onclick="requestUnbind(\'' + esc(jsStr(gid)) + '\',\'' + esc(jsStr(b.id)) + '\')">申请解绑</button>')) +
         '</div>').join('')
     : '<p class="hint">暂无绑定的家长。</p>';
   // 底部：已绑定 N/2 计数 + 未满员给绑定入口；满员给上限提示（需先解绑才能绑新微信）
   foot.innerHTML = '<div class="hint" style="margin-bottom:8px">已绑定 ' + cnt + ' / ' + MAX_BINDS + ' 名家长</div>' +
     (cnt >= MAX_BINDS
       ? '<div class="bind-limit-tip">该学生已绑定 ' + MAX_BINDS + ' 名家长（上限）。如需绑定新的微信，请先解绑其中一位。</div>'
-      : '<button class="btn mint sm" onclick="openBindFromBinds(\'' + gid + '\')">+ 绑定新家长</button>');
+      : '<button class="btn mint sm" onclick="openBindFromBinds(\'' + esc(jsStr(gid)) + '\')">+ 绑定新家长</button>');
 }
 /* 从「已绑定家长」弹窗跳到绑定二维码弹窗（同一学生二维码不变，可重复转发） */
 function openBindFromBinds(gid){
@@ -342,6 +342,12 @@ function qeDirtyToast(){
   else if(qeDirty.comment) toast('评语有未保存的修改');
   else if(qeDirty.advice) toast('建议有未保存的修改');
 }
+// 保存确认反馈：清 dirty + 「✓ 已保存」tip 亮 2.5s；API 模式仅由 apiPersist 的 onOk 调用（确认后才提示，v1.7.2）
+function markSaved(which, tipId){
+  qeDirty[which] = false;
+  const tip = document.getElementById(tipId);
+  if(tip){ tip.style.display='inline'; setTimeout(()=>{ if(tip) tip.style.display='none'; }, 2500); }
+}
 function saveSubjectComment(){
   if(!quickEntry) return;
   const ta = document.getElementById('qe-comment');
@@ -351,12 +357,16 @@ function saveSubjectComment(){
     st.subjComments = st.subjComments || {};
     st.subjComments[quickEntry.subject] = text.trim();
     logAction('保存评语', 'record', auditStuDesc(st.id, quickEntry.subject), text.trim() ? text.trim().slice(0,50) : '（清空评语）', {ownerId: st.ownerId});
-    apiPersist(HttpApi.updateSubjFields(st.id, {subjComments: st.subjComments}));  // API 模式：按键合并提交评语列
-    qeDirty.comment = false;  // 保存成功清除 dirty
+    if(USE_API){
+      // 最小补丁：只提交当前科目键；失败恢复 dirty 并回滚（v1.7.2）
+      apiPersist(HttpApi.updateSubjFields(st.id, {subjComments: {[quickEntry.subject]: text.trim()}}),
+        ()=>markSaved('comment', 'qe-comment-tip'),
+        ()=>{ qeDirty.comment = true; });
+    } else {
+      markSaved('comment', 'qe-comment-tip');
+    }
     save();
   }
-  const tip = document.getElementById('qe-comment-tip');
-  if(tip){ tip.style.display='inline'; setTimeout(()=>{ if(tip) tip.style.display='none'; }, 2500); }
 }
 /* 保存学习计划与建议（按 学生×科目 存储，随「生成报告」输出为第四节） */
 function saveSubjectAdvice(){
@@ -368,12 +378,15 @@ function saveSubjectAdvice(){
     st.subjAdvice = st.subjAdvice || {};
     st.subjAdvice[quickEntry.subject] = text.trim();
     logAction('保存学习计划与建议', 'record', auditStuDesc(st.id, quickEntry.subject), text.trim() ? text.trim().slice(0,50) : '（清空）', {ownerId: st.ownerId});
-    apiPersist(HttpApi.updateSubjFields(st.id, {subjAdvice: st.subjAdvice}));
-    qeDirty.advice = false;  // 保存成功清除 dirty
+    if(USE_API){
+      apiPersist(HttpApi.updateSubjFields(st.id, {subjAdvice: {[quickEntry.subject]: text.trim()}}),
+        ()=>markSaved('advice', 'qe-advice-tip'),
+        ()=>{ qeDirty.advice = true; });
+    } else {
+      markSaved('advice', 'qe-advice-tip');
+    }
     save();
   }
-  const tip = document.getElementById('qe-advice-tip');
-  if(tip){ tip.style.display='inline'; setTimeout(()=>{ if(tip) tip.style.display='none'; }, 2500); }
 }
 
 /* ================= 模考预约与结课分数（按 学生×科目 存储） ================= */
@@ -400,8 +413,8 @@ function bookMockExam(){
   slot.date = d;
   const mst = getMockStu();
   logAction('预约模考', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '预约日期 ' + d, {ownerId: mst ? mst.ownerId : undefined});
-  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: mst.mock}),
-    r=>{ if(r && r.pushed) toast('模考时间已推送给家长'); });  // API 模式：整体提交模考列；开关打开时服务端自动推送
+  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: {[quickEntry.subject]: mst.mock[quickEntry.subject]}}),
+    r=>{ if(r && r.pushed) toast('模考时间已推送给家长'); });  // API 模式：最小补丁按科目键提交；开关打开时服务端自动推送
   mockEdit = null;
   save();
   renderAll();
@@ -432,7 +445,7 @@ function saveMockScore(){
   slot.score = v;
   const mst = getMockStu();
   logAction('保存模考分数', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '结课模考 ' + v + ' 分', {ownerId: mst ? mst.ownerId : undefined});
-  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: mst.mock}),
+  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: {[quickEntry.subject]: mst.mock[quickEntry.subject]}}),
     r=>{ if(r && r.pushed) toast('模考成绩已推送给家长'); });  // 开关打开时服务端自动推送成绩通知
   mockEdit = null;
   save();
@@ -471,14 +484,14 @@ function addSubjPanelHtml(gid){
   return '<div class="add-subj-panel">' +
     '<div class="add-subj-title">选择该学生的学习科目</div>' +
     '<div class="subject-row">' +
-    '<select id="' + p + '-s1" onchange="asSub1Change(\'' + gid + '\')">' + s1opts + '</select>' +
-    '<select id="' + p + '-s2" onchange="asSub2Change(\'' + gid + '\')" disabled><option value="">二级科目…</option></select>' +
+    '<select id="' + p + '-s1" onchange="asSub1Change(\'' + esc(jsStr(gid)) + '\')">' + s1opts + '</select>' +
+    '<select id="' + p + '-s2" onchange="asSub2Change(\'' + esc(jsStr(gid)) + '\')" disabled><option value="">二级科目…</option></select>' +
     '<select id="' + p + '-s3" disabled style="display:none"><option value="">三级科目…</option></select>' +
     '<input id="' + p + '-custom" placeholder="输入自定义科目" style="display:none">' +
     '</div>' +
     '<div style="margin-top:10px;display:flex;gap:8px">' +
-    '<button class="btn mint sm" onclick="confirmAddSubject(\'' + gid + '\')">确认添加科目</button>' +
-    '<button class="btn ghost sm" onclick="toggleAddSubject(\'' + gid + '\')">取消</button>' +
+    '<button class="btn mint sm" onclick="confirmAddSubject(\'' + esc(jsStr(gid)) + '\')">确认添加科目</button>' +
+    '<button class="btn ghost sm" onclick="toggleAddSubject(\'' + esc(jsStr(gid)) + '\')">取消</button>' +
     '</div>' +
     '</div>';
 }
