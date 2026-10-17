@@ -44,11 +44,11 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.8.3</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.8.4</div>
   </aside>
 
   <main>
-    <!-- 页头（v1.8.3 设计稿：纯文字品牌区 + 小书本图标 + 动态日期 + 暖金竖线标语；书页装饰为背景） -->
+    <!-- 页头（v1.8.4 设计稿：纯文字品牌区 + 小书本图标 + 动态日期 + 暖金竖线标语；书页装饰为背景） -->
     <div class="topbar">
       <div class="tb-left">
         <img class="tb-book" src="assets/book-icon.svg" alt="">
@@ -154,7 +154,7 @@
 
     <!-- 学生统计 -->
     <section id="pane-stats" class="tab-pane">      <div class="card collapsed" id="stats-chart-card">
-        <h2 onclick="toggleBarChart()" title="点击展开/收起"><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>各科目平均正确率（全体学生）<span style="flex:1"></span><span class="chev">▾</span></h2>
+        <h2 onclick="toggleBarChart()" title="点击展开/收起"><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>各科目平均正确率<span id="chart-scope">（全体学生）</span><span style="flex:1"></span><span class="chev">▾</span></h2>
         <div class="chart-wrap" id="bar-chart"></div>
       </div>
       <!-- 搜索框移到图表与学生明细之间；sticky 常驻顶部（滚动明细时筛选区不滚走） -->
@@ -164,6 +164,8 @@
           <input id="stu-search" placeholder="按学生姓名搜索，支持部分匹配，如：林">
         </div>
         <div id="stu-letter-bar"></div>
+        <!-- 筛选区 meta（v1.8.4 UI-03）：命中数量 + 已选条件提示 + 一键清除（无激活条件时为空） -->
+        <div id="stu-filter-meta" style="margin-top:8px;font-size:12px;color:var(--ink2)"></div>
       </div>
       <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H7a4 4 0 00-4 4v2"/><circle cx="10" cy="7" r="4"/></svg>学生明细<span style="flex:1"></span>
@@ -225,7 +227,7 @@
         </div>
       </div>
       <div class="card">
-        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>备份与恢复</h2>
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><span id="backup-card-title">备份与恢复</span></h2>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn mint" id="btn-export">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
@@ -237,7 +239,7 @@
           </button>
           <input type="file" id="f-import" accept=".json,application/json" style="display:none">
         </div>
-        <p class="hint">导入会替换当前全部数据（支持上千条记录），导入前会先让你确认。</p>
+        <p class="hint" id="backup-hint">导入会替换当前全部数据（支持上千条记录），导入前会先让你确认。</p>
         <p class="hint" id="import-api-tip" style="display:none">生产环境数据在服务器，恢复数据请联系管理员。</p>
       </div>
       <!-- 危险操作区（仅教务可见；红色边框独立卡片，不可恢复操作集中管理） -->
@@ -482,7 +484,7 @@
   <span class="login-blob b1" aria-hidden="true"></span>
   <span class="login-blob b2" aria-hidden="true"></span>
   <span class="login-blob b3" aria-hidden="true"></span>
-  <!-- 生产站后端故障阻断页（v1.8.3 ENG-03）：探测不到真后端时显示，不回落可编辑演示模式 -->
+  <!-- 生产站后端故障阻断页（v1.8.4 ENG-03）：探测不到真后端时显示，不回落可编辑演示模式 -->
   <div id="api-outage" style="display:none;flex-direction:column;align-items:center;gap:12px;background:#FDFCF8;border:1.5px solid var(--line);border-radius:16px;padding:32px 28px;max-width:420px;text-align:center">
     <div style="font-size:18px;font-weight:700">服务暂时不可用</div>
     <div style="font-size:13px;color:var(--ink2)">学情服务暂时不可用，请稍后重试。若长时间无法恢复，请联系教务管理员。</div>
@@ -526,7 +528,7 @@
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.8.3</div>
+    <div class="login-ver" id="login-ver">v1.8.4</div>
   </div>
 </div>
 
