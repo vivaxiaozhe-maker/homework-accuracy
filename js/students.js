@@ -20,10 +20,12 @@ function snoozedToday(amap, kind, refKey){
   const a = amap[kind + '|' + refKey];
   return !!(a && a.action==='snooze' && a.snoozeUntil && a.snoozeUntil >= todayStr());
 }
-// 行内处理状态徽章：曾被稍后处理过的显示「稍后至 X」（琥珀）
+// 行内处理状态徽章：稍后处理**生效期内**（snoozeUntil >= 今天）才显示「稍后至 X」；
+// 过期后该行恢复为普通待办，不再挂旧日期徽章（避免"看着像还在稍后"的误导）
 function snoozeBadgeHtml(amap, kind, refKey){
   const a = amap[kind + '|' + refKey];
-  return (a && a.action==='snooze') ? '<span class="tag amber">稍后至 ' + esc(a.snoozeUntil) + '</span>' : '';
+  return (a && a.action==='snooze' && a.snoozeUntil && a.snoozeUntil >= todayStr())
+    ? '<span class="tag amber">稍后至 ' + esc(a.snoozeUntil) + '</span>' : '';
 }
 /* 稍后处理：snooze 1 天（不弹二次确认，直接 toast）；mock 写 pool.alertActions，API 走 /api/alerts/action 后 resync */
 function alertSnooze(kind, refKey){
@@ -119,22 +121,33 @@ function renderToday(){
   });
 
   // ---- 行渲染 ----
+  // 未交与逾期是同一条记录的两个时间阶段：登记未交 → 7 天宽限（宽限至 未交日期+7）→ 超时自动转逾期。
+  // 行内徽章直接说清阶段与天数：逾期行「未交 · 逾期 N 天」，宽限行「未交 · 宽限至 MM-DD」（未填开课时间的只标「未交」）
+  const missStageTag = m => {
+    if(overdueRows.indexOf(m) !== -1){
+      const odDays = Math.round((new Date(todayStr()) - new Date(addDays(m.date, 7))) / 86400000);
+      return '<span class="tag red" title="登记未交超过 7 天宽限，需尽快催办">未交 · 逾期 ' + Math.max(1, odDays) + ' 天</span>';
+    }
+    const st0 = state.students.find(x=>x.id===m.studentId);
+    const fc0 = m.subject && st0 && st0.subjFirstClass && st0.subjFirstClass[m.subject];
+    return fc0
+      ? '<span class="tag amber" title="宽限期内（登记未交未满 7 天），' + addDays(m.date,7) + ' 后仍未补交将转为逾期">未交 · 宽限至 ' + addDays(m.date,7).slice(5) + '</span>'
+      : '<span class="tag amber" title="未填开课时间，暂不计算逾期">未交</span>';
+  };
   const renderMissRow = m =>
     '<div class="todo-item' + (overdueRows.indexOf(m)!==-1?' overdue':'') + '">' +
     '<div class="grow"><span class="who">' + esc(stuName(m.studentId)) + '</span>' +
     '<span class="tag mint">' + esc(shortSubject(m.subject || '未指定科目')) + '</span>' +
     (m.sample ? '<span class="tag sample">示例</span>' : '') +
     (admin ? '<span class="tag sample">归属 ' + esc(ownerName(m.ownerId)) + '</span>' : '') +
-    (overdueRows.indexOf(m)!==-1
-      ? '<span class="tag red" title="开课后超过 7 天未补交">逾期</span>'
-      : '<span class="tag amber" title="宽限期内（开课后 7 天内）或未填开课时间的未交">未交</span>') +
+    missStageTag(m) +
     snoozeBadgeHtml(amap, 'miss', m.id) +
     '<div style="font-size:13px;color:var(--ink2)">未交日期 ' + m.date + '</div></div>' +
     // 未交行的完成路径 = 去补录（现有补录流）；教务只读不显示
     (admin ? '' :
       '<button class="btn mint sm" onclick="resolveMissed(\'' + esc(jsStr(m.id)) + '\')" title="跳转到该生该科目的打卡面板补录这次作业；填写并保存后，该条未交才算补交完成">去补录</button>' +
       '<button class="btn ghost sm" onclick="removeMissed(\'' + esc(jsStr(m.id)) + '\')" title="删除该未交记录">删除</button>') +
-    '<button class="btn ghost sm" onclick="alertSnooze(\'miss\',\'' + esc(jsStr(m.id)) + '\')" title="今天不再提醒，明天再出现">稍后处理</button>' +
+    '<button class="btn ghost sm" onclick="alertSnooze(\'miss\',\'' + esc(jsStr(m.id)) + '\')" title="今天不再提醒，明天恢复显示（不解决问题，只是暂缓）">稍后处理</button>' +
     '</div>';
   const renderLowRow = x => {
     const r = x.rec;
@@ -166,10 +179,10 @@ function renderToday(){
 
   // ---- 分组 + 计数条 ----
   const groups = [
-    { key:'overdueMiss', label:'逾期', rows: overdueRows, render: renderMissRow, ownerOf: m=>m.ownerId },
-    { key:'miss', label:'未交（宽限内）', rows: graceRows, render: renderMissRow, ownerOf: m=>m.ownerId },
-    { key:'lowAcc', label:'正确率偏低', rows: lowRows, render: renderLowRow, ownerOf: x=>x.rec.ownerId },
-    { key:'planStall', label:'计划停滞', rows: stallRows, render: renderStallRow, ownerOf: x=>x.st.ownerId }
+    { key:'overdueMiss', label:'逾期', sub:'未交超过 7 天宽限，最紧急', rows: overdueRows, render: renderMissRow, ownerOf: m=>m.ownerId },
+    { key:'miss', label:'未交（宽限内）', sub:'登记未交未满 7 天，宽限内补交不计逾期', rows: graceRows, render: renderMissRow, ownerOf: m=>m.ownerId },
+    { key:'lowAcc', label:'正确率偏低', sub:'近 7 天有成绩记录平均正确率低于 60%', rows: lowRows, render: renderLowRow, ownerOf: x=>x.rec.ownerId },
+    { key:'planStall', label:'计划停滞', sub:'科目超过 7 天没有任何新作业记录', rows: stallRows, render: renderStallRow, ownerOf: x=>x.st.ownerId }
   ];
   const nonEmpty = groups.filter(g=>g.rows.length);
   if(todayExpandKey===null || !nonEmpty.some(g=>g.key===todayExpandKey)) todayExpandKey = nonEmpty.length ? nonEmpty[0].key : null;
@@ -197,6 +210,7 @@ function renderToday(){
     return '<div class="today-grp" id="today-grp-' + g.key + '">' +
       '<div class="today-grp-head" tabindex="0" onclick="todayCatGo(\'' + g.key + '\')">' +
       '<span class="chev">' + (open?'▾':'▸') + '</span><b>' + g.label + '</b>' +
+      '<span class="grp-sub">' + g.sub + '</span>' +
       '<span class="cnt">' + g.rows.length + (g.key==='miss' ? ' 次未交' : ' 条') + '</span></div>' +
       // 折叠组仍渲染行（CSS 隐藏），保证内容可检索/可测试
       '<div class="today-grp-body"' + (open?'':' style="display:none"') + '>' + chipsHtml + rows.map(g.render).join('') + '</div></div>';

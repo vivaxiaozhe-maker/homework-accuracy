@@ -137,6 +137,7 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .today-grp-head{display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;min-height:44px}
 .today-grp-head:hover{background:var(--mint-xl)}
 .today-grp-head .chev{color:var(--mint-d);font-size:12px;width:14px;flex-shrink:0}
+.today-grp-head .grp-sub{font-size:12px;font-weight:400;color:var(--ink2)}
 .today-grp-head .cnt{margin-left:auto;font-size:12px;font-weight:700;color:var(--ink2)}
 .today-grp-body{padding:0 10px 6px}
 .today-grp-body .todo-item:last-child{margin-bottom:4px}
