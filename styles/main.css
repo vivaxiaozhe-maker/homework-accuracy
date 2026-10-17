@@ -365,6 +365,10 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 }
 .slot-edit input:focus{outline:none;border-color:var(--mint)}
 .slot-edit .se-full{grid-column:1/-1}
+/* 录入表单固定字段标签（v1.8.2 UI-01）：填写后字段含义不消失 */
+.slot-edit .se-field{display:flex;flex-direction:column;gap:3px}
+.slot-edit .se-field>span{font-size:12px;font-weight:600;color:var(--ink2)}
+.slot-edit .se-err{grid-column:1/-1;font-size:12px;color:var(--red);font-weight:600;margin-top:2px}
 .slot-edit .se-actions{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
 .slot-edit .se-calc{font-size:12px;color:var(--ink2);align-self:center}
 /* 老师评语（科目级） */
@@ -376,6 +380,12 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .qe-comment textarea:focus{outline:none;border-color:var(--mint)}
 .qe-comment-actions{display:flex;align-items:center;gap:10px;margin-top:8px}
 .qe-saved-tip{font-size:12px;color:var(--mint-d);font-weight:600}
+/* 保存状态四态（v1.8.2 UI-01）：未保存/保存中/已保存（时间）/保存失败可重试 */
+.qe-save-st{font-size:12px;font-weight:600}
+.qe-save-st.dirty{color:#B9802A}
+.qe-save-st.saving{color:var(--ink2)}
+.qe-save-st.saved{color:var(--mint-d)}
+.qe-save-st.fail{color:var(--red)}
 .sub-cmt-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--mint);flex-shrink:0}
 /* 模考预约与分数 */
 .qe-mock{margin-top:12px;border-top:1.5px dashed #BFE3D4;padding-top:12px}

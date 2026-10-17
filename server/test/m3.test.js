@@ -220,6 +220,46 @@ function ok(cond, name){
   r = await req('GET', '/api/search/students?q=林', null, T1);
   ok(r.status === 403, '助教不能调搜索接口');
 
+  /* ---- v1.8.2 BUG-03：搜索字面匹配（下划线/百分号/引号/反斜杠按字面；纯通配不退化全量；姓名与学校分别覆盖） ---- */
+  await req('POST', '/api/students', { id: 'sch-s1', name: 'UI走查1017_a6fbb4学生', school: '深外_分校', gradYear: '2027' }, T1);
+  await req('POST', '/api/students', { id: 'sch-s2', name: '百分号%学生', school: "引号'学校", gradYear: '2027' }, T1);
+  r = await req('GET', '/api/search/students?q=' + encodeURIComponent('UI走查1017_a6fbb4学生'), null, TS);
+  ok(r.status === 200 && r.data.students.some(s=>s.id==='sch-s1'), 'BUG-03：完整姓名含下划线可搜到');
+  r = await req('GET', '/api/search/students?q=' + encodeURIComponent('1017_a6'), null, TS);
+  ok(r.data.students.some(s=>s.id==='sch-s1'), 'BUG-03：下划线组合关键词字面部分匹配');
+  r = await req('GET', '/api/search/students?q=' + encodeURIComponent('百分号%'), null, TS);
+  ok(r.data.students.some(s=>s.id==='sch-s2'), 'BUG-03：百分号按字面匹配');
+  r = await req('GET', '/api/search/students?q=' + encodeURIComponent("引号'"), null, TS);
+  ok(r.data.students.some(s=>s.id==='sch-s2'), 'BUG-03：引号在学校名中字面匹配（学校覆盖）');
+  r = await req('GET', '/api/search/students?q=' + encodeURIComponent('深外_分'), null, TS);
+  ok(r.data.students.some(s=>s.id==='sch-s1'), 'BUG-03：学校名含下划线可搜到（学校覆盖）');
+  r = await req('GET', '/api/search/students?q=' + encodeURIComponent('_'), null, TS);
+  ok(r.data.students.length > 0
+    && r.data.students.every(s=>s.name.indexOf('_') !== -1 || (s.school||'').indexOf('_') !== -1),
+    'BUG-03：纯「_」查询只命中字面含下划线者（不退化全量）');
+  r = await req('GET', '/api/search/students?q=' + encodeURIComponent('%'), null, TS);
+  ok(r.data.students.every(s=>s.name.indexOf('%') !== -1 || (s.school||'').indexOf('%') !== -1),
+    'BUG-03：纯「%」查询不全量命中');
+
+  /* ---- v1.8.2 BUG-04：科目摘要次数含无作业、正确率仅用有成绩记录（简单平均）；纯无作业/纯未交科目有入口 ---- */
+  await req('POST', '/api/records', { id: 'sch-r1', studentId: 'sch-s1', date: '2026-10-11', total: 10, correct: 9, wrongs: [], subject: '摘要科目' }, T1);
+  await req('POST', '/api/records', { id: 'sch-r2', studentId: 'sch-s1', date: '2026-10-12', total: 20, correct: 16, wrongs: [], subject: '摘要科目' }, T1);
+  await req('POST', '/api/records', { id: 'sch-r3', studentId: 'sch-s1', date: '2026-10-13', subject: '摘要科目', noHomework: true }, T1);
+  await req('POST', '/api/records', { id: 'sch-r4', studentId: 'sch-s1', date: '2026-10-13', subject: '纯无作业科', noHomework: true }, T1);
+  r = await req('GET', '/api/search/students?q=' + encodeURIComponent('UI走查1017'), null, TS);
+  const schSum = r.data.students.find(s=>s.id==='sch-s1');
+  const sumA = schSum.subjects.find(x=>x.subject==='摘要科目');
+  const sumB = schSum.subjects.find(x=>x.subject==='纯无作业科');
+  ok(sumA && sumA.cnt === 3 && sumA.avg === 85, 'BUG-04：摘要次数含无作业（3 次），平均正确率仅用有成绩记录（(90+80)/2=85，不按题量加权）');
+  ok(sumB && sumB.cnt === 1 && sumB.avg === null, 'BUG-04：纯无作业科目有入口，正确率 null（前端显示 —）');
+  r = await req('GET', '/api/search/students/sch-s1', null, TS);
+  const detA = r.data.student.subjects.find(x=>x.subject==='摘要科目');
+  ok(detA && detA.done === 3 && detA.items.length === 3, 'BUG-04：详情完成数与摘要一致（3 次）');
+  await req('POST', '/api/missed', { id: 'sch-m1', studentId: 'sch-s1', date: '2026-10-12', subject: '纯未交科' }, T1);
+  r = await req('GET', '/api/search/students?q=' + encodeURIComponent('UI走查1017'), null, TS);
+  const sumC = r.data.students[0].subjects.find(x=>x.subject==='纯未交科');
+  ok(sumC && sumC.cnt === 0 && sumC.avg === null, 'BUG-04：纯未交科目有入口（0 次、正确率 —）');
+
   /* ---- 销售详情同日排序稳定键（v1.8.0 BUG-02）：同日期 rec 按 id 字典序在前、miss 在后，与前端 subjectItems 同规则 ---- */
   await req('POST', '/api/records', { id: 'ord-rB', studentId: stuA, date: '2026-10-10', total: 10, correct: 9, wrongs: [], subject: '排序测试科目' }, T1);
   await req('POST', '/api/records', { id: 'ord-rA', studentId: stuA, date: '2026-10-10', total: 10, correct: 8, wrongs: [1], subject: '排序测试科目' }, T1);

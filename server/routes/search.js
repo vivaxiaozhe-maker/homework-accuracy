@@ -20,24 +20,34 @@ function ownerName(ownerId){
 router.get('/students', (req, res) => {
   const q = (req.query.q || '').trim();
   if(!q) return res.status(400).json({ ok: false, msg: '请输入搜索关键字' });
-  const like = '%' + q.replace(/[%_]/g, '') + '%';  // 去掉 LIKE 通配符，纯部分匹配
-  const students = db.prepare('SELECT * FROM students WHERE name LIKE ? OR IFNULL(school, \'\') LIKE ?')
+  // 字面部分匹配（v1.8.2 BUG-03）：保留原输入，LIKE ESCAPE 转义通配符——下划线/百分号/反斜杠按字面匹配，
+  // 不过滤正常字符；纯「_」「%」查询只命中字面含该字符者，不会退化为全量匹配
+  const like = '%' + q.replace(/\\/g, '\\\\').replace(/[%_]/g, m => '\\' + m) + '%';
+  const students = db.prepare("SELECT * FROM students WHERE name LIKE ? ESCAPE '\\' OR IFNULL(school, '') LIKE ? ESCAPE '\\'")
     .all(like, like);
   const recStmt = db.prepare('SELECT * FROM records WHERE student_id = ?');
   const missStmt = db.prepare('SELECT COUNT(*) AS c FROM missed WHERE student_id = ?');
+  const missSubjStmt = db.prepare('SELECT DISTINCT subject FROM missed WHERE student_id = ? AND resolved = 0');
   const items = students.map(s => {
     const recs = recStmt.all(s.id);
     const graded = recs.filter(r=>!r.no_homework);  // 无作业记录不参与正确率统计
     const lastGraded = graded.length ? graded.reduce((a, b) => a.date > b.date ? a : b) : null;
-    // 各科目 {正确率, 次数}（正确率只算有成绩的记录；次数含无作业——无作业计入已完成）
+    /* 各科目摘要（v1.8.2 BUG-04）：完成次数 = 全部记录（含无作业，与详情「已完成 N 次」同口径）；
+       平均正确率只算有成绩记录（简单平均，不按题量加权）；无成绩可算 → avg:null（前端显示 —）。
+       只有无作业/只有未交/只有计划/手动科目的也给可进入详情的入口 */
     const subMap = {};
-    graded.forEach(r => {
+    recs.forEach(r => {
       const k = r.subject || '未指定';
-      (subMap[k] = subMap[k] || []).push(r);
+      (subMap[k] = subMap[k] || { cnt: 0, graded: [] });
+      subMap[k].cnt++;
+      if(!r.no_homework) subMap[k].graded.push(r);
     });
+    missSubjStmt.all(s.id).forEach(m => { const k = m.subject || '未指定'; subMap[k] = subMap[k] || { cnt: 0, graded: [] }; });
+    parseJson(s.subjects, []).forEach(k => { subMap[k] = subMap[k] || { cnt: 0, graded: [] }; });
+    Object.keys(parseJson(s.subj_plans, {})).forEach(k => { subMap[k] = subMap[k] || { cnt: 0, graded: [] }; });
     const subjects = Object.keys(subMap).map(k => ({
-      subject: k, cnt: subMap[k].length,
-      avg: Math.round(subMap[k].reduce((x, r) => x + accOf(r), 0) / subMap[k].length)
+      subject: k, cnt: subMap[k].cnt,
+      avg: subMap[k].graded.length ? Math.round(subMap[k].graded.reduce((x, r) => x + accOf(r), 0) / subMap[k].graded.length) : null
     }));
     return { id: s.id, name: s.name, school: s.school || '', gradYear: s.grad_year || '',
       archived: !!s.archived, archivedAt: s.archived_at || null, archivedReason: s.archived_reason || '', ownerName: ownerName(s.owner_id),

@@ -790,7 +790,10 @@ function salesApiCard(s, isAlumni){
   const subHtml = (s.subjects && s.subjects.length) ? '<div class="sub-acc">' + s.subjects.map(sub=>
     '<span class="sub-chip" onclick="toggleSalesSubjectApi(\'' + esc(jsStr(s.id)) + '\',\'' + esc(jsStr(sub.subject)) + '\',' + isAlumni + ')" title="点击查看该科目详情（只读）">' +
     '<span class="sub-name">' + esc(shortSubject(sub.subject)) + '</span>' +
-    '<span class="acc-badge ' + accClass(sub.avg) + '">' + sub.avg + '%</span>' +
+    // 无成绩可算（纯无作业/纯未交/纯计划）→ 正确率 —（v1.8.2 BUG-04）
+    (sub.avg === null || sub.avg === undefined
+      ? '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">—</span>'
+      : '<span class="acc-badge ' + accClass(sub.avg) + '">' + sub.avg + '%</span>') +
     '<span class="sub-cnt">' + sub.cnt + ' 次</span></span>').join('') + '</div>' : '';
   return '<div class="stu-card">' +
     '<div class="stu-head"><div class="avatar">' + esc(s.name.slice(0,1)) + '</div>' +
@@ -834,31 +837,32 @@ function salesApiPanel(st, subject){
       const idx = i+1;
       const it = sub.items[i];
       if(it && it.type==='miss'){
-        return '<div class="ci-slot miss" title="第 ' + idx + ' 次：' + it.date + ' 未交">' +
+        // 未交格子（v1.8.2 BUG-05）：未交不是零分——分数/错题显示 —，文字独立表达「未交 · 待补交」
+        return '<div class="ci-slot miss" title="第 ' + idx + ' 次：' + it.date + ' 未交 · 待补交">' +
           '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">未交✗</span></div>' +
-          '<div class="ci-date">' + it.date + '</div><div class="ci-acc" style="color:var(--red)">0%</div>' +
-          '<div class="ci-wrongs">错题 0</div></div>';
+          '<div class="ci-date">' + it.date + '</div><div class="ci-acc" style="color:var(--red)">—</div>' +
+          '<div class="ci-wrongs">未交 · 待补交</div></div>';
       }
       if(it && it.type==='rec'){
         if(it.noHomework){  // 无作业格子（服务端明细带 noHomework 标记）
-          return '<div class="ci-slot nohw" title="本次无作业">' +
+          return '<div class="ci-slot nohw" title="本次无作业 · 已完成">' +
             '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">无作业</span></div>' +
             '<div class="ci-date">' + it.date + '</div><div class="ci-acc" style="color:var(--ink2)">—</div>' +
             '<div class="ci-wrongs">本次无作业</div></div>';
         }
         const ra = it.acc;
         const acls = ra>=85?'good':(ra>=60?'mid':'bad');
-        return '<div class="ci-slot done" title="第 ' + idx + ' 次：' + it.date + '，正确率 ' + ra + '%' +
+        return '<div class="ci-slot done" title="第 ' + idx + ' 次：' + it.date + '，已提交 · 正确率 ' + ra + '%' +
           (it.wrongs&&it.wrongs.length ? '，错题 ' + esc(it.wrongs.join('、')) : '') + '">' +
           '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 4.8"/></svg></span></div>' +
           '<div class="ci-date">' + it.date + '</div>' +
           '<div class="ci-acc ' + acls + '">' + ra + '%</div>' +
           '<div class="ci-wrongs">' + (it.wrongs&&it.wrongs.length ? '错 ' + esc(it.wrongs.join('、')) : '无错题') + '</div></div>';
       }
-      return '<div class="ci-slot miss" title="第 ' + idx + ' 次作业未完成">' +
+      return '<div class="ci-slot miss" title="第 ' + idx + ' 次作业待录入">' +
         '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span></div>' +
-        '<div class="ci-date">未完成</div><div class="ci-acc" style="color:var(--red)">—</div>' +
-        '<div class="ci-wrongs">未完成</div></div>';
+        '<div class="ci-date">待录入</div><div class="ci-acc" style="color:var(--red)">—</div>' +
+        '<div class="ci-wrongs">待录入</div></div>';
     }).join('');
   }
   return '<div class="qe-panel">' +
@@ -985,6 +989,7 @@ function qePanelHtml(){
         '<div class="qe-comment-actions">' +
         '<button class="btn mint sm" onclick="saveSubjectComment()">保存评语</button>' +
         '<span class="qe-saved-tip" id="qe-comment-tip" style="display:none">✓ 已保存</span>' +
+        '<span class="qe-save-st' + (draftCmt !== null ? ' dirty' : '') + '" id="qe-comment-st">' + (draftCmt !== null ? '未保存' : '') + '</span>' +
         '</div>') +
     '</div>' +
     '<div class="qe-mock">' +
@@ -1003,6 +1008,7 @@ function qePanelHtml(){
         '<div class="qe-comment-actions">' +
         '<button class="btn mint sm" onclick="saveSubjectAdvice()">保存计划与建议</button>' +
         '<span class="qe-saved-tip" id="qe-advice-tip" style="display:none">✓ 已保存</span>' +
+        '<span class="qe-save-st' + (draftAdv !== null ? ' dirty' : '') + '" id="qe-advice-st">' + (draftAdv !== null ? '未保存' : '') + '</span>' +
         '</div>') +
     '</div>' +
     '</div>';
@@ -1225,17 +1231,18 @@ function checkinGridHtml(){
     const idx = i+1;
     const it = items[i];
     if(it && it.type==='miss'){
-      return '<div class="ci-slot miss" onclick="openSlot(' + idx + ')" title="第 ' + idx + ' 次：' + it.miss.date + ' 未交（' + (st&&st.archived?'点击查看':'点击补录') + '）">' +
+      // 未交格子（v1.8.2 BUG-05）：未交不是零分——分数/错题显示 —，文字独立表达「未交 · 待补交」
+      return '<div class="ci-slot miss" onclick="openSlot(' + idx + ')" title="第 ' + idx + ' 次：' + it.miss.date + ' 未交 · 待补交（' + (st&&st.archived?'点击查看':'点击补录') + '）">' +
         '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">未交✗</span></div>' +
         '<div class="ci-date">' + it.miss.date + '</div>' +
-        '<div class="ci-acc" style="color:var(--red)">0%</div>' +
-        '<div class="ci-wrongs">错题 0</div>' +
+        '<div class="ci-acc" style="color:var(--red)">—</div>' +
+        '<div class="ci-wrongs">未交 · 待补交</div>' +
         '</div>';
     }
     const r = it && it.type==='rec' ? it.rec : null;
     if(r){
       if(r.noHomework){  // 无作业格子（第四次态）：中性灰蓝，只显示「无作业」+ 日期，不显示百分比与错题
-        return '<div class="ci-slot nohw" onclick="openSlot(' + idx + ')" title="本次无作业（点击查看/修改）">' +
+        return '<div class="ci-slot nohw" onclick="openSlot(' + idx + ')" title="本次无作业 · 已完成（点击查看/修改）">' +
           '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark">无作业</span></div>' +
           '<div class="ci-date">' + r.date + '</div>' +
           '<div class="ci-acc" style="color:var(--ink2)">—</div>' +
@@ -1244,7 +1251,7 @@ function checkinGridHtml(){
       }
       const ra = acc(r);
       const acls = ra>=85?'good':(ra>=60?'mid':'bad');
-      return '<div class="ci-slot done" onclick="openSlot(' + idx + ')" title="第 ' + idx + ' 次：' + r.date + '，正确率 ' + ra + '%' +
+      return '<div class="ci-slot done" onclick="openSlot(' + idx + ')" title="第 ' + idx + ' 次：' + r.date + '，已提交 · 正确率 ' + ra + '%' +
         (r.wrongs&&r.wrongs.length ? '，错题 ' + esc(r.wrongs.join('、')) : '') + '（点击查看/修改）">' +
         '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span><span class="ci-mark"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 4.8"/></svg></span></div>' +
         '<div class="ci-date">' + r.date + '</div>' +
@@ -1252,11 +1259,12 @@ function checkinGridHtml(){
         '<div class="ci-wrongs">' + (r.wrongs&&r.wrongs.length ? '错 ' + esc(r.wrongs.join('、')) : '无错题') + '</div>' +
         '</div>';
     }
-    return '<div class="ci-slot miss" onclick="openSlot(' + idx + ')" title="第 ' + idx + ' 次作业未完成' + (st&&st.archived?'':'，点击补录') + '">' +
+    // 未录入空格子：「待录入」（非未交、非零分）
+    return '<div class="ci-slot miss" onclick="openSlot(' + idx + ')" title="第 ' + idx + ' 次作业待录入' + (st&&st.archived?'':'，点击补录') + '">' +
       '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span></div>' +
-      '<div class="ci-date">未完成</div>' +
+      '<div class="ci-date">待录入</div>' +
       '<div class="ci-acc" style="color:var(--red)">—</div>' +
-      '<div class="ci-wrongs">' + (st&&st.archived?'未完成':'点击补录') + '</div>' +
+      '<div class="ci-wrongs">' + (st&&st.archived?'待录入':'点击补录') + '</div>' +
       '</div>';
   }).join('');
 }
@@ -1315,6 +1323,8 @@ function toggleSlotNoHw(){
    绑定格子身份（refType/refId），仅保存/删除成功才清除；取消/切页/刷新后重开同一格子自动恢复 */
 function slotDraftSave(){
   if(!slotEdit) return;
+  const se = document.getElementById('sl-err');  // 继续输入即清行内校验错误（v1.8.2 UI-01）
+  if(se) se.style.display = 'none';
   const g = id=>{ const el = document.getElementById(id); return el ? el.value : ''; };
   const d = {
     refType: slotEdit.refType, refId: slotEdit.refId, idx: slotEdit.idx,
@@ -1322,6 +1332,13 @@ function slotDraftSave(){
   };
   if(slNoHw && slTmpVals){ d.total = slTmpVals.total; d.correct = slTmpVals.correct; d.wrongs = slTmpVals.wrongs; }  // 无作业态下输入框被禁用，成绩值取暂存
   draftSave(slotEdit.gid, slotEdit.subject, 'slot', d);
+}
+/* 行内校验错误（v1.8.2 UI-01）：贴近字段红字 ✕ + 定位焦点；保留已输入内容不清空 */
+function slError(msg, focusId){
+  const el = document.getElementById('sl-err');
+  if(el){ el.textContent = '✕ ' + msg; el.style.display = ''; }
+  const f = focusId ? document.getElementById(focusId) : null;
+  if(f && f.focus) f.focus();
 }
 /* 当次作业编辑区 HTML */
 function slotEditHtml(){
@@ -1355,12 +1372,12 @@ function slotEditHtml(){
   if(st && st.archived){
     if(miss){
       return '<div class="slot-edit"><div class="se-title">第 ' + slotEdit.idx + ' 次作业</div>' +
-        '<div style="font-size:13px;color:var(--red);padding:4px 0">该次作业未交（' + miss.date + '），正确率 0%，错题 0。</div>' +
+        '<div style="font-size:13px;color:var(--red);padding:4px 0">该次作业未交（' + miss.date + '），登记状态「未交 · 待补交」，无成绩数据。</div>' +
         '<div class="se-actions"><button class="btn ghost sm" onclick="openSlot(' + slotEdit.idx + ')">关闭</button></div></div>';
     }
     if(!r){
       return '<div class="slot-edit"><div class="se-title">第 ' + slotEdit.idx + ' 次作业</div>' +
-        '<div style="font-size:13px;color:var(--red);padding:4px 0">该次作业未完成（未录入记录）。</div>' +
+        '<div style="font-size:13px;color:var(--red);padding:4px 0">该次作业待录入（无记录）。</div>' +
         '<div class="se-actions"><button class="btn ghost sm" onclick="openSlot(' + slotEdit.idx + ')">关闭</button></div></div>';
     }
     if(r.noHomework){  // 无作业记录：只读文案（无成绩可展示）
@@ -1382,14 +1399,15 @@ function slotEditHtml(){
   if(miss){
     return '<div class="slot-edit">' +
       '<div class="se-title">补录第 ' + slotEdit.idx + ' 次作业（' + esc(shortSubject(slotEdit.subject)) + '）</div>' +
-      '<div style="font-size:13px;color:var(--red);padding:4px 0 2px">该次为 ' + miss.date + ' 的未交作业（正确率 0%、错题 0）。填写下方信息并保存即完成这次补交；取消则保持未交状态。</div>' +
+      '<div style="font-size:13px;color:var(--red);padding:4px 0 2px">该次为 ' + miss.date + ' 的未交作业，登记状态「未交 · 待补交」，无成绩数据。填写下方信息并保存即完成这次补交；取消则保持未交状态。</div>' +
       '<div class="se-grid">' +
-      '<input id="sl-date" type="date" value="' + (draftVals ? esc(draftVals.date) : miss.date) + '" oninput="slotDraftSave()">' +
-      '<input id="sl-total" type="number" min="1" inputmode="numeric" placeholder="总题数" value="' + (draftVals ? esc(draftVals.total) : '') + '" oninput="slCalc();slotDraftSave()">' +
-      '<input id="sl-correct" type="number" min="0" inputmode="numeric" placeholder="正确题目数" value="' + (draftVals ? esc(draftVals.correct) : '') + '" oninput="slCalc();slotDraftSave()">' +
+      '<label class="se-field"><span>日期</span><input id="sl-date" type="date" value="' + (draftVals ? esc(draftVals.date) : miss.date) + '" oninput="slotDraftSave()"></label>' +
+      '<label class="se-field"><span>总题数</span><input id="sl-total" type="number" min="1" inputmode="numeric" placeholder="如 20" value="' + (draftVals ? esc(draftVals.total) : '') + '" oninput="slCalc();slotDraftSave()"></label>' +
+      '<label class="se-field"><span>正确题目数</span><input id="sl-correct" type="number" min="0" inputmode="numeric" placeholder="如 18" value="' + (draftVals ? esc(draftVals.correct) : '') + '" oninput="slCalc();slotDraftSave()"></label>' +
       '<div class="se-calc" id="sl-calc">错误数 <b>—</b>　正确率 <b>—</b></div>' +
-      '<input id="sl-wrongs" class="se-full" placeholder="错题号（用逗号分隔，可空）" value="' + (draftVals ? esc(draftVals.wrongs) : '') + '" oninput="slotDraftSave()">' +
+      '<label class="se-field se-full"><span>错题号</span><input id="sl-wrongs" placeholder="用逗号分隔，可空" value="' + (draftVals ? esc(draftVals.wrongs) : '') + '" oninput="slotDraftSave()"></label>' +
       '</div>' +
+      '<div class="se-err" id="sl-err" style="display:none"></div>' +
       '<div class="se-actions">' +
       '<button class="btn mint sm" onclick="saveSlot()">保存并补交</button>' +
       '<button class="btn ghost sm" onclick="openSlot(' + slotEdit.idx + ')">取消</button>' +
@@ -1398,12 +1416,13 @@ function slotEditHtml(){
   return '<div class="slot-edit">' +
     '<div class="se-title">' + (r ? '修改' : '录入') + '第 ' + slotEdit.idx + ' 次作业（' + esc(shortSubject(slotEdit.subject)) + '）' + (slNoHw ? '<span class="tag sample">本次无作业</span>' : '') + '</div>' +
     '<div class="se-grid">' +
-    '<input id="sl-date" type="date" value="' + (draftVals ? esc(draftVals.date) : (r ? r.date : todayStr())) + '" oninput="slotDraftSave()">' +
-    '<input id="sl-total" type="number" min="1" inputmode="numeric" placeholder="总题数" value="' + (slNoHw ? '' : (draftVals ? esc(draftVals.total) : (r ? r.total : (slTmpVals ? slTmpVals.total : '')))) + '" oninput="slCalc();slotDraftSave()"' + (slNoHw ? ' disabled' : '') + '>' +
-    '<input id="sl-correct" type="number" min="0" inputmode="numeric" placeholder="正确题目数" value="' + (slNoHw ? '' : (draftVals ? esc(draftVals.correct) : (r ? r.correct : (slTmpVals ? slTmpVals.correct : '')))) + '" oninput="slCalc();slotDraftSave()"' + (slNoHw ? ' disabled' : '') + '>' +
+    '<label class="se-field"><span>日期</span><input id="sl-date" type="date" value="' + (draftVals ? esc(draftVals.date) : (r ? r.date : todayStr())) + '" oninput="slotDraftSave()"></label>' +
+    '<label class="se-field"><span>总题数</span><input id="sl-total" type="number" min="1" inputmode="numeric" placeholder="如 20" value="' + (slNoHw ? '' : (draftVals ? esc(draftVals.total) : (r ? r.total : (slTmpVals ? slTmpVals.total : '')))) + '" oninput="slCalc();slotDraftSave()"' + (slNoHw ? ' disabled' : '') + '></label>' +
+    '<label class="se-field"><span>正确题目数</span><input id="sl-correct" type="number" min="0" inputmode="numeric" placeholder="如 18" value="' + (slNoHw ? '' : (draftVals ? esc(draftVals.correct) : (r ? r.correct : (slTmpVals ? slTmpVals.correct : '')))) + '" oninput="slCalc();slotDraftSave()"' + (slNoHw ? ' disabled' : '') + '></label>' +
     '<div class="se-calc" id="sl-calc">' + (slNoHw ? '本次无作业，仅需选择日期' : (r ? '已保存：错误数 <b>' + (r.total-r.correct) + '</b>　正确率 <b>' + acc(r) + '%</b>' : '错误数 <b>—</b>　正确率 <b>—</b>')) + '</div>' +
-    '<input id="sl-wrongs" class="se-full" placeholder="错题号（用逗号分隔，可空）" value="' + (slNoHw ? '' : (draftVals ? esc(draftVals.wrongs) : (r && r.wrongs ? esc(r.wrongs.join(',')) : (slTmpVals ? esc(slTmpVals.wrongs) : '')))) + '" oninput="slotDraftSave()"' + (slNoHw ? ' disabled' : '') + '>' +
+    '<label class="se-field se-full"><span>错题号</span><input id="sl-wrongs" placeholder="用逗号分隔，可空" value="' + (slNoHw ? '' : (draftVals ? esc(draftVals.wrongs) : (r && r.wrongs ? esc(r.wrongs.join(',')) : (slTmpVals ? esc(slTmpVals.wrongs) : '')))) + '" oninput="slotDraftSave()"' + (slNoHw ? ' disabled' : '') + '></label>' +
     '</div>' +
+    '<div class="se-err" id="sl-err" style="display:none"></div>' +
     '<div class="se-actions">' +
     '<button class="btn mint sm" onclick="saveSlot()">' + (r ? '保存修改' : '完成打卡') + '</button>' +
     '<button class="btn ghost sm" onclick="openSlot(' + slotEdit.idx + ')">取消</button>' +
@@ -1444,8 +1463,10 @@ function slCalc(){
   }
 }
 /* 保存当次打卡：有记录则更新，无记录则新增；无作业态（slNoHw）走第四次态分支（只校验日期，成绩清零） */
+let slotSaving = false;  // 提交中防重复点击（v1.8.2 UI-01）
 function saveSlot(){
   if(!slotEdit) return;
+  if(slotSaving){ toast('正在保存，请稍候'); return; }
   const st0 = pool.students.find(x=>x.id===slotEdit.gid);
   if(!st0 || !canWriteOwner(st0.ownerId)){ toast('没有权限操作该数据'); return; }
   const gid0 = slotEdit.gid, sub0 = slotEdit.subject;
@@ -1459,15 +1480,17 @@ function saveSlot(){
     miss = state.missed.find(x=>x.id===slotEdit.refId && !x.resolved) || null;
     if(!miss){ toast('该未交记录已处理，无法保存'); slotEdit = null; renderAll(); return; }
   }
-  const clearDraft = ()=>draftSave(gid0, sub0, 'slot', null);  // 保存成功才清草稿（v1.8.0 BUG-01）：API 在 onOk、mock 同步
+  const clearDraft = ()=>{ slotSaving = false; draftSave(gid0, sub0, 'slot', null); };  // 保存成功才清草稿（v1.8.0 BUG-01）：API 在 onOk、mock 同步；同时复位提交中标记
   /* ---- 无作业保存：只校验日期；total/correct/wrongs 清零；正常 → 无作业转换在 toggleSlotNoHw 已确认 ---- */
   if(slNoHw){
+    slotSaving = true;
     if(r){
-      if(!canWriteOwner(r.ownerId)){ toast('没有权限操作该数据'); return; }
+      if(!canWriteOwner(r.ownerId)){ slotSaving = false; toast('没有权限操作该数据'); return; }
       r.date = date; r.total = 0; r.correct = 0; r.wrongs = []; r.noHomework = true;
       logAction('修改作业（无作业）', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject), '日期 ' + date, {ownerId: r.ownerId});
       apiPersist(HttpApi.updateRecord(r.id, {date: date, total: 0, correct: 0, wrongs: [], subject: r.subject, noHomework: true}),
-        rr=>{ clearDraft(); if(rr && rr.pushed) toast('作业成绩已推送给家长'); });
+        rr=>{ clearDraft(); if(rr && rr.pushed) toast('作业成绩已推送给家长'); },
+        ()=>{ slotSaving = false; });
     } else {
       const newRec = {id:uid(), studentId:slotEdit.gid, date:date, total:0, correct:0,
         wrongs:[], subject:slotEdit.subject, images:[], pdfs:[], ownerId:st0.ownerId, noHomework:true};
@@ -1475,11 +1498,12 @@ function saveSlot(){
       logAction('录入作业（无作业）', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject), '日期 ' + date, {ownerId: st0.ownerId});
       apiPersist(HttpApi.addRecord({id: newRec.id, studentId: newRec.studentId, date: date, total: 0, correct: 0,
         wrongs: [], subject: newRec.subject, images: newRec.images, pdfs: newRec.pdfs, noHomework: true}),
-        rr=>{ clearDraft(); if(rr && rr.pushed) toast('作业成绩已推送给家长'); });
+        rr=>{ clearDraft(); if(rr && rr.pushed) toast('作业成绩已推送给家长'); },
+        ()=>{ slotSaving = false; });
       // 未交格子本期不提供转无作业入口（slotEditHtml 未交分支无该按钮），此分支仅为防御
       if(miss){
         miss.resolved = true; miss.resolution = 'made-up'; miss.resolvedAt = todayStr();
-        apiPersist(HttpApi.resolveMissed(miss.id));
+        apiPersist(HttpApi.resolveMissed(miss.id), null, ()=>{ slotSaving = false; });
       }
     }
     if(!USE_API) clearDraft();
@@ -1492,17 +1516,19 @@ function saveSlot(){
   }
   const total = parseInt(document.getElementById('sl-total').value, 10);
   const correct = parseInt(document.getElementById('sl-correct').value, 10);
-  if(isNaN(total) || total<=0){ toast('请填写有效的总题数'); return; }
-  if(isNaN(correct) || correct<0 || correct>total){ toast('正确题目数需在 0 到总题数之间'); return; }
+  if(isNaN(total) || total<=0){ slError('请填写有效的总题数', 'sl-total'); return; }
+  if(isNaN(correct) || correct<0 || correct>total){ slError('正确题目数需在 0 到总题数之间', 'sl-correct'); return; }
   const wrongs = document.getElementById('sl-wrongs').value.split(/[,，、\s]+/).map(s=>s.trim()).filter(Boolean);
-  if(correct < total && wrongs.length === 0){ toast('正确题目数小于总题数，请填写错题号'); return; }
+  if(correct < total && wrongs.length === 0){ slError('正确题目数小于总题数，请填写错题号', 'sl-wrongs'); return; }
+  slotSaving = true;
   if(r){
-    if(!canWriteOwner(r.ownerId)){ toast('没有权限操作该数据'); return; }
+    if(!canWriteOwner(r.ownerId)){ slotSaving = false; toast('没有权限操作该数据'); return; }
     r.date = date; r.total = total; r.correct = correct; r.wrongs = wrongs; r.noHomework = false;  // 无作业 → 正常转换
     logAction('修改作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
       '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: r.ownerId});
     apiPersist(HttpApi.updateRecord(r.id, {date: date, total: total, correct: correct, wrongs: wrongs, subject: r.subject, noHomework: false}),
-      rr=>{ clearDraft(); if(rr && rr.pushed) toast('作业成绩已推送给家长'); });
+      rr=>{ clearDraft(); if(rr && rr.pushed) toast('作业成绩已推送给家长'); },
+      ()=>{ slotSaving = false; });
   } else {
     const newRec = {id:uid(), studentId:slotEdit.gid, date:date, total:total, correct:correct,
       wrongs:wrongs, subject:slotEdit.subject, images:[], pdfs:[], ownerId:st0.ownerId};
@@ -1511,11 +1537,12 @@ function saveSlot(){
       '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: st0.ownerId});
     apiPersist(HttpApi.addRecord({id: newRec.id, studentId: newRec.studentId, date: date, total: total, correct: correct,
       wrongs: wrongs, subject: newRec.subject, images: newRec.images, pdfs: newRec.pdfs}),
-      rr=>{ clearDraft(); if(rr && rr.pushed) toast('作业成绩已推送给家长'); });  // id 客户端生成并贯穿，不再回填
+      rr=>{ clearDraft(); if(rr && rr.pushed) toast('作业成绩已推送给家长'); },  // id 客户端生成并贯穿，不再回填
+      ()=>{ slotSaving = false; });
     if(miss){
       miss.resolved = true; miss.resolution = 'made-up'; miss.resolvedAt = todayStr();  // 补录成功：该次未交视为已补交（留痕），不再占用打卡格子
       logAction('补交未交', 'missed', auditStuDesc(miss.studentId, miss.subject), '原未交日期 ' + miss.date, {ownerId: miss.ownerId});
-      apiPersist(HttpApi.resolveMissed(miss.id));
+      apiPersist(HttpApi.resolveMissed(miss.id), null, ()=>{ slotSaving = false; });
     }
   }
   if(!USE_API) clearDraft();
