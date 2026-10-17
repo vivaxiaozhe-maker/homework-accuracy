@@ -67,5 +67,11 @@ echo "==> 5/5 验证线上"
 curl -s --connect-timeout 8 https://xueqing.rocketacademy.com.cn/api/health
 echo ""
 VER=$(grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+' index.html | head -1)
-curl -s https://xueqing.rocketacademy.com.cn/ | grep -q "$VER" && echo "生产版本 $VER 已生效 ✓" || echo "注意：生产页面未检测到 $VER（若刚部署可稍等 CDN 刷新）"
+# CDN 缓存可能让版本检测误报：重试 3 次（间隔 5s）再下结论
+VERIFIED=0
+for i in 1 2 3; do
+  if curl -s https://xueqing.rocketacademy.com.cn/ | grep -q "$VER"; then VERIFIED=1; break; fi
+  [ $i -lt 3 ] && sleep 5
+done
+[ $VERIFIED -eq 1 ] && echo "生产版本 $VER 已生效 ✓" || echo "注意：生产页面未检测到 $VER（CDN 刷新较慢，请稍后手动 curl 复核）"
 echo "完成：演示站（Pages 自动更新）+ 生产 https://xueqing.rocketacademy.com.cn"
