@@ -59,7 +59,7 @@ const ctx = vm.createContext({
 
 /* ---------- 加载页面脚本 ---------- */
 const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-/* 前端已拆分为 js/*.js（v1.7.2）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+/* 前端已拆分为 js/*.js（v1.8.0）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
 const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
 if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
 const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
@@ -170,7 +170,7 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
   ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  /* ---- 账号列表按角色分组（v1.7.2）：教务管理员 → 助教 → 销售，组头带数量 ---- */
+  /* ---- 账号列表按角色分组（v1.8.0）：教务管理员 → 助教 → 销售，组头带数量 ---- */
   const accGrp = documentStub.getElementById('accounts-list').innerHTML;
   ok(accGrp.indexOf('教务管理员') !== -1 && accGrp.indexOf('助教<span class="cnt">') !== -1
     && accGrp.indexOf('销售<span class="cnt">') !== -1, '账号列表按角色分组显示组头');
@@ -178,7 +178,7 @@ function ok(cond, name){
     && accGrp.indexOf('助教<span class="cnt">') < accGrp.indexOf('销售<span class="cnt">'), '组序：教务管理员 → 助教 → 销售');
   ok(/教务管理员<span class="cnt">1 个账号/.test(accGrp) && /助教<span class="cnt">3 个账号/.test(accGrp)
     && /销售<span class="cnt">1 个账号/.test(accGrp), '分组数量正确（教务 1 / 助教 3 / 销售 1）');
-  ok(html.indexOf('id="login-ver">v1.7.2') !== -1, '登录页版本号升至 v1.7.2');
+  ok(html.indexOf('id="login-ver">v1.8.0') !== -1, '登录页版本号升至 v1.8.0');
   /* ---- 登录密码框：默认密文 + 眼睛图标切换明文 ---- */
   ok(html.indexOf('id="login-pass" type="password"') !== -1, '登录密码框默认密文');
   ok(html.indexOf('pwd-wrap') !== -1 && html.indexOf('id="login-pass-eye"') !== -1, '登录密码框带明文切换按钮');
@@ -345,7 +345,7 @@ function ok(cond, name){
   wb.refreshView();
   wb.setQuickEntry({gid:'nohw-s1', subject:'学科 / AP / 统计'});
   // 1) 空格子进入无作业态：三框置灰 + 计算区文案
-  wb.setSlotEdit({gid:'nohw-s1', subject:'学科 / AP / 统计', idx:2});
+  wb.setSlotEdit({gid:'nohw-s1', subject:'学科 / AP / 统计', refType:'new', refId:null, idx:2});
   vm.runInContext('toggleSlotNoHw()', ctx);
   const noHwForm = vm.runInContext('slotEditHtml()', ctx);
   ok(noHwForm.indexOf('本次无作业，仅需选择日期') !== -1 && (noHwForm.match(/disabled/g) || []).length >= 3
@@ -369,7 +369,7 @@ function ok(cond, name){
   vm.runInContext('saveSlot()', ctx);
   ok(noHwRec.noHomework === false && noHwRec.total === 10, '无作业 → 正常录入转换（成绩恢复写入）');
   // 4) 正常成绩 → 无作业：有成绩需确认
-  wb.setSlotEdit({gid:'nohw-s1', subject:'学科 / AP / 统计', idx:1});
+  wb.setSlotEdit({gid:'nohw-s1', subject:'学科 / AP / 统计', refType:'rec', refId:'nohw-r1', idx:1});
   wb.renderStats();
   vm.runInContext('toggleSlotNoHw()', ctx);
   ok(documentStub.getElementById('cf-title').textContent.indexOf('无作业') !== -1, '有成绩记录转无作业弹确认（成绩将被清除）');
@@ -392,10 +392,117 @@ function ok(cond, name){
   wb.pool.students = wb.pool.students.filter(s=>s.id!=='nohw-s1');
   wb.pool.records = wb.pool.records.filter(r=>r.id!=='nohw-r1' && !(r.studentId==='nohw-s1'));
   wb.refreshView();
+
+  /* ---- BUG-01（v1.8.0）：未保存草稿持久化（评语/建议/录入表单）+ 切页恢复 + 保存清除 + 旧响应不误清 + logout 清理 ---- */
+  wb.pool.students.push({id:'draft-s1', name:'草稿测试生', ownerId:ta1.id, subjPlans:{'学科 / AP / 统计':5}, subjects:['学科 / AP / 统计']});
+  wb.pool.records.push({id:'draft-r1', studentId:'draft-s1', date:'2026-10-10', total:10, correct:8, wrongs:[1,2], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
+  wb.refreshView();
+  wb.setQuickEntry({gid:'draft-s1', subject:'学科 / AP / 统计'});
+  // 1) 评语/建议草稿：写草稿 → 切「今日概览」→ 切回 → 面板恢复草稿且 dirty 按字段键置位
+  vm.runInContext("draftSave('draft-s1','学科 / AP / 统计','comment','评语草稿文字')", ctx);
+  vm.runInContext("draftSave('draft-s1','学科 / AP / 统计','advice','建议草稿文字')", ctx);
+  vm.runInContext("switchTab('today')", ctx);
+  vm.runInContext("switchTab('stats')", ctx);
+  const dPanel = vm.runInContext('qePanelHtml()', ctx);
+  ok(dPanel.indexOf('评语草稿文字') !== -1 && dPanel.indexOf('建议草稿文字') !== -1, '草稿：切页后评语/建议草稿恢复');
+  ok(vm.runInContext("qeDirty.comment === 'draft-s1|学科 / AP / 统计' && qeDirty.advice === 'draft-s1|学科 / AP / 统计'", ctx) === true, '草稿：恢复后 dirty 按字段键置位');
+  // 2) 保存成功：草稿键与 dirty 清除（mock 同步路径）
+  documentStub.getElementById('qe-comment').value = '评语草稿文字';
+  documentStub.getElementById('qe-advice').value = '建议草稿文字';
+  vm.runInContext('saveSubjectComment()', ctx);
+  vm.runInContext('saveSubjectAdvice()', ctx);
+  ok(vm.runInContext("draftLoad('draft-s1','学科 / AP / 统计','comment')", ctx) === null
+    && vm.runInContext("draftLoad('draft-s1','学科 / AP / 统计','advice')", ctx) === null, '草稿：保存成功后草稿键清除');
+  ok(vm.runInContext('qeDirty.comment === false && qeDirty.advice === false', ctx) === true, '草稿：保存成功后 dirty 清除');
+  // 3) 慢响应守卫（qeFieldSaved）：草稿已比保存值新 → 旧响应不清草稿与 dirty；一致 → 正常清除
+  vm.runInContext("draftSave('draft-s1','学科 / AP / 统计','comment','更新的输入')", ctx);
+  vm.runInContext("qeDirty.comment = 'draft-s1|学科 / AP / 统计'", ctx);
+  vm.runInContext("qeFieldSaved('comment','qe-comment-tip','draft-s1','学科 / AP / 统计','旧保存值')", ctx);
+  ok(vm.runInContext("draftLoad('draft-s1','学科 / AP / 统计','comment')", ctx) === '更新的输入'
+    && vm.runInContext("qeDirty.comment", ctx) !== false, '草稿：慢响应回来时已有新输入，旧响应不清草稿与 dirty');
+  vm.runInContext("qeFieldSaved('comment','qe-comment-tip','draft-s1','学科 / AP / 统计','更新的输入')", ctx);
+  ok(vm.runInContext("draftLoad('draft-s1','学科 / AP / 统计','comment')", ctx) === null
+    && vm.runInContext('qeDirty.comment === false', ctx) === true, '草稿：响应值与草稿一致时正常清除');
+  // 4) 录入表单草稿：空格子填写 → 收起 → 重开恢复；保存成功后清除
+  vm.runInContext('openSlot(3)', ctx);  // 空格子（计划 5，已有 1 条记录）
+  documentStub.getElementById('sl-date').value = '2026-10-15';
+  documentStub.getElementById('sl-total').value = '12';
+  documentStub.getElementById('sl-correct').value = '10';
+  documentStub.getElementById('sl-wrongs').value = '3,5';
+  vm.runInContext('slotDraftSave()', ctx);
+  vm.runInContext('openSlot(3)', ctx);  // 再点收起（草稿应保留）
+  ok(vm.runInContext('slotEdit === null', ctx) === true, '草稿：收起编辑器后草稿保留');
+  vm.runInContext('openSlot(3)', ctx);  // 重开 → 恢复
+  const slForm = vm.runInContext('slotEditHtml()', ctx);
+  ok(slForm.indexOf('value="2026-10-15"') !== -1 && slForm.indexOf('value="12"') !== -1
+    && slForm.indexOf('value="10"') !== -1 && slForm.indexOf('value="3,5"') !== -1, '草稿：录入表单草稿重开恢复（日期/题数/正确数/错题）');
+  documentStub.getElementById('sl-date').value = '2026-10-15';
+  documentStub.getElementById('sl-total').value = '12';
+  documentStub.getElementById('sl-correct').value = '10';
+  documentStub.getElementById('sl-wrongs').value = '3,5';
+  vm.runInContext('saveSlot()', ctx);
+  ok(vm.runInContext("draftLoad('draft-s1','学科 / AP / 统计','slot')", ctx) === null, '草稿：打卡保存成功后表单草稿清除');
+  // 5) logout 清理全部草稿（防串号）
+  vm.runInContext("draftSave('draft-s1','学科 / AP / 统计','comment','登出清理测试')", ctx);
+  wb.doLogout();
+  ok(vm.runInContext("draftLoad('draft-s1','学科 / AP / 统计','comment')", ctx) === null, '草稿：logout 清理全部草稿（防串号）');
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  wb.pool.students = wb.pool.students.filter(s=>s.id!=='draft-s1');
+  wb.pool.records = wb.pool.records.filter(r=>r.studentId!=='draft-s1');
+  wb.refreshView();
+
+  /* ---- BUG-02（v1.8.0）：slotEdit 稳定身份 + 同日排序稳定键 ---- */
+  wb.pool.students.push({id:'stab-s1', name:'稳定测试生', ownerId:ta1.id, subjPlans:{'学科 / AP / 统计':6}, subjects:['学科 / AP / 统计']});
+  // 同日多条：两条成绩（id 逆序插入，验证 id 字典序而非插入序）+ 一条同日未交；另加一条较晚日期
+  wb.pool.records.push({id:'stab-rB', studentId:'stab-s1', date:'2026-10-10', total:10, correct:9, wrongs:[], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
+  wb.pool.records.push({id:'stab-rA', studentId:'stab-s1', date:'2026-10-10', total:20, correct:18, wrongs:[3], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
+  wb.pool.missed.push({id:'stab-m1', studentId:'stab-s1', date:'2026-10-10', subject:'学科 / AP / 统计', resolved:false, ownerId:ta1.id});
+  wb.pool.records.push({id:'stab-rC', studentId:'stab-s1', date:'2026-10-12', total:10, correct:7, wrongs:[1], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
+  wb.refreshView();
+  // 1) 同日排序稳定：rA 在 rB 前（id 字典序），miss 在最后；重复计算次序一致
+  const items1 = vm.runInContext("subjectItems('stab-s1','学科 / AP / 统计').map(x=>x.id).join(',')", ctx);
+  const items2 = vm.runInContext("subjectItems('stab-s1','学科 / AP / 统计').map(x=>x.id).join(',')", ctx);
+  ok(items1 === 'stab-rA,stab-rB,stab-m1,stab-rC' && items1 === items2, '同日排序稳定：日期→rec 前 miss 后→id 字典序，重复计算一致');
+  // 2) 编辑中补录更早日期：编辑对象不漂移，显示编号随位置更新
+  wb.setQuickEntry({gid:'stab-s1', subject:'学科 / AP / 统计'});
+  vm.runInContext('openSlot(4)', ctx);  // stab-rC（10-12）
+  ok(vm.runInContext("slotEdit.refType === 'rec' && slotEdit.refId === 'stab-rC'", ctx) === true, '打开格子绑定稳定身份（rec id）');
+  wb.pool.records.push({id:'stab-r0', studentId:'stab-s1', date:'2026-09-01', total:10, correct:10, wrongs:[], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
+  wb.refreshView(); wb.renderStats();
+  const stabForm = vm.runInContext('slotEditHtml()', ctx);
+  ok(vm.runInContext("slotEdit.refId === 'stab-rC'", ctx) === true
+    && stabForm.indexOf('2026-10-12') !== -1 && stabForm.indexOf('修改第 5 次') !== -1,
+    '补录更早日期后：编辑对象不漂移（仍为 10-12 记录，显示编号更新为第 5 次）');
+  // 3) saveSlot 按 refId 写入正确记录
+  documentStub.getElementById('sl-date').value = '2026-10-12';
+  documentStub.getElementById('sl-total').value = '30';
+  documentStub.getElementById('sl-correct').value = '27';
+  documentStub.getElementById('sl-wrongs').value = '1';
+  vm.runInContext('saveSlot()', ctx);
+  const rc = wb.pool.records.find(r=>r.id==='stab-rC');
+  ok(rc.total === 30 && rc.correct === 27, 'saveSlot 按 refId 写入正确记录（排序变化不影响）');
+  // 4) deleteSlot 按 refId 删除正确记录（确认文案指向该记录）
+  vm.runInContext('openSlot(5)', ctx);  // stab-rC 当前在第 5 位
+  vm.runInContext('deleteSlot()', ctx);
+  ok(documentStub.getElementById('cf-title').textContent.indexOf('删除作业记录') !== -1
+    && documentStub.getElementById('cf-text').textContent.indexOf('2026-10-12') !== -1, 'deleteSlot 确认文案指向 refId 对应记录');
+  documentStub.getElementById('cf-ok').onclick();
+  ok(!wb.pool.records.some(r=>r.id==='stab-rC'), 'deleteSlot 按 refId 删除正确记录');
+  // 5) 编辑对象被他端删除后：missing 提示而非指向错误记录
+  vm.runInContext('openSlot(2)', ctx);  // stab-rA
+  wb.pool.records = wb.pool.records.filter(r=>r.id!=='stab-rA');  // 模拟他端删除
+  wb.refreshView();
+  ok(vm.runInContext('slotEditHtml()', ctx).indexOf('已被删除或已处理') !== -1, '编辑对象被删后编辑器给 missing 提示（不再指向错误记录）');
+  vm.runInContext('slotEdit=null', ctx);
+  // 清理
+  wb.pool.students = wb.pool.students.filter(s=>s.id!=='stab-s1');
+  wb.pool.records = wb.pool.records.filter(r=>r.studentId!=='stab-s1');
+  wb.pool.missed = wb.pool.missed.filter(m=>m.studentId!=='stab-s1');
+  wb.refreshView();
   wb.doLogout();
   await wb.doLogin('admin', 'admin456', 'admin');
 
-  /* ---- 备份提醒横幅（v1.7.2：>500 条才显示；✕ 关闭后 7 个自然日内不再显示） ---- */
+  /* ---- 备份提醒横幅（v1.8.0：>500 条才显示；✕ 关闭后 7 个自然日内不再显示） ---- */
   vm.runInContext('renderBanners()', ctx);
   ok(documentStub.getElementById('backup-tip').style.display === 'none', '未超 500 条不显示备份提醒');
   const bkStu = wb.pool.students.find(s=>!s.archived && s.ownerId===ta1.id);
@@ -457,7 +564,7 @@ function ok(cond, name){
   ok(documentStub.getElementById('today-list').innerHTML.indexOf(dAgo(-10)) === -1, '完成后逾期行不再显示');
   ok(documentStub.getElementById('done-list').innerHTML.indexOf('预警完成') !== -1, '完成记录进「已处理事项」区');
 
-  /* ---- 组内按助教筛选（v1.7.2，仅教务视角）+ 逾期/宽限分类不混排 ---- */
+  /* ---- 组内按助教筛选（v1.8.0，仅教务视角）+ 逾期/宽限分类不混排 ---- */
   wb.doLogout();
   await wb.doLogin('admin', 'admin456', 'admin');
   // 造两位助教各一条逾期、一条宽限内
@@ -516,7 +623,7 @@ function ok(cond, name){
   ok(html.indexOf('id="bind-modal"') !== -1 && html.indexOf('id="bind-qr-box"') !== -1, '家长绑定二维码弹窗结构存在');
   ok(html.indexOf('id="binds-modal"') !== -1 && html.indexOf('id="binds-list"') !== -1, '家长绑定管理弹窗结构存在');
   ok(allText.indexOf('tag mint owner-tag') !== -1, '归属助教标签为薄荷绿色（tag mint）');
-  /* ---- 可点标签「›」提示（v1.7.2）：归属/绑定标签带尾部符号，纯展示标签（届）不带 ---- */
+  /* ---- 可点标签「›」提示（v1.8.0）：归属/绑定标签带尾部符号，纯展示标签（届）不带 ---- */
   ok(allText.indexOf('owner-tag .tag-go') !== -1, '可点标签 › 尾部符号样式存在');
   ok((allText.match(/tag-go/g) || []).length >= 5, '归属与绑定标签均带 ›（students.js×3 + auth.js×1 + CSS）');
   ok(!/届<span class="tag-go">/.test(allText), '纯展示的「届」标签不带 ›');
@@ -573,7 +680,7 @@ function ok(cond, name){
   wb.setQuickEntry(null);
   wb.toggleTaGroup(ta1.id);  // 恢复折叠
 
-  /* ---- v1.7.2：模考过期 + 看板卡拆分 + 审计系统操作人 + 教务管理页四卡 + 控件统一 ---- */
+  /* ---- v1.8.0：模考过期 + 看板卡拆分 + 审计系统操作人 + 教务管理页四卡 + 控件统一 ---- */
   // 模考过期：徽章与打卡面板统一灰色「已过期 · X」
   bindStu.mock = { '学科 / AP / 微积分BC': { date: '2020-01-01', score: 92 } };  // 过期日期
   wb.setQuickEntry({gid: bindStu.id, subject: '学科 / AP / 微积分BC'});
@@ -603,7 +710,7 @@ function ok(cond, name){
   // 控件统一 40px 基准
   ok(allText.indexOf('min-height:40px') !== -1, '控件统一 40px 基准（按钮/输入框）');
 
-  /* ---- 走查 P1（v1.7.2）：内联注入双层转义 + mock 导入恢复行为不变 ---- */
+  /* ---- 走查 P1（v1.8.0）：内联注入双层转义 + mock 导入恢复行为不变 ---- */
   wb.doLogout();
   await wb.doLogin('ta1', 'ta123456', 'ta');
   wb.pool.students.push({id:'inj-s1', name:"张'三", ownerId:ta1.id, subjects:["学科 / AP / 微积分'BC"]});
@@ -613,7 +720,7 @@ function ok(cond, name){
   const injHtml = documentStub.getElementById('stu-list').innerHTML;
   ok(injHtml.indexOf('微积分\\&#39;BC') !== -1, '科目名带单引号：onclick 串双层转义（jsStr+esc）不逃逸');
   ok(injHtml.indexOf('张&#39;三') !== -1 && injHtml.indexOf('张\'三') === -1, '学生名带单引号正常 HTML 转义显示');
-  // id 带单引号：全部 onclick 插值点经 esc(jsStr(id)) 双层转义（v1.7.2 P1-1）
+  // id 带单引号：全部 onclick 插值点经 esc(jsStr(id)) 双层转义（v1.8.0 P1-1）
   wb.pool.students.push({id:"inj'q1", name:'引号ID生', ownerId:ta1.id, subjects:['学科 / AP / 统计']});
   wb.pool.records.push({id:'inj-r2', studentId:"inj'q1", date:'2026-10-16', total:10, correct:9, wrongs:[], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
   wb.refreshView();
@@ -641,7 +748,7 @@ function ok(cond, name){
   await vm.runInContext('openBindsModal("' + bindStu.id + '")', ctx);
   ok(alerts.length > alertsBeforeBinds && alerts[alerts.length-1].indexOf('演示环境暂不支持绑定管理') !== -1, 'mock 模式绑定管理提示演示环境不支持');
 
-  /* ---- v1.7.2：报告打卡表与格子序列对齐 + 统计卡未交口径 + PDF 头部 + 助教录入弹窗 ---- */
+  /* ---- v1.8.0：报告打卡表与格子序列对齐 + 统计卡未交口径 + PDF 头部 + 助教录入弹窗 ---- */
   {
     // 造数据：计划 3 次；第1次未交（较早），第2次有成绩（较晚）→ 未交行应排第 1
     wb.doLogout();
@@ -772,8 +879,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.7.2') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.7.2」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.8.0') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.8.0」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -835,7 +942,7 @@ function ok(cond, name){
   ok(dFix.overdueList.some(x=>x.id==='dash-od-miss' && x.days===10), '预警名单：逾期未交入选且逾期天数正确（开课口径）');
   ok(dFix.sleepers.some(x=>x.name==='看板沉睡测试' && x.days===null) === false
     && dFix.firstTimers.some(x=>x.name==='看板沉睡测试'),
-    '预警名单：从未有记录学生归入「待首录」（不进沉睡预警主列表，v1.7.2 降噪）');
+    '预警名单：从未有记录学生归入「待首录」（不进沉睡预警主列表，v1.8.0 降噪）');
   ok(documentStub.getElementById('dash-alert-low').innerHTML.indexOf('看板低分测试') !== -1
     && documentStub.getElementById('dash-alert-miss').innerHTML.indexOf('看板低分测试') !== -1
     && /待首录 \d+ 人（从未有作业记录）/.test(documentStub.getElementById('dash-alert-sleep').innerHTML)
@@ -858,7 +965,7 @@ function ok(cond, name){
   ok(wb.computeDash().sleepers.some(x=>x.name==='八天沉睡生乙' && x.days===8), '长期未更新（≥7 天）保留为正式沉睡预警');
   wb.pool.students = wb.pool.students.filter(s=>s.id!=='sleepy-8d-b');
   wb.pool.records = wb.pool.records.filter(r=>r.id!=='sleepy-rec-b');
-  /* ---- 助教行下钻：筛选下拉同步 + 选中跳变/归零回归（v1.7.2） ---- */
+  /* ---- 助教行下钻：筛选下拉同步 + 选中跳变/归零回归（v1.8.0） ---- */
   const rowsBefore = wb.computeDash().taRows;  // 未选中（dashOwner='all'）基线
   wb.dashDrillTa(ta2.id);
   ok(wb.dashOwner === ta2.id && documentStub.getElementById('dash-owner').value === ta2.id, '点击助教行下钻后筛选下拉同步为该助教');
@@ -1481,7 +1588,7 @@ function ok(cond, name){
     && html.indexOf('id="stu-search"') < html.indexOf('id="stu-list"'), '搜索框位于图表与学生明细之间');
   // 今日概览卡序：快速一览在「今天要处理」之前
   ok(html.indexOf('id="quick-grid"') < html.indexOf('id="today-list"'), '快速一览放在今天要处理之前');
-  /* ---- 页头设计（v1.7.2）：topbar 改版为小书本图标 + 页签标题 + 动态日期 + 暖金竖线标语 ---- */
+  /* ---- 页头设计（v1.8.0）：topbar 改版为小书本图标 + 页签标题 + 动态日期 + 暖金竖线标语 ---- */
   ok(html.indexOf('class="tb-book"') !== -1 && html.indexOf('assets/book-icon.svg') !== -1
     && html.indexOf('class="tb-date"') !== -1, '页头含小书本图标与动态日期区');
   ok(html.indexOf('class="illus"') === -1 && html.indexOf('date-pill') === -1, '旧版学习插画与日期胶囊已移除');

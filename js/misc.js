@@ -24,6 +24,31 @@ function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;
    用法：esc(jsStr(x)) 双层——先 JS 级转义（\ ' 换行），再 HTML 属性级转义。 */
 function jsStr(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,'\\n'); }
 
+/* ================= 未保存草稿持久化（v1.8.0 BUG-01） =================
+   键：qe-draft:v1:<登录用户id>:<学生id>:<科目>:<字段>（字段：comment/advice/slot；slot 值为 JSON）。
+   按用户隔离防串号；logout 时 draftClearAll 全清。localStorage 不可用时静默降级为不持久。 */
+const DRAFT_PREFIX = 'qe-draft:v1:';
+function draftKey(gid, subject, field){
+  return DRAFT_PREFIX + (currentUser ? currentUser.id : 'anon') + ':' + gid + ':' + subject + ':' + field;
+}
+// value 为 null/undefined/'' 时删除该键；对象自动 JSON 序列化
+function draftSave(gid, subject, field, value){
+  try{
+    if(value === null || value === undefined || value === '') localStorage.removeItem(draftKey(gid, subject, field));
+    else localStorage.setItem(draftKey(gid, subject, field), typeof value === 'string' ? value : JSON.stringify(value));
+  }catch(e){}
+}
+function draftLoad(gid, subject, field){
+  try{ return localStorage.getItem(draftKey(gid, subject, field)); }catch(e){ return null; }
+}
+function draftClearAll(){
+  try{
+    const ks = [];
+    for(let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if(k && k.indexOf(DRAFT_PREFIX) === 0) ks.push(k); }
+    ks.forEach(k=>localStorage.removeItem(k));
+  }catch(e){}
+}
+
 /* ================= 拼音首字母筛选（零依赖） =================
    内置「姓氏 → 拼音首字母」映射（百家姓 + 常见姓氏，普通对象，缺字随时加一行）；
    英文名取首字符大写 A–Z；未收录的字归「#」（其他）。 */

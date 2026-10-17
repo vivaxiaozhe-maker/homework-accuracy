@@ -220,6 +220,17 @@ function ok(cond, name){
   r = await req('GET', '/api/search/students?q=林', null, T1);
   ok(r.status === 403, '助教不能调搜索接口');
 
+  /* ---- 销售详情同日排序稳定键（v1.8.0 BUG-02）：同日期 rec 按 id 字典序在前、miss 在后，与前端 subjectItems 同规则 ---- */
+  await req('POST', '/api/records', { id: 'ord-rB', studentId: stuA, date: '2026-10-10', total: 10, correct: 9, wrongs: [], subject: '排序测试科目' }, T1);
+  await req('POST', '/api/records', { id: 'ord-rA', studentId: stuA, date: '2026-10-10', total: 10, correct: 8, wrongs: [1], subject: '排序测试科目' }, T1);
+  await req('POST', '/api/missed', { id: 'ord-m1', studentId: stuA, date: '2026-10-10', subject: '排序测试科目' }, T1);
+  r = await req('GET', '/api/search/students/' + stuA, null, TS);
+  const ordSubj = r.data.student.subjects.find(x=>x.subject === '排序测试科目');
+  const ordIds = ordSubj.items.map(i=>i.id).join(',');
+  ok(ordIds === 'ord-rA,ord-rB,ord-m1', '销售详情同日排序稳定：rec 按 id 字典序在前、miss 在后（与前端同规则）');
+  r = await req('GET', '/api/search/students/' + stuA, null, TS);
+  ok(r.data.student.subjects.find(x=>x.subject === '排序测试科目').items.map(i=>i.id).join(',') === ordIds, '销售详情排序重复请求次序一致');
+
   /* ---- 审计日志接口 ---- */
   r = await req('GET', '/api/audit-logs', null, adminTok);
   ok(r.status === 200 && r.data.total > 0 && r.data.items.length > 0

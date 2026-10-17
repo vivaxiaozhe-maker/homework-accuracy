@@ -329,21 +329,31 @@ function printReport(area){
   setTimeout(()=>{ if(area) area.style.display='none'; }, 1500);
 }
 /* 保存老师评语（按 学生×科目 存储，同名组合并共享） */
-/* ---- 评语/建议未保存提醒（v1.7.1）：input 置 dirty，保存成功清除；切科目/学生/页签时 toast 提醒（不阻塞） ---- */
+/* ---- 评语/建议未保存提醒 + 草稿持久化（v1.7.1 提醒；v1.8.0 BUG-01 草稿）：
+   input 置 dirty（值为 '<gid>|<subject>' 键，区分不同学生/科目的同名字段）并写 localStorage 草稿；
+   保存经服务端确认后才清草稿与 dirty；切科目/学生/页签时 toast 提醒（不阻塞）；回来自动恢复。 ---- */
 let qeDirty = { comment: false, advice: false };
 // 事件委托挂 body（textarea 随面板重渲染；DOM 桩的 body.addEventListener 为空操作，安全静默）
 document.body.addEventListener('input', function(e){
   const id = e.target && e.target.id;
-  if(id === 'qe-comment') qeDirty.comment = true;
-  if(id === 'qe-advice') qeDirty.advice = true;
+  if((id === 'qe-comment' || id === 'qe-advice') && quickEntry){
+    const which = id === 'qe-comment' ? 'comment' : 'advice';
+    qeDirty[which] = quickEntry.gid + '|' + quickEntry.subject;
+    draftSave(quickEntry.gid, quickEntry.subject, which, e.target.value);
+  }
 });
 function qeDirtyToast(){
   if(qeDirty.comment && qeDirty.advice) toast('评语与建议有未保存的修改');
   else if(qeDirty.comment) toast('评语有未保存的修改');
   else if(qeDirty.advice) toast('建议有未保存的修改');
 }
-// 保存确认反馈：清 dirty + 「✓ 已保存」tip 亮 2.5s；API 模式仅由 apiPersist 的 onOk 调用（确认后才提示，v1.7.2）
-function markSaved(which, tipId){
+// 保存确认反馈（v1.8.0 BUG-01）：仅当草稿未再变化（慢响应期间无新输入）且 dirty 仍属本字段时，
+// 才清草稿 + 清 dirty + 亮「✓ 已保存」2.5s；否则保留草稿与 dirty（旧响应不误清新输入）
+function qeFieldSaved(which, tipId, gid0, sub0, val){
+  const cur = draftLoad(gid0, sub0, which);
+  if(cur !== null && cur !== val) return;                       // 保存后又有新输入：保留草稿
+  if(qeDirty[which] && qeDirty[which] !== gid0 + '|' + sub0) return;  // 另一学生/科目的同名字段被改
+  draftSave(gid0, sub0, which, null);
   qeDirty[which] = false;
   const tip = document.getElementById(tipId);
   if(tip){ tip.style.display='inline'; setTimeout(()=>{ if(tip) tip.style.display='none'; }, 2500); }
@@ -354,16 +364,17 @@ function saveSubjectComment(){
   const text = ta ? ta.value : '';
   const st = state.students.find(x=>x.id===quickEntry.gid);
   if(st){
+    const gid0 = quickEntry.gid, sub0 = quickEntry.subject, val = text.trim();
     st.subjComments = st.subjComments || {};
-    st.subjComments[quickEntry.subject] = text.trim();
-    logAction('保存评语', 'record', auditStuDesc(st.id, quickEntry.subject), text.trim() ? text.trim().slice(0,50) : '（清空评语）', {ownerId: st.ownerId});
+    st.subjComments[sub0] = val;
+    logAction('保存评语', 'record', auditStuDesc(st.id, sub0), val ? val.slice(0,50) : '（清空评语）', {ownerId: st.ownerId});
     if(USE_API){
-      // 最小补丁：只提交当前科目键；失败恢复 dirty 并回滚（v1.7.2）
-      apiPersist(HttpApi.updateSubjFields(st.id, {subjComments: {[quickEntry.subject]: text.trim()}}),
-        ()=>markSaved('comment', 'qe-comment-tip'),
-        ()=>{ qeDirty.comment = true; });
+      // 最小补丁：只提交当前科目键；失败保留草稿可重试（v1.7.2/v1.8.0）
+      apiPersist(HttpApi.updateSubjFields(st.id, {subjComments: {[sub0]: val}}),
+        ()=>qeFieldSaved('comment', 'qe-comment-tip', gid0, sub0, val),
+        ()=>{ if(!qeDirty.comment) qeDirty.comment = gid0 + '|' + sub0; });
     } else {
-      markSaved('comment', 'qe-comment-tip');
+      qeFieldSaved('comment', 'qe-comment-tip', gid0, sub0, val);
     }
     save();
   }
@@ -375,15 +386,16 @@ function saveSubjectAdvice(){
   const text = ta ? ta.value : '';
   const st = state.students.find(x=>x.id===quickEntry.gid);
   if(st){
+    const gid0 = quickEntry.gid, sub0 = quickEntry.subject, val = text.trim();
     st.subjAdvice = st.subjAdvice || {};
-    st.subjAdvice[quickEntry.subject] = text.trim();
-    logAction('保存学习计划与建议', 'record', auditStuDesc(st.id, quickEntry.subject), text.trim() ? text.trim().slice(0,50) : '（清空）', {ownerId: st.ownerId});
+    st.subjAdvice[sub0] = val;
+    logAction('保存学习计划与建议', 'record', auditStuDesc(st.id, sub0), val ? val.slice(0,50) : '（清空）', {ownerId: st.ownerId});
     if(USE_API){
-      apiPersist(HttpApi.updateSubjFields(st.id, {subjAdvice: {[quickEntry.subject]: text.trim()}}),
-        ()=>markSaved('advice', 'qe-advice-tip'),
-        ()=>{ qeDirty.advice = true; });
+      apiPersist(HttpApi.updateSubjFields(st.id, {subjAdvice: {[sub0]: val}}),
+        ()=>qeFieldSaved('advice', 'qe-advice-tip', gid0, sub0, val),
+        ()=>{ if(!qeDirty.advice) qeDirty.advice = gid0 + '|' + sub0; });
     } else {
-      markSaved('advice', 'qe-advice-tip');
+      qeFieldSaved('advice', 'qe-advice-tip', gid0, sub0, val);
     }
     save();
   }

@@ -836,6 +836,7 @@ function doLogout(){
   const r = Api.logout();
   if(r && typeof r.then === 'function') r.catch(()=>{});  // HttpApi 登出为异步，失败不阻塞本地退出
   currentUser = null;
+  draftClearAll();  // 未保存草稿随会话清理（v1.8.0 BUG-01，防串号）
   subjTreeDraft = null;  // 科目管理草稿随会话清空（下次登录从当前树重新初始化）
   unbindReqCache = [];   // 解绑申请缓存随会话清空
   pushConfigCache = Object.assign({}, PUSH_CFG_DEFAULT);  // 推送开关缓存复位

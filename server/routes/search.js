@@ -57,13 +57,16 @@ router.get('/students/:id', (req, res) => {
   missed.forEach(m => subjSet.add(m.subject || ''));
   Object.keys(plans).forEach(k => subjSet.add(k));
   const subjects = [...subjSet].filter(k => k !== '').map(k => {
-    // 打卡序列：作业记录 + 未处理未交按日期合并（同日期记录在前，与前端 subjectItems 一致）
+    // 打卡序列：作业记录 + 未处理未交按日期合并（同日期 rec 在前，与前端 subjectItems 一致）；
+    // 同日同类型按 id 字典序（v1.8.0 BUG-02 稳定次序，与前端 subjectItems 同规则，两端一致）
     const items = recs.filter(r => (r.subject || '未指定') === k)
-      .map(r => ({ type: 'rec', date: r.date, total: r.total, correct: r.correct, acc: accOf(r), wrongs: parseJson(r.wrongs, []),
+      .map(r => ({ id: r.id, type: 'rec', date: r.date, total: r.total, correct: r.correct, acc: accOf(r), wrongs: parseJson(r.wrongs, []),
         noHomework: !!r.no_homework }))  // 无作业标记供前端展示（第四次态）
       .concat(missed.filter(m => (m.subject || '') === k && !m.resolved)
-        .map(m => ({ type: 'miss', date: m.date })))
-      .sort((a, b) => a.date === b.date ? (a.type === 'rec' ? -1 : 1) : (a.date < b.date ? -1 : 1));
+        .map(m => ({ id: m.id, type: 'miss', date: m.date })))
+      .sort((a, b) => a.date === b.date
+        ? (a.type === b.type ? (a.id < b.id ? -1 : (a.id > b.id ? 1 : 0)) : (a.type === 'rec' ? -1 : 1))
+        : (a.date < b.date ? -1 : 1));
     const done = items.filter(i => i.type === 'rec').length;
     return { subject: k, plan: plans[k] !== undefined ? plans[k] : null, done, items };
   });

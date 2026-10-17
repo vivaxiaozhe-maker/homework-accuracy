@@ -247,9 +247,9 @@ function resolveMissed(id){
   } else {
     toggleQuickEntry(rep.id, m.subject);
   }
-  // 自动展开补录表单：定位原未交所在格子（表单内日期自动预填为该未交日期）
+  // 自动展开补录表单：按稳定身份绑定原未交记录（表单内日期自动预填为该未交日期）
   if(pos >= 0){
-    slotEdit = {gid: rep.id, subject: m.subject, idx: pos+1};
+    slotEdit = {gid: rep.id, subject: m.subject, refType: 'miss', refId: id, idx: pos+1};
     renderAll();
   }
 }
@@ -894,6 +894,13 @@ function qePanelHtml(){
   const isArchived = !!(st && st.archived);  // 历史学生：只读查看
   const savedComment = (st && st.subjComments && st.subjComments[quickEntry.subject]) ? st.subjComments[quickEntry.subject] : '';
   const savedAdvice = (st && st.subjAdvice && st.subjAdvice[quickEntry.subject]) ? st.subjAdvice[quickEntry.subject] : '';
+  // 草稿恢复（v1.8.0 BUG-01）：localStorage 草稿优先于已保存值；有草稿即视为 dirty（切页/刷新后回来可继续编辑）
+  const draftCmt = draftLoad(quickEntry.gid, quickEntry.subject, 'comment');
+  const draftAdv = draftLoad(quickEntry.gid, quickEntry.subject, 'advice');
+  const commentVal = draftCmt !== null ? draftCmt : savedComment;
+  const adviceVal = draftAdv !== null ? draftAdv : savedAdvice;
+  if(draftCmt !== null) qeDirty.comment = quickEntry.gid + '|' + quickEntry.subject;
+  if(draftAdv !== null) qeDirty.advice = quickEntry.gid + '|' + quickEntry.subject;
   // 模考数据：{date:'YYYY-MM-DD', score:数字}，按 学生×科目 存储
   const mock = (st && st.mock && st.mock[quickEntry.subject]) || {};
   const mockDate = mock.date || '';
@@ -974,7 +981,7 @@ function qePanelHtml(){
     '<div class="qe-title">老师评语（' + esc(shortSubject(quickEntry.subject)) + '）</div>' +
     (isArchived
       ? '<div style="font-size:13px;color:var(--ink2);background:var(--cream2);border-radius:8px;padding:8px 10px;white-space:pre-wrap">' + (savedComment ? esc(savedComment) : '<span class="hint">暂无评语</span>') + '</div>'
-      : '<textarea id="qe-comment" rows="2" placeholder="写一句给这位学生的科目评语，保存后科目旁会出现绿色小圆点…">' + esc(savedComment) + '</textarea>' +
+      : '<textarea id="qe-comment" rows="2" placeholder="写一句给这位学生的科目评语，保存后科目旁会出现绿色小圆点…">' + esc(commentVal) + '</textarea>' +
         '<div class="qe-comment-actions">' +
         '<button class="btn mint sm" onclick="saveSubjectComment()">保存评语</button>' +
         '<span class="qe-saved-tip" id="qe-comment-tip" style="display:none">✓ 已保存</span>' +
@@ -992,7 +999,7 @@ function qePanelHtml(){
     '<div class="qe-title">学习计划与建议（' + esc(shortSubject(quickEntry.subject)) + '）</div>' +
     (isArchived
       ? '<div style="font-size:13px;color:var(--ink2);background:var(--cream2);border-radius:8px;padding:8px 10px;white-space:pre-wrap">' + (savedAdvice ? esc(savedAdvice) : '<span class="hint">暂无</span>') + '</div>'
-      : '<textarea id="qe-advice" rows="3" placeholder="写给这位学生的学习计划与建议，会随「生成报告」一起输出…">' + esc(savedAdvice) + '</textarea>' +
+      : '<textarea id="qe-advice" rows="3" placeholder="写给这位学生的学习计划与建议，会随「生成报告」一起输出…">' + esc(adviceVal) + '</textarea>' +
         '<div class="qe-comment-actions">' +
         '<button class="btn mint sm" onclick="saveSubjectAdvice()">保存计划与建议</button>' +
         '<span class="qe-saved-tip" id="qe-advice-tip" style="display:none">✓ 已保存</span>' +
@@ -1034,7 +1041,10 @@ function saveQuickEntry(){
   renderAll();
 }
 /* ================= 应完成次数 + 作业打卡（合并作业录入与详细记录） ================= */
-let slotEdit = null;  // {gid, subject, idx} 当前展开编辑的打卡格子
+// {gid, subject, refType:'rec'|'miss'|'new', refId, idx}（v1.8.0 BUG-02）：
+// 编辑对象绑定稳定身份——rec/miss 按记录 id 复核，idx 只作「第 N 次」显示编号（随排序位置动态更新）；
+// refType 'new' = 空位补录（无记录 id，按位置语义）
+let slotEdit = null;
 let slNoHw = false;   // 「本次无作业」态（第四次态）：随格子开闭重置；打开已存的无作业记录时自动开启
 let slTmpVals = null; // 切入无作业前的表单值暂存（「取消无作业」切回时恢复）
 function countSubjectRecs(gid, subject){
@@ -1176,12 +1186,30 @@ function markMissedToday(){
   save();
   renderAll();
 }
-/* 该科目打卡序列：作业记录 + 未处理的未交记录按日期合并排序，作为打卡格子数据源 */
+/* 该科目打卡序列：作业记录 + 未处理的未交记录按日期合并排序，作为打卡格子数据源。
+   同日稳定次序（v1.8.0 BUG-02）：日期 → 类型（rec 在 miss 前）→ id 字典序，与 server/routes/search.js 同规则，两端一致 */
 function subjectItems(gid, subject){
-  const recs = subjectRecsSorted(gid, subject).map(r=>({type:'rec', date:r.date, rec:r}));
+  const recs = subjectRecsSorted(gid, subject).map(r=>({type:'rec', date:r.date, id:r.id, rec:r}));
   const miss = state.missed.filter(m=>m.studentId===gid && (m.subject||'')===subject && !m.resolved)
-    .map(m=>({type:'miss', date:m.date, miss:m}));
-  return recs.concat(miss).sort((a,b)=> a.date===b.date ? (a.type==='rec'?-1:1) : (a.date<b.date?-1:1));
+    .map(m=>({type:'miss', date:m.date, id:m.id, miss:m}));
+  return recs.concat(miss).sort((a,b)=> a.date===b.date
+    ? (a.type===b.type ? (a.id<b.id?-1:(a.id>b.id?1:0)) : (a.type==='rec'?-1:1))
+    : (a.date<b.date?-1:1));
+}
+/* slotEdit 身份解析（v1.8.0 BUG-02）：rec/miss 按 refId 在当日排序序列中定位（找不到 = 已被删/已处理）；
+   new 按位置语义（空位补录，不拾取位置上的既有记录）。返回 {it, pos, missing}，pos = 当前 1 基序号 */
+function slotEditItem(){
+  if(!slotEdit) return {it:null, pos:0, missing:false};
+  const items = subjectItems(slotEdit.gid, slotEdit.subject);
+  if(slotEdit.refType==='rec' && slotEdit.refId){
+    const p = items.findIndex(x=>x.type==='rec' && x.id===slotEdit.refId);
+    return p!==-1 ? {it:items[p], pos:p+1, missing:false} : {it:null, pos:slotEdit.idx, missing:true};
+  }
+  if(slotEdit.refType==='miss' && slotEdit.refId){
+    const p = items.findIndex(x=>x.type==='miss' && x.id===slotEdit.refId);
+    return p!==-1 ? {it:items[p], pos:p+1, missing:false} : {it:null, pos:slotEdit.idx, missing:true};
+  }
+  return {it:null, pos:slotEdit.idx, missing:false};
 }
 /* 生成打卡格子：有记录=完成✓（日期/正确率/错题），未交=未交✗（日期/0%/错题0），无记录=未完成（无标记） */
 function checkinGridHtml(){
@@ -1190,7 +1218,7 @@ function checkinGridHtml(){
   const plan = (st && st.subjPlans && st.subjPlans[subject]) || 0;
   const items = subjectItems(gid, subject);
   let total = Math.max(plan, items.length);
-  // 补录中：编辑区指向的格子需显示出来
+  // 补录中：编辑区指向的格子需显示出来（idx 为显示编号，随排序位置更新）
   if(slotEdit && slotEdit.gid===gid && slotEdit.subject===subject && slotEdit.idx>total) total = slotEdit.idx;
   if(!total) return '<span style="font-size:12px;color:var(--ink2)">暂无计划与记录，先在上方填写应完成次数</span>';
   return Array.from({length: total}, (_,i)=>{
@@ -1232,18 +1260,23 @@ function checkinGridHtml(){
       '</div>';
   }).join('');
 }
-/* 点击格子：展开/收起当次录入（有记录则修改，无记录则新增） */
+/* 点击格子：展开/收起当次录入（有记录则修改，无记录则新增）。
+   v1.8.0 BUG-02：打开时绑定稳定身份（rec/miss 记录 id；空位为 new），同日/插入记录后编辑对象不漂移 */
 function openSlot(idx){
-  if(slotEdit && slotEdit.gid===quickEntry.gid && slotEdit.subject===quickEntry.subject && slotEdit.idx===idx){
-    slotEdit = null;
+  const it0 = subjectItems(quickEntry.gid, quickEntry.subject)[idx-1];
+  const refType = it0 ? it0.type : 'new';
+  const refId = it0 ? it0.id : null;
+  if(slotEdit && slotEdit.gid===quickEntry.gid && slotEdit.subject===quickEntry.subject
+    && slotEdit.refType===refType && slotEdit.refId===refId && (refType!=='new' || slotEdit.idx===idx)){
+    slotEdit = null;  // 再点同一格子收起
   } else {
-    slotEdit = {gid:quickEntry.gid, subject:quickEntry.subject, idx:idx};
+    slotEdit = {gid:quickEntry.gid, subject:quickEntry.subject, refType:refType, refId:refId, idx:idx};
   }
   // 无作业态随格子开闭重置；打开已存的无作业记录时自动进入无作业态（日期可改、可切回正常录入）
   slNoHw = false;
-  if(slotEdit){
-    const it = subjectItems(slotEdit.gid, slotEdit.subject)[slotEdit.idx-1];
-    if(it && it.type==='rec' && it.rec.noHomework) slNoHw = true;
+  if(slotEdit && slotEdit.refType==='rec'){
+    const r0 = state.records.find(x=>x.id===slotEdit.refId);
+    if(r0 && r0.noHomework) slNoHw = true;
   }
   renderAll();
   // 表单打开后立即计算一次：有已存记录且非满分无错题时，错题号立即显示必填红框
@@ -1253,8 +1286,7 @@ function openSlot(idx){
 function toggleSlotNoHw(){
   if(!slotEdit) return;
   if(!slNoHw){
-    const items = subjectItems(slotEdit.gid, slotEdit.subject);
-    const r = items[slotEdit.idx-1] && items[slotEdit.idx-1].type==='rec' ? items[slotEdit.idx-1].rec : null;
+    const r = slotEdit.refType==='rec' ? (state.records.find(x=>x.id===slotEdit.refId) || null) : null;
     const filledEl = document.getElementById('sl-total');
     const hasScore = (r && r.total > 0) || (filledEl && filledEl.value !== '');
     if(hasScore){
@@ -1265,24 +1297,60 @@ function toggleSlotNoHw(){
           wrongs: document.getElementById('sl-wrongs') ? document.getElementById('sl-wrongs').value : ''
         };
         slNoHw = true;
+        slotDraftSave();
         renderAll();
       });
       return;
     }
     slNoHw = true;
+    slotDraftSave();
     renderAll();
     return;
   }
   slNoHw = false;  // 取消无作业：切回正常表单（恢复切入前的填写值）
+  slotDraftSave();
   renderAll();
+}
+/* 录入表单草稿（v1.8.0 BUG-01）：随输入持久化到 localStorage（含无作业态与暂存值）；
+   绑定格子身份（refType/refId），仅保存/删除成功才清除；取消/切页/刷新后重开同一格子自动恢复 */
+function slotDraftSave(){
+  if(!slotEdit) return;
+  const g = id=>{ const el = document.getElementById(id); return el ? el.value : ''; };
+  const d = {
+    refType: slotEdit.refType, refId: slotEdit.refId, idx: slotEdit.idx,
+    date: g('sl-date'), total: g('sl-total'), correct: g('sl-correct'), wrongs: g('sl-wrongs'), noHw: slNoHw
+  };
+  if(slNoHw && slTmpVals){ d.total = slTmpVals.total; d.correct = slTmpVals.correct; d.wrongs = slTmpVals.wrongs; }  // 无作业态下输入框被禁用，成绩值取暂存
+  draftSave(slotEdit.gid, slotEdit.subject, 'slot', d);
 }
 /* 当次作业编辑区 HTML */
 function slotEditHtml(){
-  const items = subjectItems(slotEdit.gid, slotEdit.subject);
-  const it = items[slotEdit.idx-1];
+  const resolved = slotEditItem();
+  if(resolved.missing){  // 记录已被删除/已处理（他端操作）：明确提示，不再指向错误对象（v1.8.0 BUG-02）
+    return '<div class="slot-edit"><div class="se-title">第 ' + slotEdit.idx + ' 次作业</div>' +
+      '<div style="font-size:13px;color:var(--red);padding:4px 0">该记录已被删除或已处理，无法继续编辑。</div>' +
+      '<div class="se-actions"><button class="btn ghost sm" onclick="slotEdit=null;renderAll()">关闭</button></div></div>';
+  }
+  slotEdit.idx = resolved.pos;  // idx 只作显示编号：随当前排序位置更新
+  const it = resolved.it;
   const r = it && it.type==='rec' ? it.rec : null;
   const miss = it && it.type==='miss' ? it.miss : null;
   const st = state.students.find(x=>x.id===slotEdit.gid);
+  // 草稿恢复（v1.8.0 BUG-01）：草稿身份与本格子一致才恢复（含无作业态与切入前的成绩暂存值）
+  let draftVals = null;
+  if(!st || !st.archived){
+    const rawDraft = draftLoad(slotEdit.gid, slotEdit.subject, 'slot');
+    if(rawDraft){
+      try{
+        const d = JSON.parse(rawDraft);
+        if(d && d.refType === slotEdit.refType && d.refId === slotEdit.refId) draftVals = d;
+      }catch(e){}
+    }
+  }
+  if(draftVals){
+    slNoHw = !!draftVals.noHw;
+    slTmpVals = draftVals.noHw ? {total: draftVals.total || '', correct: draftVals.correct || '', wrongs: draftVals.wrongs || ''} : null;
+  }
   // 历史学生：只读展示当次详情
   if(st && st.archived){
     if(miss){
@@ -1316,11 +1384,11 @@ function slotEditHtml(){
       '<div class="se-title">补录第 ' + slotEdit.idx + ' 次作业（' + esc(shortSubject(slotEdit.subject)) + '）</div>' +
       '<div style="font-size:13px;color:var(--red);padding:4px 0 2px">该次为 ' + miss.date + ' 的未交作业（正确率 0%、错题 0）。填写下方信息并保存即完成这次补交；取消则保持未交状态。</div>' +
       '<div class="se-grid">' +
-      '<input id="sl-date" type="date" value="' + miss.date + '">' +
-      '<input id="sl-total" type="number" min="1" inputmode="numeric" placeholder="总题数" oninput="slCalc()">' +
-      '<input id="sl-correct" type="number" min="0" inputmode="numeric" placeholder="正确题目数" oninput="slCalc()">' +
+      '<input id="sl-date" type="date" value="' + (draftVals ? esc(draftVals.date) : miss.date) + '" oninput="slotDraftSave()">' +
+      '<input id="sl-total" type="number" min="1" inputmode="numeric" placeholder="总题数" value="' + (draftVals ? esc(draftVals.total) : '') + '" oninput="slCalc();slotDraftSave()">' +
+      '<input id="sl-correct" type="number" min="0" inputmode="numeric" placeholder="正确题目数" value="' + (draftVals ? esc(draftVals.correct) : '') + '" oninput="slCalc();slotDraftSave()">' +
       '<div class="se-calc" id="sl-calc">错误数 <b>—</b>　正确率 <b>—</b></div>' +
-      '<input id="sl-wrongs" class="se-full" placeholder="错题号（用逗号分隔，可空）">' +
+      '<input id="sl-wrongs" class="se-full" placeholder="错题号（用逗号分隔，可空）" value="' + (draftVals ? esc(draftVals.wrongs) : '') + '" oninput="slotDraftSave()">' +
       '</div>' +
       '<div class="se-actions">' +
       '<button class="btn mint sm" onclick="saveSlot()">保存并补交</button>' +
@@ -1330,11 +1398,11 @@ function slotEditHtml(){
   return '<div class="slot-edit">' +
     '<div class="se-title">' + (r ? '修改' : '录入') + '第 ' + slotEdit.idx + ' 次作业（' + esc(shortSubject(slotEdit.subject)) + '）' + (slNoHw ? '<span class="tag sample">本次无作业</span>' : '') + '</div>' +
     '<div class="se-grid">' +
-    '<input id="sl-date" type="date" value="' + (r ? r.date : todayStr()) + '">' +
-    '<input id="sl-total" type="number" min="1" inputmode="numeric" placeholder="总题数" value="' + (slNoHw ? '' : (r ? r.total : (slTmpVals ? slTmpVals.total : ''))) + '" oninput="slCalc()"' + (slNoHw ? ' disabled' : '') + '>' +
-    '<input id="sl-correct" type="number" min="0" inputmode="numeric" placeholder="正确题目数" value="' + (slNoHw ? '' : (r ? r.correct : (slTmpVals ? slTmpVals.correct : ''))) + '" oninput="slCalc()"' + (slNoHw ? ' disabled' : '') + '>' +
+    '<input id="sl-date" type="date" value="' + (draftVals ? esc(draftVals.date) : (r ? r.date : todayStr())) + '" oninput="slotDraftSave()">' +
+    '<input id="sl-total" type="number" min="1" inputmode="numeric" placeholder="总题数" value="' + (slNoHw ? '' : (draftVals ? esc(draftVals.total) : (r ? r.total : (slTmpVals ? slTmpVals.total : '')))) + '" oninput="slCalc();slotDraftSave()"' + (slNoHw ? ' disabled' : '') + '>' +
+    '<input id="sl-correct" type="number" min="0" inputmode="numeric" placeholder="正确题目数" value="' + (slNoHw ? '' : (draftVals ? esc(draftVals.correct) : (r ? r.correct : (slTmpVals ? slTmpVals.correct : '')))) + '" oninput="slCalc();slotDraftSave()"' + (slNoHw ? ' disabled' : '') + '>' +
     '<div class="se-calc" id="sl-calc">' + (slNoHw ? '本次无作业，仅需选择日期' : (r ? '已保存：错误数 <b>' + (r.total-r.correct) + '</b>　正确率 <b>' + acc(r) + '%</b>' : '错误数 <b>—</b>　正确率 <b>—</b>')) + '</div>' +
-    '<input id="sl-wrongs" class="se-full" placeholder="错题号（用逗号分隔，可空）" value="' + (slNoHw ? '' : (r && r.wrongs ? esc(r.wrongs.join(',')) : (slTmpVals ? esc(slTmpVals.wrongs) : ''))) + '"' + (slNoHw ? ' disabled' : '') + '>' +
+    '<input id="sl-wrongs" class="se-full" placeholder="错题号（用逗号分隔，可空）" value="' + (slNoHw ? '' : (draftVals ? esc(draftVals.wrongs) : (r && r.wrongs ? esc(r.wrongs.join(',')) : (slTmpVals ? esc(slTmpVals.wrongs) : '')))) + '" oninput="slotDraftSave()"' + (slNoHw ? ' disabled' : '') + '>' +
     '</div>' +
     '<div class="se-actions">' +
     '<button class="btn mint sm" onclick="saveSlot()">' + (r ? '保存修改' : '完成打卡') + '</button>' +
@@ -1380,11 +1448,18 @@ function saveSlot(){
   if(!slotEdit) return;
   const st0 = pool.students.find(x=>x.id===slotEdit.gid);
   if(!st0 || !canWriteOwner(st0.ownerId)){ toast('没有权限操作该数据'); return; }
+  const gid0 = slotEdit.gid, sub0 = slotEdit.subject;
   const date = document.getElementById('sl-date').value || todayStr();
-  const items = subjectItems(slotEdit.gid, slotEdit.subject);
-  const it = items[slotEdit.idx-1];
-  const r = it && it.type==='rec' ? it.rec : null;
-  const miss = it && it.type==='miss' ? it.miss : null;
+  // 按稳定身份复核编辑对象（v1.8.0 BUG-02）：rec/miss 按 refId 取对象并确认仍存在与归属；new = 空位补录
+  let r = null, miss = null;
+  if(slotEdit.refType==='rec'){
+    r = state.records.find(x=>x.id===slotEdit.refId) || null;
+    if(!r){ toast('该记录已被删除，无法保存'); slotEdit = null; renderAll(); return; }
+  } else if(slotEdit.refType==='miss'){
+    miss = state.missed.find(x=>x.id===slotEdit.refId && !x.resolved) || null;
+    if(!miss){ toast('该未交记录已处理，无法保存'); slotEdit = null; renderAll(); return; }
+  }
+  const clearDraft = ()=>draftSave(gid0, sub0, 'slot', null);  // 保存成功才清草稿（v1.8.0 BUG-01）：API 在 onOk、mock 同步
   /* ---- 无作业保存：只校验日期；total/correct/wrongs 清零；正常 → 无作业转换在 toggleSlotNoHw 已确认 ---- */
   if(slNoHw){
     if(r){
@@ -1392,7 +1467,7 @@ function saveSlot(){
       r.date = date; r.total = 0; r.correct = 0; r.wrongs = []; r.noHomework = true;
       logAction('修改作业（无作业）', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject), '日期 ' + date, {ownerId: r.ownerId});
       apiPersist(HttpApi.updateRecord(r.id, {date: date, total: 0, correct: 0, wrongs: [], subject: r.subject, noHomework: true}),
-        rr=>{ if(rr && rr.pushed) toast('作业成绩已推送给家长'); });
+        rr=>{ clearDraft(); if(rr && rr.pushed) toast('作业成绩已推送给家长'); });
     } else {
       const newRec = {id:uid(), studentId:slotEdit.gid, date:date, total:0, correct:0,
         wrongs:[], subject:slotEdit.subject, images:[], pdfs:[], ownerId:st0.ownerId, noHomework:true};
@@ -1400,13 +1475,14 @@ function saveSlot(){
       logAction('录入作业（无作业）', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject), '日期 ' + date, {ownerId: st0.ownerId});
       apiPersist(HttpApi.addRecord({id: newRec.id, studentId: newRec.studentId, date: date, total: 0, correct: 0,
         wrongs: [], subject: newRec.subject, images: newRec.images, pdfs: newRec.pdfs, noHomework: true}),
-        rr=>{ if(rr && rr.pushed) toast('作业成绩已推送给家长'); });
+        rr=>{ clearDraft(); if(rr && rr.pushed) toast('作业成绩已推送给家长'); });
       // 未交格子本期不提供转无作业入口（slotEditHtml 未交分支无该按钮），此分支仅为防御
       if(miss){
         miss.resolved = true; miss.resolution = 'made-up'; miss.resolvedAt = todayStr();
         apiPersist(HttpApi.resolveMissed(miss.id));
       }
     }
+    if(!USE_API) clearDraft();
     slNoHw = false; slTmpVals = null;
     slotEdit = null;
     save();
@@ -1426,7 +1502,7 @@ function saveSlot(){
     logAction('修改作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
       '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: r.ownerId});
     apiPersist(HttpApi.updateRecord(r.id, {date: date, total: total, correct: correct, wrongs: wrongs, subject: r.subject, noHomework: false}),
-      rr=>{ if(rr && rr.pushed) toast('作业成绩已推送给家长'); });
+      rr=>{ clearDraft(); if(rr && rr.pushed) toast('作业成绩已推送给家长'); });
   } else {
     const newRec = {id:uid(), studentId:slotEdit.gid, date:date, total:total, correct:correct,
       wrongs:wrongs, subject:slotEdit.subject, images:[], pdfs:[], ownerId:st0.ownerId};
@@ -1435,13 +1511,14 @@ function saveSlot(){
       '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: st0.ownerId});
     apiPersist(HttpApi.addRecord({id: newRec.id, studentId: newRec.studentId, date: date, total: total, correct: correct,
       wrongs: wrongs, subject: newRec.subject, images: newRec.images, pdfs: newRec.pdfs}),
-      rr=>{ if(rr && rr.pushed) toast('作业成绩已推送给家长'); });  // id 客户端生成并贯穿，不再回填
+      rr=>{ clearDraft(); if(rr && rr.pushed) toast('作业成绩已推送给家长'); });  // id 客户端生成并贯穿，不再回填
     if(miss){
       miss.resolved = true; miss.resolution = 'made-up'; miss.resolvedAt = todayStr();  // 补录成功：该次未交视为已补交（留痕），不再占用打卡格子
       logAction('补交未交', 'missed', auditStuDesc(miss.studentId, miss.subject), '原未交日期 ' + miss.date, {ownerId: miss.ownerId});
       apiPersist(HttpApi.resolveMissed(miss.id));
     }
   }
+  if(!USE_API) clearDraft();
   slTmpVals = null;  // 正常保存后清掉无作业切换的暂存值
   slotEdit = null;
   save();
@@ -1450,16 +1527,18 @@ function saveSlot(){
 /* 删除当次打卡记录 */
 function deleteSlot(){
   if(!slotEdit) return;
-  const items = subjectItems(slotEdit.gid, slotEdit.subject);
-  const it = items[slotEdit.idx-1];
-  const r = it && it.type==='rec' ? it.rec : null;
-  if(!r) return;
+  // 按稳定身份复核（v1.8.0 BUG-02）：仅 rec 可删，按 refId 确认对象仍存在与归属
+  const r = slotEdit.refType==='rec' ? (state.records.find(x=>x.id===slotEdit.refId) || null) : null;
+  if(!r){ toast('该记录已被删除或不可删除'); slotEdit = null; renderAll(); return; }
   if(!canWriteOwner(r.ownerId)){ toast('没有权限操作该数据'); return; }
-    askConfirm('删除作业记录', '确定删除第 ' + slotEdit.idx + ' 次作业记录（' + r.date + '）？此操作不可恢复。', ()=>{
+  const gid0 = slotEdit.gid, sub0 = slotEdit.subject;
+  const pos = slotEditItem().pos || slotEdit.idx;
+  askConfirm('删除作业记录', '确定删除第 ' + pos + ' 次作业记录（' + r.date + '）？此操作不可恢复。', ()=>{
       pool.records = pool.records.filter(x=>x.id!==r.id);
       logAction('删除作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
         '日期 ' + r.date + '，总 ' + r.total + ' 对 ' + r.correct, {ownerId: r.ownerId});
-      apiPersist(HttpApi.deleteRecord(r.id));
+      apiPersist(HttpApi.deleteRecord(r.id), ()=>draftSave(gid0, sub0, 'slot', null));
+      if(!USE_API) draftSave(gid0, sub0, 'slot', null);
       slotEdit = null;
       save();
       renderAll();
