@@ -121,13 +121,46 @@ function toggleLetter(kind, l){
 function clearLetters(kind){
   if(kind==='stu'){ stuLetters = []; renderStats(); } else { alumniLetters = []; renderAlumni(); }
 }
+/* 字母索引默认折叠（v1.8.4 UI-03）：折叠态只显示「A-Z ▸」开关；点击展开，有选中字母时自动展开 */
+let letterBarOpen = { stu: false, alumni: false };
+function toggleLetterBar(kind){
+  letterBarOpen[kind] = !letterBarOpen[kind];
+  if(kind==='stu') renderStats(); else renderAlumni();
+}
 // 筛选条：A–Z + # 横排可横滚（sub-chip 风格），有选中时末尾「清除筛选」
 function letterBarHtml(letters, kind){
+  if(!letterBarOpen[kind] && !letters.length){
+    return '<div class="letter-bar"><span class="sub-chip letter-toggle" tabindex="0" onclick="toggleLetterBar(\'' + kind + '\')" title="展开首字母筛选">A-Z ▸</span></div>';
+  }
   return '<div class="letter-bar">' +
-    LETTER_LIST.map(l=>'<span class="sub-chip letter-chip' + (letters.indexOf(l)!==-1?' active':'') + '" onclick="toggleLetter(\'' + kind + '\',\'' + l + '\')">' + l + '</span>').join('') +
-    (letters.length ? '<span class="sub-chip letter-clear" onclick="clearLetters(\'' + kind + '\')">清除筛选</span>' : '') +
+    '<span class="sub-chip letter-toggle" tabindex="0" onclick="toggleLetterBar(\'' + kind + '\')" title="收起首字母筛选">A-Z ▾</span>' +
+    LETTER_LIST.map(l=>'<span class="sub-chip letter-chip' + (letters.indexOf(l)!==-1?' active':'') + '" tabindex="0" onclick="toggleLetter(\'' + kind + '\',\'' + l + '\')">' + l + '</span>').join('') +
+    (letters.length ? '<span class="sub-chip letter-clear" tabindex="0" onclick="clearLetters(\'' + kind + '\')">清除筛选</span>' : '') +
     '</div>';
 }
+/* ---- 键盘可达与弹窗 Esc（v1.8.4 UI-06） ----
+   动作入口键盘化：聚焦的 chips/分组头 Enter/Space 激活（与点击一致；Space 阻默认滚动）。
+   Esc 统一关闭主弹窗（强制改密 pwdForced 除外）；DOM 桩 body.addEventListener 空操作，安全静默。 */
+document.body.addEventListener('keydown', function(e){
+  if(!e || !e.target || !e.target.classList) return;
+  if(e.key === 'Enter' || e.key === ' '){
+    const t = e.target;
+    if(t.classList.contains('sub-chip') || t.classList.contains('today-grp-head') || t.classList.contains('ta-group-head')){
+      if(e.key === ' ' && e.preventDefault) e.preventDefault();
+      if(t.click) t.click();
+    }
+    return;
+  }
+  if(e.key === 'Escape'){
+    ['confirm-modal','input-modal','stu-modal','transfer-modal','bind-modal','binds-modal','report-modal','miss-subj-modal','pr-modal','pwd-modal','ta-entry-modal','img-modal'].forEach(id=>{
+      const m = document.getElementById(id);
+      if(m && m.classList && m.classList.contains('show')){
+        if(id === 'pwd-modal' && typeof pwdForced !== 'undefined' && pwdForced) return;  // 强制改密不可 Esc 跳过
+        m.classList.remove('show');
+      }
+    });
+  }
+});
 /* ---- 逾期统一判定（首次课程时间口径） ----
    逾期 ⟺ 未处理 && 该科目已填开课时间（未填一律不算逾期）&& 开课时间 ≤ 今天（未开课不算）&& 未交日期 + 7 天宽限 < 今天
    「未指定科目」的未交无法定位开课时间 → 不算逾期 */
@@ -237,6 +270,9 @@ function askConfirm(title, text, cb, opts){
   }
   cfCallback = cb;
   document.getElementById('confirm-modal').classList.add('show');
+  // 初始焦点（v1.8.4 UI-06）：带输入时落输入框，否则落取消键（防误确认）
+  if(iw && iw.style.display !== 'none'){ const iv = document.getElementById('cf-input'); if(iv && iv.focus) iv.focus(); }
+  else { const c = document.getElementById('cf-cancel'); if(c && c.focus) c.focus(); }
 }
 document.getElementById('cf-cancel').onclick = ()=>document.getElementById('confirm-modal').classList.remove('show');
 document.getElementById('cf-ok').onclick = ()=>{

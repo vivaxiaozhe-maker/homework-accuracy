@@ -175,7 +175,7 @@ function renderToday(){
   if(todayExpandKey===null || !nonEmpty.some(g=>g.key===todayExpandKey)) todayExpandKey = nonEmpty.length ? nonEmpty[0].key : null;
   if(catsEl){
     catsEl.innerHTML = nonEmpty.length > 1 ? nonEmpty.map(g=>
-      '<span class="sub-chip' + (g.key===todayExpandKey?' active':'') + '" onclick="todayCatGo(\'' + g.key + '\')">' +
+      '<span class="sub-chip' + (g.key===todayExpandKey?' active':'') + '" tabindex="0" onclick="todayCatGo(\'' + g.key + '\')">' +
       g.label + ' ' + g.rows.length + '</span>').join('') : '';
   }
   let html = nonEmpty.map(g=>{
@@ -187,15 +187,15 @@ function renderToday(){
       g.rows.forEach(r=>{ const o = g.ownerOf(r) || ''; cntMap[o] = (cntMap[o]||0)+1; });
       const sel = todayTaFilter[g.key] || 'all';
       chipsHtml = '<div class="ta-chips today-ta-chips">' +
-        '<span class="sub-chip' + (sel==='all'?' active':'') + '" onclick="todayTaSet(\'' + g.key + '\',\'all\')">全部 ' + g.rows.length + '</span>' +
+        '<span class="sub-chip' + (sel==='all'?' active':'') + '" tabindex="0" onclick="todayTaSet(\'' + g.key + '\',\'all\')">全部 ' + g.rows.length + '</span>' +
         Object.keys(cntMap).sort((a,b)=>cntMap[b]-cntMap[a]).map(oid=>
-          '<span class="sub-chip' + (sel===oid?' active':'') + '" onclick="todayTaSet(\'' + g.key + '\',\'' + esc(jsStr(oid)) + '\')">' +
+          '<span class="sub-chip' + (sel===oid?' active':'') + '" tabindex="0" onclick="todayTaSet(\'' + g.key + '\',\'' + esc(jsStr(oid)) + '\')">' +
           esc(ownerName(oid)) + ' ' + cntMap[oid] + '</span>').join('') +
         '</div>';
       if(sel !== 'all') rows = rows.filter(r=>(g.ownerOf(r)||'')===sel);
     }
     return '<div class="today-grp" id="today-grp-' + g.key + '">' +
-      '<div class="today-grp-head" onclick="todayCatGo(\'' + g.key + '\')">' +
+      '<div class="today-grp-head" tabindex="0" onclick="todayCatGo(\'' + g.key + '\')">' +
       '<span class="chev">' + (open?'▾':'▸') + '</span><b>' + g.label + '</b>' +
       '<span class="cnt">' + g.rows.length + (g.key==='miss' ? ' 次未交' : ' 条') + '</span></div>' +
       // 折叠组仍渲染行（CSS 隐藏），保证内容可检索/可测试
@@ -203,7 +203,15 @@ function renderToday(){
   }).join('');
 
   if(!html){
-    html = '<div class="empty-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" fill="#E4F3EC" stroke="none"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>今天没有待处理事项，全部完成！</div>';
+    // 角色化空态（v1.8.4 UI-04）：助教零学生给首录引导（不显示「全部完成」）；
+    // 零待办但有学生且全无记录 → 待首录引导；否则维持「全部完成」
+    if(!isAdminView() && !activeStudents().length){
+      html = '<div class="empty-ok">暂无名下学生：到「现有学生」页点「新增学生」录入第一名学生，或等教务分配。</div>';
+    } else {
+      const firstRecGuide = !isAdminView() && state.records.length === 0 && activeStudents().length > 0;
+      html = '<div class="empty-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" fill="#E4F3EC" stroke="none"/><path d="M8 12.5l2.5 2.5L16 9.5"/></svg>今天没有待处理事项' +
+        (firstRecGuide ? '，从「现有学生」学生卡选择科目开始录入。' : '，全部完成！') + '</div>';
+    }
   }
   list.innerHTML = html;
 
@@ -355,6 +363,22 @@ document.getElementById('stu-search').addEventListener('input', function(){
   stuQuery = this.value.trim();
   renderStats();
 });
+/* 筛选区 meta（v1.8.4 UI-03）：命中数量 + 已选条件提示 + 一键清除复位 */
+function stuFilterMetaHtml(count){
+  const taFiltered = isAdminView() && stuTaFilter !== 'all';
+  if(!stuQuery && !stuLetters.length && !taFiltered) return '';
+  const parts = [];
+  if(stuQuery) parts.push('搜索「' + esc(stuQuery) + '」');
+  if(stuLetters.length) parts.push('首字母 ' + stuLetters.join('/'));
+  if(taFiltered) parts.push('助教 ' + esc(ownerName(stuTaFilter)));
+  return '命中 <b>' + count + '</b> 个学生 · 筛选中：' + parts.join(' + ') +
+    ' <span class="sub-chip" tabindex="0" style="margin-left:6px" onclick="clearStuFilters()">清除</span>';
+}
+function clearStuFilters(){
+  stuQuery = ''; stuLetters = []; stuTaFilter = 'all';
+  const ss = document.getElementById('stu-search'); if(ss) ss.value = '';
+  renderStats();
+}
 function renderStats(){
   // 同名同姓合并为一组（统计按姓名聚合，原始记录不受影响）；只统计现有学生
   // 归属不同的同名学生不合并（按 ownerId+姓名 分组），避免跨助教混同
@@ -379,16 +403,19 @@ function renderStats(){
     if(chipBoxS) chipBoxS.innerHTML = '';
     document.getElementById('bar-chart').innerHTML = '<p class="hint">输入学生姓名或学校进行查询</p>';
     const listS = document.getElementById('stu-list');
-    if(USE_API){ renderSalesApiList(listS, false); return; }  // API 模式：搜索走服务端
+    const metaS = document.getElementById('stu-filter-meta');
+    if(USE_API){ renderSalesApiList(listS, false); return; }  // API 模式：搜索走服务端（meta 在其中异步填充）
     if(!stuQuery){
       // 无关键字：只展示示例学生（演示用），真实学生仍需搜索——防批量泄露；首字母筛选叠加生效
       const demo = groups.filter(g=>g.sample && matchLetters(g.name, stuLetters));
+      if(metaS) metaS.innerHTML = stuFilterMetaHtml(demo.length);
       listS.innerHTML = demo.length
         ? '<p class="hint" style="margin-bottom:10px">以下为示例学生（演示用）；查询真实学生请输入姓名或学校：</p>' + demo.map(g=>salesStuCard(g, false)).join('')
         : '<p class="hint">' + (stuLetters.length ? '没有匹配该首字母的示例学生。' : '输入学生姓名或学校进行查询') + '</p>';
       return;
     }
     const matchedS = groups.filter(g=>(g.name.indexOf(stuQuery)!==-1 || (g.school||'').indexOf(stuQuery)!==-1) && matchLetters(g.name, stuLetters));
+    if(metaS) metaS.innerHTML = stuFilterMetaHtml(matchedS.length);
     listS.innerHTML = matchedS.length
       ? matchedS.map(g=>salesStuCard(g, false)).join('')
       : '<p class="hint">没有匹配「' + esc(stuQuery) + '」的学生。</p>';
@@ -421,7 +448,7 @@ function renderStats(){
       const chipTas = getUsersCache().filter(u=>u.role==='ta');
       chipBox.innerHTML = '<div class="ta-chips">' +
         '<span class="sub-chip' + (stuTaFilter==='all'?' active':'') + '" onclick="setStuTaFilter(\'all\')">全部学生</span>' +
-        chipTas.map(u=>'<span class="sub-chip' + (stuTaFilter===u.id?' active':'') + '" onclick="setStuTaFilter(\'' + esc(jsStr(u.id)) + '\')">' +
+        chipTas.map(u=>'<span class="sub-chip' + (stuTaFilter===u.id?' active':'') + '" tabindex="0" onclick="setStuTaFilter(\'' + esc(jsStr(u.id)) + '\')">' +
           esc(u.name) + (u.disabled ? ' <span class="chip-cnt">已停用</span>' : '') + '</span>').join('') +
         '</div>';
     }
@@ -485,6 +512,8 @@ function renderStats(){
   }
   // 教务的助教维度筛选与姓名搜索叠加生效
   const detail = (isAdminView() && stuTaFilter!=='all') ? filtered.filter(g=>g.ownerId===stuTaFilter) : filtered;
+  const metaEl = document.getElementById('stu-filter-meta');
+  if(metaEl) metaEl.innerHTML = stuFilterMetaHtml(detail.length);  // 命中数量 + 筛选中提示（v1.8.4 UI-03）
   if(!filtered.length){
     list.innerHTML = stuQuery
       ? '<p class="hint">没有匹配「' + esc(stuQuery) + '」的学生，换个关键词试试。</p>'
@@ -549,7 +578,7 @@ function renderStats(){
             '<button class="btn danger sm" onclick="deleteSubject()" title="删除该科目及其全部作业记录、打卡计划、评语、模考信息">删除科目</button>' +
             '</span>';
         }
-        return '<span class="sub-chip' + (isActive?' active':'') + '" onclick="toggleQuickEntry(\'' + esc(jsStr(s.id)) + '\',\'' + esc(jsStr(k)) + '\')" title="点击录入该科目作业">' +
+        return '<span class="sub-chip' + (isActive?' active':'') + '" tabindex="0" onclick="toggleQuickEntry(\'' + esc(jsStr(s.id)) + '\',\'' + esc(jsStr(k)) + '\')" title="点击录入该科目作业">' +
           '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
           (omc>=2 ? '<span class="sub-alert" title="该科目有 ' + omc + ' 次逾期未交作业">!</span>' : '') +
           (hasCmt ? '<span class="sub-cmt-dot" title="已有老师评语"></span>' : '') +
@@ -559,7 +588,7 @@ function renderStats(){
           (mockScore!==null ? '<span class="mock-tag score" title="结课模考分数">模考 ' + esc(mockScore) + '</span>' : '') +
           (sa !== null ? '<span class="acc-badge ' + accClass(sa) + '">' + sa + '%</span>' : '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">' + (arr.length ? '—' : '未录入') + '</span>') +
           '<span class="sub-cnt" title="' + (planCnt!==null ? '已完成 ' + arr.length + ' 次，应完成 ' + planCnt + ' 次' : '已录入 ' + arr.length + ' 次') + '">' + (planCnt!==null ? arr.length + '/' + planCnt : arr.length) + ' 次</span>' +
-          '<span class="edit-ico" onclick="startRenameSubject(\'' + esc(jsStr(s.id)) + '\',\'' + esc(jsStr(k)) + '\',event)" title="修改科目名">✎</span></span>';
+          '<span class="edit-ico" tabindex="0" onclick="startRenameSubject(\'' + esc(jsStr(s.id)) + '\',\'' + esc(jsStr(k)) + '\',event)" title="修改科目名">✎</span></span>';
       }).join('') + '</div>';
     }
 
@@ -612,7 +641,7 @@ function renderStats(){
     const tas = getUsersCache().filter(u=>u.role==='ta');
     const renderGroup = (key, label, gs)=>{
       const open = !!stuQuery || !!stuTaExpanded[key];
-      return '<div class="ta-group-head" style="cursor:pointer" onclick="toggleTaGroup(\'' + esc(jsStr(key)) + '\')" title="点击展开/收起">' +
+      return '<div class="ta-group-head" style="cursor:pointer" tabindex="0" onclick="toggleTaGroup(\'' + esc(jsStr(key)) + '\')" title="点击展开/收起">' +
         '<span class="chev">' + (open ? '▾' : '▸') + '</span>' + label +
         '<span class="cnt">' + gs.length + ' 个学生</span></div>' +
         (open ? gs.map(renderStuCard).join('') : '');
@@ -781,6 +810,11 @@ async function renderSalesApiList(listEl, isAlumni){
     : '<p class="hint">没有匹配「' + esc(q) + '」的' + (isAlumni ? '历史' : '') + '学生。</p>';
   // 列表是异步渲染的：若有展开中的科目详情且已缓存，渲染完成后自动回填面板（避免竞态）
   if(salesSubjApi && salesDetailCache[salesSubjApi.id]) fillSalesApiPanel(salesSubjApi.id);
+  // 筛选区 meta 同步（v1.8.4 UI-03）：仅现有学生页（历史学生页无 meta 元素）
+  if(!isAlumni){
+    const metaEl = document.getElementById('stu-filter-meta');
+    if(metaEl) metaEl.innerHTML = stuFilterMetaHtml(items.length);
+  }
 }
 function fillSalesApiPanel(id){
   const el = document.getElementById('sales-api-panel-' + id);
@@ -788,7 +822,7 @@ function fillSalesApiPanel(id){
 }
 function salesApiCard(s, isAlumni){
   const subHtml = (s.subjects && s.subjects.length) ? '<div class="sub-acc">' + s.subjects.map(sub=>
-    '<span class="sub-chip" onclick="toggleSalesSubjectApi(\'' + esc(jsStr(s.id)) + '\',\'' + esc(jsStr(sub.subject)) + '\',' + isAlumni + ')" title="点击查看该科目详情（只读）">' +
+    '<span class="sub-chip" tabindex="0" onclick="toggleSalesSubjectApi(\'' + esc(jsStr(s.id)) + '\',\'' + esc(jsStr(sub.subject)) + '\',' + isAlumni + ')" title="点击查看该科目详情（只读）">' +
     '<span class="sub-name">' + esc(shortSubject(sub.subject)) + '</span>' +
     // 无成绩可算（纯无作业/纯未交/纯计划）→ 正确率 —（v1.8.2 BUG-04）
     (sub.avg === null || sub.avg === undefined
@@ -955,7 +989,7 @@ function qePanelHtml(){
   const pendReq = st ? Api.pendingPlanRequest(st.id, quickEntry.subject) : null;
   const lastReq = st ? (pool.planRequests || []).filter(r=>r.studentId===st.id && r.subject===quickEntry.subject && (r.status==='approved' || r.status==='rejected')).slice(-1)[0] : null;
   return '<div class="qe-panel">' +
-    '<div class="qe-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span>「' + esc(shortSubject(quickEntry.subject)) + '」作业打卡</span>' +
+    '<div class="qe-title qe-title-sticky" style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span>「' + esc(shortSubject(quickEntry.subject)) + '」作业打卡 · ' + esc(st ? st.name : '') + '</span>' +
     '<button class="btn mint sm" onclick="genReport()" title="生成该生该科目的作业打卡报告 PDF（含打卡情况、老师评语、模考信息）">⬇ 生成报告</button></div>' +
     '<div class="plan-row">' +
     (isArchived
@@ -1139,6 +1173,8 @@ function openPlanRequest(st, subject, oldPlan, newPlan){
   document.getElementById('pr-change').textContent = oldPlan + ' 次 → ' + newPlan + ' 次';
   document.getElementById('pr-reason').value = '';
   document.getElementById('pr-modal').classList.add('show');
+  const prReason = document.getElementById('pr-reason');  // 初始焦点落理由输入框（v1.8.4 UI-06）
+  if(prReason && prReason.focus) prReason.focus();
 }
 function submitPlanRequest(){
   if(!planReqCtx) return;

@@ -399,6 +399,8 @@ document.getElementById('btn-open-add-stu').addEventListener('click', ()=>{
   document.getElementById('ns-school').value = '';
   initGradYears();
   document.getElementById('stu-modal').classList.add('show');
+  const nsName = document.getElementById('ns-name');  // 初始焦点落姓名输入框（v1.8.4 UI-06）
+  if(nsName && nsName.focus) nsName.focus();
 });
 // 点击明细卡姓名 → 编辑该同名组学生的信息
 function openEditStudent(ids){
@@ -573,7 +575,7 @@ function renderAlumni(){
         const mockDate = mockSt.date || '';
         const mockScore = (mockSt.score!==undefined && mockSt.score!==null && mockSt.score!=='') ? mockSt.score : null;
         const omc = overdueMissCount(g.ids, k);
-        return '<span class="sub-chip' + (isActive?' active':'') + '" onclick="toggleQuickEntry(\'' + esc(jsStr(s.id)) + '\',\'' + esc(jsStr(k)) + '\')" title="点击查看该科目打卡情况、评语与模考">' +
+        return '<span class="sub-chip' + (isActive?' active':'') + '" tabindex="0" onclick="toggleQuickEntry(\'' + esc(jsStr(s.id)) + '\',\'' + esc(jsStr(k)) + '\')" title="点击查看该科目打卡情况、评语与模考">' +
           '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
           (omc>=2 ? '<span class="sub-alert" title="该科目有 ' + omc + ' 次逾期未交作业">!</span>' : '') +
           (hasCmt ? '<span class="sub-cmt-dot" title="已有老师评语"></span>' : '') +
@@ -757,6 +759,18 @@ function enterApp(){
   // 销售端搜索框提示语 + 隐藏图表卡与新增学生入口（只读查询）
   document.getElementById('stats-chart-card').style.display = role==='sales' ? 'none' : '';
   document.getElementById('btn-open-add-stu').style.display = role==='sales' ? 'none' : '';
+  // 图表口径按角色（v1.8.4 UI-04）：助教「我名下」，教务「全体学生」
+  const chartScope = document.getElementById('chart-scope');
+  if(chartScope) chartScope.textContent = role==='ta' ? '（我名下）' : '（全体学生）';
+  // 导出文案按角色与模式区分（v1.8.4 UI-05）：助教「数据导出」（名下数据）；教务 API「业务数据导出」（不含附件与配置）
+  const bct = document.getElementById('backup-card-title');
+  const bch = document.getElementById('backup-hint');
+  if(bct) bct.textContent = role==='ta' ? '数据导出' : (USE_API ? '业务数据导出' : '备份与恢复');
+  if(bch) bch.textContent = role==='ta'
+    ? '导出你名下学生的作业与未交数据（JSON 文件）。'
+    : (USE_API
+      ? '包含学生/作业/未交等核心业务数据，不等同整站恢复包（不含附件文件与系统配置）。'
+      : '导入会替换当前全部数据（支持上千条记录），导入前会先让你确认。');
   if(role==='sales'){
     document.getElementById('stu-search').placeholder = '输入学生姓名或学校进行查询';
   } else {
@@ -1289,6 +1303,8 @@ function openTransfer(ids){
   if(!opts.length){ toast('暂无可转移的目标助教'); return; }
   sel.innerHTML = opts.map(u=>'<option value="' + esc(u.id) + '">' + esc(u.name) + '（' + esc(u.username) + '）</option>').join('');
   document.getElementById('transfer-modal').classList.add('show');
+  const tfSel = document.getElementById('tf-target');  // 初始焦点落下拉框（v1.8.4 UI-06）
+  if(tfSel && tfSel.focus) tfSel.focus();
 }
 document.getElementById('tf-cancel').addEventListener('click', ()=>document.getElementById('transfer-modal').classList.remove('show'));
 document.getElementById('tf-ok').addEventListener('click', ()=>{

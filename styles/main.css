@@ -309,6 +309,8 @@ main{flex:1;max-width:1080px;padding:24px 28px 90px;margin:0 auto}  /* 在侧栏
 .sub-chip.active{outline:2px solid var(--mint);background:var(--mint-l)}
 .qe-panel{margin-top:12px;border:1.5px dashed #BFE3D4;border-radius:14px;padding:14px;background:var(--mint-xl)}
 .qe-title{font-size:14px;font-weight:700;color:var(--mint-d);margin-bottom:10px}
+/* 面板标题吸顶（v1.8.4 UI-02）：长面板滚动时「科目+学生」上下文固定可见（低于 sticky 筛选卡 z20） */
+.qe-title-sticky{position:sticky;top:0;z-index:10;background:var(--mint-xl);margin:-6px -6px 6px;padding:6px;border-radius:8px}
 .qe-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .qe-grid input{
   font-size:16px;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;
