@@ -96,7 +96,12 @@ function initAdmin(){
   if(cnt > 0) return;
   const initPwd = process.env.ADMIN_INIT_PASSWORD;
   if(!initPwd){
-    console.warn('[警告] 未设置环境变量 ADMIN_INIT_PASSWORD，教务管理员使用默认初始密码 admin123，请尽快修改！');
+    // v1.8.1 ENG-02：生产模式未显式设置初始密码 → 启动明确失败；本地开发保留默认并警告
+    if(process.env.NODE_ENV === 'production'){
+      console.error('[致命] 生产模式（NODE_ENV=production）必须设置环境变量 ADMIN_INIT_PASSWORD（教务管理员初始密码），拒绝启动。');
+      process.exit(1);
+    }
+    console.warn('[警告] 未设置环境变量 ADMIN_INIT_PASSWORD，本地开发使用默认初始密码 admin123，请尽快修改！生产部署必须显式设置。');
   }
   db.prepare(`INSERT INTO users (id, username, name, role, pass_hash, disabled, must_change_pwd, created_at)
               VALUES (?, ?, '教务管理员', 'admin', ?, 0, 1, ?)`)

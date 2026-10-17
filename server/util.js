@@ -71,10 +71,12 @@ function reqToJson(r){
 
 /* 客户端可选 id（id 由前端生成并贯穿，避免回填替换导致引用失效/排序退化）：
    字符串、≤64 字符、表内唯一；未传返回 null（走服务端生成兜底）；
-   'invalid'/'conflict' 标记由调用方转 400/409。表名为内部常量，无注入风险。 */
+   'invalid'/'conflict' 标记由调用方转 400/409。表名为内部常量，无注入风险。
+   v1.8.1 起新写 id 限字符集：字母/数字/下划线/连字符/点/冒号（拒绝引号/斜杠/空白等，防注入与转义事故）；历史异常 id 不迁移。 */
+const CLIENT_ID_RE = /^[A-Za-z0-9_\-.:]+$/;
 function clientId(raw, table){
   if(raw === undefined || raw === null || raw === '') return null;
-  if(typeof raw !== 'string' || raw.length > 64) return 'invalid';
+  if(typeof raw !== 'string' || raw.length > 64 || !CLIENT_ID_RE.test(raw)) return 'invalid';
   const clash = db.prepare('SELECT 1 FROM ' + table + ' WHERE id = ?').get(raw);
   return clash ? 'conflict' : raw;
 }

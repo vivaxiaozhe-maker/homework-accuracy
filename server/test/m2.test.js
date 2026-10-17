@@ -86,13 +86,16 @@ function ok(cond, name){
   const ta1Id = r.data.user.id;
   ok(r.data.user.tempPassword === 'ta123456', '创建账号响应带回初始密码 tempPassword');
 
-  /* ---- 初始密码可见性：待改密账号返回 tempPassword，其余不返回 ---- */
+  /* ---- 初始密码只显示一次（v1.8.1 ENG-02）：创建/重置当次响应返回；列表永不返回、写库即 NULL ---- */
   r = await req('GET', '/api/users', null, adminTok);
   const ta1Row0 = r.data.users.find(u => u.id === ta1Id);
   const adminRow0 = r.data.users.find(u => u.username === 'admin');
-  ok(ta1Row0 && ta1Row0.tempPassword === 'ta123456', '待改密账号列表返回 tempPassword');
+  ok(ta1Row0 && ta1Row0.mustChangePwd === true && ta1Row0.tempPassword === undefined,
+    '待改密账号列表也不返回 tempPassword（只显示一次）');
   ok(adminRow0 && adminRow0.mustChangePwd === false && adminRow0.tempPassword === undefined,
     '已改密账号不返回 tempPassword（admin 已在硬限制用例中改密）');
+  ok(db.prepare('SELECT temp_password FROM users WHERE id = ?').get(ta1Id).temp_password === null,
+    '创建后 temp_password 写库即 NULL（不再长期存明文）');
 
   r = await req('POST', '/api/users', { name: '重复', username: 'ta1', password: 'abcdef', role: 'ta' }, adminTok);
   ok(r.status === 400 && r.data.ok === false, '重复 username 被拒（400）');
@@ -133,9 +136,10 @@ function ok(cond, name){
 
   /* ---- 重置密码 ---- */
   r = await req('POST', '/api/users/' + ta1Id + '/reset', { password: 'ta123456' }, adminTok);
-  ok(r.status === 200 && r.data.ok === true, '教务重置助教密码成功');
+  ok(r.status === 200 && r.data.ok === true && r.data.tempPassword === 'ta123456', '教务重置助教密码成功（初始密码当次响应返回一次）');
   r = await req('GET', '/api/users', null, adminTok);
-  ok(r.data.users.find(u => u.id === ta1Id).tempPassword === 'ta123456', '重置后 tempPassword 更新为新初始密码');
+  ok(r.data.users.find(u => u.id === ta1Id).tempPassword === undefined, '重置后列表不返回 tempPassword');
+  ok(db.prepare('SELECT temp_password FROM users WHERE id = ?').get(ta1Id).temp_password === null, '重置后 temp_password 写库即 NULL');
   r = await req('GET', '/api/users', null, taTokA);
   ok(r.status === 401, '重置密码后该用户 session 全清（token 401）');
   r = await req('POST', '/api/login', { username: 'ta1', password: 'ta123456' });
@@ -160,7 +164,108 @@ function ok(cond, name){
   r = await req('POST', '/api/users/' + adminId + '/toggle', {}, adminTok);
   ok(r.status === 400 && r.data.ok === false, '不能停用最后一个可用教务账号');
 
-  /* ---- 限流：10 次失败/分钟/IP（本测试此前已消耗 4 次失败登录） ---- */
+  /* ---- 账号删除（v1.8.1 NEW-01）：tombstone + 阻断式 + 事务重检 ---- */
+  // 1) 无关联已停用助教：预览 → 确认账号错误 400 → 删除成功 → tombstone/用户名锁定/不可恢复
+  r = await req('POST', '/api/users', { name: '删除甲', username: 'del1', password: 'del123456', role: 'ta' }, adminTok);
+  const del1Id = r.data.user.id;
+  r = await req('DELETE', '/api/users/' + del1Id, { confirmUsername: 'del1' }, adminTok);
+  ok(r.status === 403, '未停用账号删除被拒（403）');
+  r = await req('GET', '/api/users/' + del1Id + '/delete-impact', null, adminTok);
+  ok(r.status === 200 && r.data.canDelete === false && r.data.reason.indexOf('停用') !== -1, '预览：未停用 canDelete=false 并给出原因');
+  await req('POST', '/api/users/' + del1Id + '/toggle', {}, adminTok);  // 停用
+  r = await req('GET', '/api/users/' + del1Id + '/delete-impact', null, adminTok);
+  ok(r.status === 200 && r.data.canDelete === true && r.data.impact.activeStu === 0, '预览：无关联已停用账号 canDelete=true');
+  r = await req('DELETE', '/api/users/' + del1Id, { confirmUsername: 'wrong' }, adminTok);
+  ok(r.status === 400, '确认账号不匹配 400');
+  r = await req('DELETE', '/api/users/' + del1Id, { confirmUsername: 'del1' }, adminTok);
+  ok(r.status === 200 && r.data.ok === true, '教务删除无关联已停用账号成功');
+  r = await req('DELETE', '/api/users/' + del1Id, { confirmUsername: 'del1' }, adminTok);
+  ok(r.status === 404, '重复删除返回 404（无部分删除）');
+  const tomb = db.prepare('SELECT * FROM deleted_users WHERE id = ?').get(del1Id);
+  ok(tomb && tomb.username === 'del1' && tomb.name === '删除甲' && tomb.role === 'ta' && tomb.deleted_by && !('pass_hash' in tomb),
+    'tombstone 登记身份与操作人（不含认证材料）');
+  r = await req('GET', '/api/users', null, adminTok);
+  ok(Array.isArray(r.data.deletedUsers) && r.data.deletedUsers.some(d => d.username === 'del1'), '账号列表接口带 tombstone 名单');
+  r = await req('POST', '/api/users', { name: '复用', username: 'del1', password: 'abcdef', role: 'ta' }, adminTok);
+  ok(r.status === 400 && r.data.msg.indexOf('永久不可复用') !== -1, '已注销用户名永久锁定（400）');
+  r = await req('POST', '/api/login', { username: 'del1', password: 'del123456' });
+  ok(r.status === 401, '删除后该账号不能登录');  // 限流计数 5
+  r = await req('POST', '/api/users/' + del1Id + '/reset', { password: 'abcdef' }, adminTok);
+  ok(r.status === 404, '删除后重置密码 404');
+  r = await req('POST', '/api/users/' + del1Id + '/toggle', {}, adminTok);
+  ok(r.status === 404, '删除后启用 404');
+  ok(db.prepare("SELECT 1 FROM audit_logs WHERE action = '删除账号' AND target_desc LIKE '%del1%'").get() !== undefined, '删除写审计（含目标身份摘要）');
+
+  // 2) 旧会话 401：del2 登录拿 token → 停用+删除 → token 访问 401
+  r = await req('POST', '/api/users', { name: '删除乙', username: 'del2', password: 'del123456', role: 'sales' }, adminTok);
+  const del2Id = r.data.user.id;
+  r = await req('POST', '/api/login', { username: 'del2', password: 'del123456', role: 'sales' });
+  const del2Tok = r.data.token;
+  r = await req('GET', '/api/me', null, del2Tok);
+  ok(r.status === 200, '删除前会话有效');
+  await req('POST', '/api/users/' + del2Id + '/toggle', {}, adminTok);
+  r = await req('DELETE', '/api/users/' + del2Id, { confirmUsername: 'del2' }, adminTok);
+  ok(r.status === 200, '删除销售账号成功');
+  r = await req('GET', '/api/me', null, del2Tok);
+  ok(r.status === 401, '删除后旧会话访问业务接口 401');
+
+  // 3) 硬规则：教务目标 403 / 当前账号 403 / 不存在 404
+  r = await req('DELETE', '/api/users/u_admin2', { confirmUsername: 'admin2' }, adminTok);
+  ok(r.status === 403, '教务账号删除被拒（403，服务端硬拒绝不只隐藏按钮）');
+  r = await req('DELETE', '/api/users/' + adminId, { confirmUsername: 'admin' }, adminTok);
+  ok(r.status === 403, '当前登录账号删除被拒（403）');
+  r = await req('DELETE', '/api/users/u_nope', { confirmUsername: 'x' }, adminTok);
+  ok(r.status === 404, '删除不存在账号 404');
+
+  // 4) 阻断项全查：在服务/归档学生 + records/missed/files owner 引用 + pending 审批 → 409 分类计数
+  r = await req('POST', '/api/users', { name: '删除丙', username: 'del3', password: 'del123456', role: 'ta' }, adminTok);
+  const del3Id = r.data.user.id;
+  const now3 = new Date().toISOString();
+  db.prepare("INSERT INTO students (id, owner_id, name, archived, sample, created_at) VALUES ('del3-stu1', ?, '关联生', 0, 0, ?)").run(del3Id, now3);
+  db.prepare("INSERT INTO students (id, owner_id, name, archived, sample, created_at) VALUES ('del3-stu2', ?, '归档生', 1, 0, ?)").run(del3Id, now3);
+  db.prepare("INSERT INTO records (id, student_id, owner_id, date, total, correct) VALUES ('del3-rec1', 'del3-stu1', ?, '2026-10-01', 10, 9)").run(del3Id);
+  db.prepare("INSERT INTO missed (id, student_id, owner_id, date) VALUES ('del3-mis1', 'del3-stu1', ?, '2026-10-01')").run(del3Id);
+  db.prepare("INSERT INTO files (id, filename, mime, size, path, created_at, owner_id) VALUES ('del3-file1', 'a.png', 'image/png', 1, '/tmp/x', ?, ?)").run(now3, del3Id);
+  db.prepare("INSERT INTO plan_requests (id, student_id, owner_id, subject, old_plan, new_plan, status, requested_by, requested_at) VALUES ('del3-pr1', 'del3-stu1', ?, '学科 / AP / 统计', 3, 5, 'pending', ?, '2026-10-01')").run(del3Id, del3Id);
+  db.prepare("INSERT INTO unbind_requests (id, student_id, bind_id, owner_id, requested_by, requested_at, status) VALUES ('del3-ur1', 'del3-stu1', 'b1', ?, ?, '2026-10-01', 'pending')").run(del3Id, del3Id);
+  await req('POST', '/api/users/' + del3Id + '/toggle', {}, adminTok);
+  r = await req('GET', '/api/users/' + del3Id + '/delete-impact', null, adminTok);
+  const im3 = r.data.impact;
+  ok(r.data.canDelete === false && im3.activeStu === 1 && im3.archivedStu === 1 && im3.recCnt === 1
+    && im3.missCnt === 1 && im3.fileCnt === 1 && im3.pendingPlanReq === 1 && im3.pendingUnbindReq === 1,
+    '预览：七类阻断项分类计数正确');
+  r = await req('DELETE', '/api/users/' + del3Id, { confirmUsername: 'del3' }, adminTok);
+  ok(r.status === 409 && r.data.impact && r.data.impact.recCnt === 1, '有业务关联删除 409（携带分类数量）');
+  ok(db.prepare('SELECT 1 FROM users WHERE id = ?').get(del3Id) !== undefined, '409 后账号仍在（未部分删除）');
+
+  // 5) 竞态：预览 canDelete=true 后新产生关联 → 事务内重检拒绝
+  r = await req('POST', '/api/users', { name: '删除丁', username: 'del4', password: 'del123456', role: 'ta' }, adminTok);
+  const del4Id = r.data.user.id;
+  await req('POST', '/api/users/' + del4Id + '/toggle', {}, adminTok);
+  r = await req('GET', '/api/users/' + del4Id + '/delete-impact', null, adminTok);
+  ok(r.data.canDelete === true, '竞态用例：预览时无关联');
+  db.prepare("INSERT INTO students (id, owner_id, name, archived, sample, created_at) VALUES ('del4-stu1', ?, '事后关联', 0, 0, ?)").run(del4Id, new Date().toISOString());
+  r = await req('DELETE', '/api/users/' + del4Id, { confirmUsername: 'del4' }, adminTok);
+  ok(r.status === 409 && r.data.impact.activeStu === 1, '预览后新产生关联：事务内重检拒绝（409）');
+  ok(db.prepare('SELECT 1 FROM users WHERE id = ?').get(del4Id) !== undefined, '竞态拒绝后账号仍在');
+
+  // 6) 事务回滚：tombstone 写入失败（预置主键冲突）→ users 行不动、可重试
+  db.prepare("INSERT INTO users (id, username, name, role, pass_hash, disabled, must_change_pwd, created_at) VALUES ('del5-id', 'del5', '删除戊', 'ta', 'x', 1, 0, ?)").run(new Date().toISOString());
+  db.prepare("INSERT INTO deleted_users (id, username, name, role, deleted_at, deleted_by) VALUES ('del5-id', 'ghost5', '占位', 'ta', '2026-01-01', 'u_x')").run();
+  r = await req('DELETE', '/api/users/del5-id', { confirmUsername: 'del5' }, adminTok);
+  ok(r.status === 500 && r.data.msg.indexOf('回滚') !== -1, 'tombstone 写入冲突 → 整体回滚（500）');
+  ok(db.prepare("SELECT 1 FROM users WHERE id = 'del5-id'").get() !== undefined, '回滚后 users 行仍在');
+  db.prepare("DELETE FROM deleted_users WHERE id = 'del5-id'").run();  // 清理占位
+  r = await req('DELETE', '/api/users/del5-id', { confirmUsername: 'del5' }, adminTok);
+  ok(r.status === 200, '清理冲突后同账号可正常删除（重试成功）');
+
+  // 7) 历史归属「已删除账号」回退：孤儿学生（owner 为已删账号）搜索显示回退文案
+  db.prepare("INSERT INTO students (id, owner_id, name, archived, sample, created_at) VALUES ('orph-stu1', ?, '孤儿生', 0, 0, ?)").run(del1Id, new Date().toISOString());
+  r = await req('GET', '/api/search/students?q=' + encodeURIComponent('孤儿生'), null, adminTok);
+  ok(r.status === 200 && r.data.students[0].ownerName === '已删除账号', '历史数据归属显示「已删除账号」回退（不留 null）');
+  db.prepare("DELETE FROM students WHERE id = 'orph-stu1'").run();
+
+  /* ---- 限流：10 次失败/分钟/IP（本测试此前已消耗 5 次失败登录） ---- */
   let lastStatus = 0, saw401 = false;
   for(let i = 0; i < 8; i++){
     const rr = await req('POST', '/api/login', { username: 'nobody', password: 'x' });

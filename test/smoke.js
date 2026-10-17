@@ -59,7 +59,7 @@ const ctx = vm.createContext({
 
 /* ---------- 加载页面脚本 ---------- */
 const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-/* 前端已拆分为 js/*.js（v1.8.0）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+/* 前端已拆分为 js/*.js（v1.8.1）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
 const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
 if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
 const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
@@ -151,26 +151,26 @@ function ok(cond, name){
   const made = await Api.createUser('张三', 'ta3', 'abcdef');
   ok(made.ok && made.user.mustChangePwd === true, '创建助教成功且标记首次登录需改密');
 
-  /* ---- 账号管理反馈闭环：初始密码副标题（创建 → 重置 → 本人改密后消失） ---- */
-  ok(made.user.tempPassword === 'abcdef', '创建账号返回初始密码 tempPassword（mock 与 API 一致）');
+  /* ---- 初始密码只显示一次（v1.8.1 ENG-02）：创建/重置当次响应返回；列表永不携带、副标题行已删除 ---- */
+  ok(made.user.tempPassword === 'abcdef', '创建账号当次响应返回初始密码 tempPassword（mock 与 API 一致）');
+  ok(Api.listUsers().find(u=>u.id===made.user.id).tempPassword === undefined, '创建后列表不携带 tempPassword（只显示一次）');
   vm.runInContext('renderAccounts()', ctx);
   const accHtml1 = documentStub.getElementById('accounts-list').innerHTML;
-  ok(accHtml1.indexOf('初始密码：abcdef（待本人修改）') !== -1, '创建后副标题显示初始密码（待本人修改）');
+  ok(accHtml1.indexOf('初始密码') === -1, '账号列表不再有「初始密码」副标题行');
   ok(/创建于 \d{4}-\d{2}-\d{2}</.test(accHtml1) && !/创建于 \d{4}-\d{2}-\d{2}T/.test(accHtml1),
     '副标题「创建于」格式化为 YYYY-MM-DD（不再显示 ISO 原始串）');
   const rr3 = await Api.resetPassword(made.user.id, 'ta3new66');
-  ok(rr3.ok && Api.listUsers().find(u=>u.id===made.user.id).tempPassword === 'ta3new66', '重置密码后 tempPassword 更新为新初始密码');
-  vm.runInContext('renderAccounts()', ctx);
-  ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码：ta3new66') !== -1, '重置后副标题更新为新初始密码');
+  ok(rr3.ok && rr3.tempPassword === 'ta3new66', '重置密码当次响应返回新初始密码');
+  ok(Api.listUsers().find(u=>u.id===made.user.id).tempPassword === undefined, '重置后列表仍不携带 tempPassword');
   wb.doLogout();
   await wb.doLogin('ta3', 'ta3new66', 'ta');  // 首登强制改密弹窗弹出（不阻塞后续）
   await wb.doChangePwd('ta3new66', 'ta3pass88', 'ta3pass88');
-  ok(!Api.listUsers().find(u=>u.id===made.user.id).tempPassword, '本人改密后 tempPassword 已清除');
+  ok(Api.listUsers().find(u=>u.id===made.user.id).mustChangePwd === false, '本人改密后 mustChangePwd 已清');
   wb.doLogout();
   await wb.doLogin('admin', 'admin456', 'admin');
   vm.runInContext('renderAccounts()', ctx);
-  ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后副标题初始密码行消失');
-  /* ---- 账号列表按角色分组（v1.8.0）：教务管理员 → 助教 → 销售，组头带数量 ---- */
+  ok(documentStub.getElementById('accounts-list').innerHTML.indexOf('初始密码') === -1, '改密后账号列表仍无初始密码行');
+  /* ---- 账号列表按角色分组（v1.8.1）：教务管理员 → 助教 → 销售，组头带数量 ---- */
   const accGrp = documentStub.getElementById('accounts-list').innerHTML;
   ok(accGrp.indexOf('教务管理员') !== -1 && accGrp.indexOf('助教<span class="cnt">') !== -1
     && accGrp.indexOf('销售<span class="cnt">') !== -1, '账号列表按角色分组显示组头');
@@ -178,7 +178,62 @@ function ok(cond, name){
     && accGrp.indexOf('助教<span class="cnt">') < accGrp.indexOf('销售<span class="cnt">'), '组序：教务管理员 → 助教 → 销售');
   ok(/教务管理员<span class="cnt">1 个账号/.test(accGrp) && /助教<span class="cnt">3 个账号/.test(accGrp)
     && /销售<span class="cnt">1 个账号/.test(accGrp), '分组数量正确（教务 1 / 助教 3 / 销售 1）');
-  ok(html.indexOf('id="login-ver">v1.8.0') !== -1, '登录页版本号升至 v1.8.0');
+  ok(html.indexOf('id="login-ver">v1.8.1') !== -1, '登录页版本号升至 v1.8.1');
+
+  /* ---- 账号删除（v1.8.1 NEW-01，mock 与 API 同规则）：tombstone + 阻断式 + 用户名锁定 ---- */
+  {
+    const dm = await Api.createUser('删除 mock', 'delmock1', 'del123456', 'ta');
+    const dmId = dm.user.id;
+    // 未停用：预览 canDelete=false，删除被拒
+    let imp = await Api.getUserDeleteImpact(dmId);
+    ok(imp.ok && imp.canDelete === false && imp.reason.indexOf('停用') !== -1, 'mock 预览：未停用 canDelete=false');
+    let dr = await Api.deleteUser(dmId, 'delmock1');
+    ok(!dr.ok && dr.msg.indexOf('停用') !== -1, 'mock 删除：未停用被拒');
+    // 停用后无关联：确认账号不匹配 → 匹配后删除成功
+    await Api.toggleUser(dmId);
+    imp = await Api.getUserDeleteImpact(dmId);
+    ok(imp.canDelete === true && imp.impact.activeStu === 0, 'mock 预览：已停用无关联 canDelete=true');
+    dr = await Api.deleteUser(dmId, 'wrong-name');
+    ok(!dr.ok && dr.msg.indexOf('不匹配') !== -1, 'mock 删除：确认账号不匹配被拒');
+    dr = await Api.deleteUser(dmId, 'delmock1');
+    ok(dr.ok === true, 'mock 删除无关联已停用账号成功');
+    ok(!Api.listUsers().some(u=>u.id===dmId) && Api.listDeletedUsers().some(d=>d.username==='delmock1'),
+      'mock：删除后名单移除 + tombstone 登记');
+    const reuse = await Api.createUser('复用', 'delmock1', 'abcdef', 'ta');
+    ok(!reuse.ok && reuse.msg.indexOf('永久不可复用') !== -1, 'mock：已注销用户名永久锁定');
+    dr = await Api.deleteUser(dmId, 'delmock1');
+    ok(!dr.ok && dr.msg.indexOf('不存在') !== -1, 'mock：重复删除返回不存在');
+    // 有阻断（学生/记录/pending 计划申请）：canDelete=false + conflict
+    const dm2 = await Api.createUser('删除 mock2', 'delmock2', 'del123456', 'ta');
+    const dm2Id = dm2.user.id;
+    wb.pool.students.push({id:'delm-stu1', name:'mock 关联生', ownerId:dm2Id, subjects:[]});
+    wb.pool.records.push({id:'delm-rec1', studentId:'delm-stu1', ownerId:dm2Id, date:'2026-10-01', total:10, correct:9, wrongs:[], subject:'x', images:[]});
+    wb.pool.planRequests.push({id:'delm-pr1', studentId:'delm-stu1', ownerId:dm2Id, subject:'x', oldPlan:3, newPlan:5, status:'pending', requestedBy:dm2Id, requestedAt:'2026-10-01'});
+    await Api.toggleUser(dm2Id);
+    imp = await Api.getUserDeleteImpact(dm2Id);
+    ok(imp.canDelete === false && imp.impact.activeStu === 1 && imp.impact.recCnt === 1 && imp.impact.pendingPlanReq === 1,
+      'mock 预览：阻断项分类计数（学生/记录/pending 审批）');
+    dr = await Api.deleteUser(dm2Id, 'delmock2');
+    ok(!dr.ok && dr.conflict === true && dr.impact.activeStu === 1, 'mock 删除：有业务关联被拒（conflict 携带计数）');
+    ok(Api.listUsers().some(u=>u.id===dm2Id), 'mock：被拒后账号仍在（未部分删除）');
+    wb.pool.students = wb.pool.students.filter(s=>s.id!=='delm-stu1');
+    wb.pool.records = wb.pool.records.filter(r=>r.id!=='delm-rec1');
+    wb.pool.planRequests = wb.pool.planRequests.filter(r=>r.id!=='delm-pr1');
+    wb.refreshView();
+    // 渲染层：已停用助教/销售行有「删除」入口；活动账号/教务行没有
+    vm.runInContext('renderAccounts()', ctx);
+    const accDel = documentStub.getElementById('accounts-list').innerHTML;
+    ok(accDel.indexOf('deleteUserAccount(') !== -1, 'mock 渲染：已停用账号行有「删除」入口');
+    const adminRowHtml = accDel.split('教务管理员')[1] || '';
+    ok(adminRowHtml.indexOf('deleteUserAccount(') === -1, 'mock 渲染：教务行无「删除」入口');
+    // 「已删除账号」回退：孤儿数据归属显示
+    wb.pool.students.push({id:'delm-orph', name:'mock 孤儿生', ownerId:dmId, subjects:[]});  // dmId 已删除
+    wb.refreshView();
+    ok(vm.runInContext("ownerName('" + dmId + "')", ctx) === '已删除账号', 'mock：ownerName 对 tombstone 命中显示「已删除账号」');
+    wb.pool.students = wb.pool.students.filter(s=>s.id!=='delm-orph');
+    wb.refreshView();
+  }
+
   /* ---- 登录密码框：默认密文 + 眼睛图标切换明文 ---- */
   ok(html.indexOf('id="login-pass" type="password"') !== -1, '登录密码框默认密文');
   ok(html.indexOf('pwd-wrap') !== -1 && html.indexOf('id="login-pass-eye"') !== -1, '登录密码框带明文切换按钮');
@@ -393,7 +448,7 @@ function ok(cond, name){
   wb.pool.records = wb.pool.records.filter(r=>r.id!=='nohw-r1' && !(r.studentId==='nohw-s1'));
   wb.refreshView();
 
-  /* ---- BUG-01（v1.8.0）：未保存草稿持久化（评语/建议/录入表单）+ 切页恢复 + 保存清除 + 旧响应不误清 + logout 清理 ---- */
+  /* ---- BUG-01（v1.8.1）：未保存草稿持久化（评语/建议/录入表单）+ 切页恢复 + 保存清除 + 旧响应不误清 + logout 清理 ---- */
   wb.pool.students.push({id:'draft-s1', name:'草稿测试生', ownerId:ta1.id, subjPlans:{'学科 / AP / 统计':5}, subjects:['学科 / AP / 统计']});
   wb.pool.records.push({id:'draft-r1', studentId:'draft-s1', date:'2026-10-10', total:10, correct:8, wrongs:[1,2], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
   wb.refreshView();
@@ -451,7 +506,7 @@ function ok(cond, name){
   wb.pool.records = wb.pool.records.filter(r=>r.studentId!=='draft-s1');
   wb.refreshView();
 
-  /* ---- BUG-02（v1.8.0）：slotEdit 稳定身份 + 同日排序稳定键 ---- */
+  /* ---- BUG-02（v1.8.1）：slotEdit 稳定身份 + 同日排序稳定键 ---- */
   wb.pool.students.push({id:'stab-s1', name:'稳定测试生', ownerId:ta1.id, subjPlans:{'学科 / AP / 统计':6}, subjects:['学科 / AP / 统计']});
   // 同日多条：两条成绩（id 逆序插入，验证 id 字典序而非插入序）+ 一条同日未交；另加一条较晚日期
   wb.pool.records.push({id:'stab-rB', studentId:'stab-s1', date:'2026-10-10', total:10, correct:9, wrongs:[], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
@@ -502,7 +557,7 @@ function ok(cond, name){
   wb.doLogout();
   await wb.doLogin('admin', 'admin456', 'admin');
 
-  /* ---- 备份提醒横幅（v1.8.0：>500 条才显示；✕ 关闭后 7 个自然日内不再显示） ---- */
+  /* ---- 备份提醒横幅（v1.8.1：>500 条才显示；✕ 关闭后 7 个自然日内不再显示） ---- */
   vm.runInContext('renderBanners()', ctx);
   ok(documentStub.getElementById('backup-tip').style.display === 'none', '未超 500 条不显示备份提醒');
   const bkStu = wb.pool.students.find(s=>!s.archived && s.ownerId===ta1.id);
@@ -564,7 +619,7 @@ function ok(cond, name){
   ok(documentStub.getElementById('today-list').innerHTML.indexOf(dAgo(-10)) === -1, '完成后逾期行不再显示');
   ok(documentStub.getElementById('done-list').innerHTML.indexOf('预警完成') !== -1, '完成记录进「已处理事项」区');
 
-  /* ---- 组内按助教筛选（v1.8.0，仅教务视角）+ 逾期/宽限分类不混排 ---- */
+  /* ---- 组内按助教筛选（v1.8.1，仅教务视角）+ 逾期/宽限分类不混排 ---- */
   wb.doLogout();
   await wb.doLogin('admin', 'admin456', 'admin');
   // 造两位助教各一条逾期、一条宽限内
@@ -623,7 +678,7 @@ function ok(cond, name){
   ok(html.indexOf('id="bind-modal"') !== -1 && html.indexOf('id="bind-qr-box"') !== -1, '家长绑定二维码弹窗结构存在');
   ok(html.indexOf('id="binds-modal"') !== -1 && html.indexOf('id="binds-list"') !== -1, '家长绑定管理弹窗结构存在');
   ok(allText.indexOf('tag mint owner-tag') !== -1, '归属助教标签为薄荷绿色（tag mint）');
-  /* ---- 可点标签「›」提示（v1.8.0）：归属/绑定标签带尾部符号，纯展示标签（届）不带 ---- */
+  /* ---- 可点标签「›」提示（v1.8.1）：归属/绑定标签带尾部符号，纯展示标签（届）不带 ---- */
   ok(allText.indexOf('owner-tag .tag-go') !== -1, '可点标签 › 尾部符号样式存在');
   ok((allText.match(/tag-go/g) || []).length >= 5, '归属与绑定标签均带 ›（students.js×3 + auth.js×1 + CSS）');
   ok(!/届<span class="tag-go">/.test(allText), '纯展示的「届」标签不带 ›');
@@ -680,7 +735,7 @@ function ok(cond, name){
   wb.setQuickEntry(null);
   wb.toggleTaGroup(ta1.id);  // 恢复折叠
 
-  /* ---- v1.8.0：模考过期 + 看板卡拆分 + 审计系统操作人 + 教务管理页四卡 + 控件统一 ---- */
+  /* ---- v1.8.1：模考过期 + 看板卡拆分 + 审计系统操作人 + 教务管理页四卡 + 控件统一 ---- */
   // 模考过期：徽章与打卡面板统一灰色「已过期 · X」
   bindStu.mock = { '学科 / AP / 微积分BC': { date: '2020-01-01', score: 92 } };  // 过期日期
   wb.setQuickEntry({gid: bindStu.id, subject: '学科 / AP / 微积分BC'});
@@ -710,7 +765,7 @@ function ok(cond, name){
   // 控件统一 40px 基准
   ok(allText.indexOf('min-height:40px') !== -1, '控件统一 40px 基准（按钮/输入框）');
 
-  /* ---- 走查 P1（v1.8.0）：内联注入双层转义 + mock 导入恢复行为不变 ---- */
+  /* ---- 走查 P1（v1.8.1）：内联注入双层转义 + mock 导入恢复行为不变 ---- */
   wb.doLogout();
   await wb.doLogin('ta1', 'ta123456', 'ta');
   wb.pool.students.push({id:'inj-s1', name:"张'三", ownerId:ta1.id, subjects:["学科 / AP / 微积分'BC"]});
@@ -720,7 +775,7 @@ function ok(cond, name){
   const injHtml = documentStub.getElementById('stu-list').innerHTML;
   ok(injHtml.indexOf('微积分\\&#39;BC') !== -1, '科目名带单引号：onclick 串双层转义（jsStr+esc）不逃逸');
   ok(injHtml.indexOf('张&#39;三') !== -1 && injHtml.indexOf('张\'三') === -1, '学生名带单引号正常 HTML 转义显示');
-  // id 带单引号：全部 onclick 插值点经 esc(jsStr(id)) 双层转义（v1.8.0 P1-1）
+  // id 带单引号：全部 onclick 插值点经 esc(jsStr(id)) 双层转义（v1.8.1 P1-1）
   wb.pool.students.push({id:"inj'q1", name:'引号ID生', ownerId:ta1.id, subjects:['学科 / AP / 统计']});
   wb.pool.records.push({id:'inj-r2', studentId:"inj'q1", date:'2026-10-16', total:10, correct:9, wrongs:[], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
   wb.refreshView();
@@ -748,7 +803,7 @@ function ok(cond, name){
   await vm.runInContext('openBindsModal("' + bindStu.id + '")', ctx);
   ok(alerts.length > alertsBeforeBinds && alerts[alerts.length-1].indexOf('演示环境暂不支持绑定管理') !== -1, 'mock 模式绑定管理提示演示环境不支持');
 
-  /* ---- v1.8.0：报告打卡表与格子序列对齐 + 统计卡未交口径 + PDF 头部 + 助教录入弹窗 ---- */
+  /* ---- v1.8.1：报告打卡表与格子序列对齐 + 统计卡未交口径 + PDF 头部 + 助教录入弹窗 ---- */
   {
     // 造数据：计划 3 次；第1次未交（较早），第2次有成绩（较晚）→ 未交行应排第 1
     wb.doLogout();
@@ -879,8 +934,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.8.0') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.8.0」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.8.1') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.8.1」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -942,7 +997,7 @@ function ok(cond, name){
   ok(dFix.overdueList.some(x=>x.id==='dash-od-miss' && x.days===10), '预警名单：逾期未交入选且逾期天数正确（开课口径）');
   ok(dFix.sleepers.some(x=>x.name==='看板沉睡测试' && x.days===null) === false
     && dFix.firstTimers.some(x=>x.name==='看板沉睡测试'),
-    '预警名单：从未有记录学生归入「待首录」（不进沉睡预警主列表，v1.8.0 降噪）');
+    '预警名单：从未有记录学生归入「待首录」（不进沉睡预警主列表，v1.8.1 降噪）');
   ok(documentStub.getElementById('dash-alert-low').innerHTML.indexOf('看板低分测试') !== -1
     && documentStub.getElementById('dash-alert-miss').innerHTML.indexOf('看板低分测试') !== -1
     && /待首录 \d+ 人（从未有作业记录）/.test(documentStub.getElementById('dash-alert-sleep').innerHTML)
@@ -965,7 +1020,7 @@ function ok(cond, name){
   ok(wb.computeDash().sleepers.some(x=>x.name==='八天沉睡生乙' && x.days===8), '长期未更新（≥7 天）保留为正式沉睡预警');
   wb.pool.students = wb.pool.students.filter(s=>s.id!=='sleepy-8d-b');
   wb.pool.records = wb.pool.records.filter(r=>r.id!=='sleepy-rec-b');
-  /* ---- 助教行下钻：筛选下拉同步 + 选中跳变/归零回归（v1.8.0） ---- */
+  /* ---- 助教行下钻：筛选下拉同步 + 选中跳变/归零回归（v1.8.1） ---- */
   const rowsBefore = wb.computeDash().taRows;  // 未选中（dashOwner='all'）基线
   wb.dashDrillTa(ta2.id);
   ok(wb.dashOwner === ta2.id && documentStub.getElementById('dash-owner').value === ta2.id, '点击助教行下钻后筛选下拉同步为该助教');
@@ -1588,7 +1643,7 @@ function ok(cond, name){
     && html.indexOf('id="stu-search"') < html.indexOf('id="stu-list"'), '搜索框位于图表与学生明细之间');
   // 今日概览卡序：快速一览在「今天要处理」之前
   ok(html.indexOf('id="quick-grid"') < html.indexOf('id="today-list"'), '快速一览放在今天要处理之前');
-  /* ---- 页头设计（v1.8.0）：topbar 改版为小书本图标 + 页签标题 + 动态日期 + 暖金竖线标语 ---- */
+  /* ---- 页头设计（v1.8.1）：topbar 改版为小书本图标 + 页签标题 + 动态日期 + 暖金竖线标语 ---- */
   ok(html.indexOf('class="tb-book"') !== -1 && html.indexOf('assets/book-icon.svg') !== -1
     && html.indexOf('class="tb-date"') !== -1, '页头含小书本图标与动态日期区');
   ok(html.indexOf('class="illus"') === -1 && html.indexOf('date-pill') === -1, '旧版学习插画与日期胶囊已移除');

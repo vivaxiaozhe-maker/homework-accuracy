@@ -19,7 +19,8 @@ function toJson(r){
 router.get('/', (req, res) => {
   const status = String(req.query.status || 'pending');
   const params = [status];
-  let sql = `SELECT r.*, s.name AS student_name, b.openid AS openid, u.name AS owner_name
+  let sql = `SELECT r.*, s.name AS student_name, b.openid AS openid,
+                    COALESCE(u.name, (SELECT '已删除账号' FROM deleted_users d WHERE d.id = r.owner_id)) AS owner_name
              FROM unbind_requests r
              LEFT JOIN students s ON s.id = r.student_id
              LEFT JOIN parent_binds b ON b.id = r.bind_id

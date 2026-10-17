@@ -192,7 +192,7 @@ if(!db.prepare("PRAGMA table_info(students)").all().map(c => c.name).includes('s
   db.exec('ALTER TABLE students ADD COLUMN subj_first_class TEXT');
 }
 /* 初始密码可见性迁移：users 补 temp_password 列（教务创建/重置账号时的初始密码）。
-   安全折中（内部系统可接受）：明文存库，仅教务 GET /api/users 且账号待改密时返回，用户本人改密成功即清除。 */
+   v1.8.1 起仅作兼容保留：不再写入明文（创建/重置当次响应返回后写库即 NULL），老库残留由下方启动迁移清空。 */
 if(!db.prepare("PRAGMA table_info(users)").all().map(c => c.name).includes('temp_password')){
   db.exec('ALTER TABLE users ADD COLUMN temp_password TEXT');
 }
@@ -264,5 +264,21 @@ CREATE TABLE IF NOT EXISTS unbind_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_unbindreq_status ON unbind_requests(status);
 `);
+/* 账号删除 tombstone（v1.8.1 NEW-01）：deleted_users 表。
+   用户名永久锁定（删除后不可再注册）；原用户 id 永不复用；只登记身份与操作信息，不含口令散列/token。 */
+db.exec(`
+CREATE TABLE IF NOT EXISTS deleted_users (
+  id TEXT PRIMARY KEY,            -- 原用户 id
+  username TEXT NOT NULL,         -- 原登录账号（永久锁定）
+  name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  deleted_at TEXT NOT NULL,
+  deleted_by TEXT NOT NULL        -- 操作教务 id
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deleted_users_username ON deleted_users(username);
+`);
+/* 初始密码只显示一次（v1.8.1 ENG-02）：temp_password 不再长期存明文。
+   创建/重置改为当次响应返回、写库即 NULL；老库残留的明文启动时一次性清空（幂等：无残留时 changes=0） */
+db.exec('UPDATE users SET temp_password = NULL WHERE temp_password IS NOT NULL');
 
 module.exports = db;

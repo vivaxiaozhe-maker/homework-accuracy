@@ -91,6 +91,16 @@ function ok(cond, name){
   lr = await req('PUT', '/api/students/' + stu.id + '/subj-fields', { subjComments: { x: 'y' } }, TS);
   ok(lr.status === 403, '矩阵：销售 PUT subj-fields 403');
 
+  /* ---- 账号删除两接口（v1.8.1 NEW-01）：ta/sales 直调均 403（仅教务） ---- */
+  lr = await req('GET', '/api/users/' + stu.id + '/delete-impact', null, TS);
+  ok(lr.status === 403, '矩阵：销售 GET delete-impact 403');
+  lr = await req('GET', '/api/users/' + stu.id + '/delete-impact', null, T1);
+  ok(lr.status === 403, '矩阵：助教 GET delete-impact 403');
+  lr = await req('DELETE', '/api/users/' + stu.id, { confirmUsername: 'x' }, TS);
+  ok(lr.status === 403, '矩阵：销售 DELETE /api/users/:id 403');
+  lr = await req('DELETE', '/api/users/' + stu.id, { confirmUsername: 'x' }, T1);
+  ok(lr.status === 403, '矩阵：助教 DELETE /api/users/:id 403');
+
   /* ---- 附件魔数嗅探 ---- */
   async function upload(buf, mime, name, token){
     const fd = new FormData();

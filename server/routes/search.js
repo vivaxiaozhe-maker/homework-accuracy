@@ -10,7 +10,10 @@ router.use(requireRole('sales', 'admin'));
 function accOf(r){ return r.total > 0 ? Math.round(r.correct / r.total * 100) : 0; }
 function ownerName(ownerId){
   const u = db.prepare('SELECT name FROM users WHERE id = ?').get(ownerId);
-  return u ? u.name : '未分配';
+  if(u) return u.name;
+  // 账号已删除（v1.8.1 NEW-01）：tombstone 命中显示回退文案，不留 null/空白
+  const d = db.prepare('SELECT 1 FROM deleted_users WHERE id = ?').get(ownerId);
+  return d ? '已删除账号' : '未分配';
 }
 
 // GET /api/search/students?q=xxx：姓名/学校部分匹配，返回只读摘要

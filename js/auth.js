@@ -922,14 +922,12 @@ function renderAccounts(){
       // 学生数口径（v1.7.1）：在服务数 + 有归档时补「含归档 M」
       '<div class="hint" style="margin-top:2px">账号 ' + esc(u.username) + ' · 学生 ' + stuCnt + ' 人' +
       (archCnt > 0 ? '（含归档 ' + archCnt + '）' : '') + ' · 创建于 ' + esc((u.createdAt||'-').slice(0,10)) + '</div>' +
-      // 待改密且有初始密码：琥珀色持久展示（创建/重置写入，本人改密后由后端/本地清除）
-      (u.mustChangePwd && u.tempPassword
-        ? '<div class="hint" style="margin-top:2px;color:#B9802A;font-weight:600">初始密码：' + esc(u.tempPassword) + '（待本人修改）</div>'
-        : '') +
       '</div>' +
       (u.role==='ta' || u.role==='sales'
         ? '<button class="btn ghost sm" onclick="resetUserPwd(\'' + esc(jsStr(u.id)) + '\')">重置密码</button>' +
-          '<button class="btn ' + (u.disabled?'mint':'danger') + ' sm" onclick="toggleUser(\'' + esc(jsStr(u.id)) + '\')">' + (u.disabled?'启用':'停用') + '</button>'
+          '<button class="btn ' + (u.disabled?'mint':'danger') + ' sm" onclick="toggleUser(\'' + esc(jsStr(u.id)) + '\')">' + (u.disabled?'启用':'停用') + '</button>' +
+          // 删除入口（v1.8.1 NEW-01）：仅已停用账号；红字 ghost 与「启用」mint 实色明确区分，防误点
+          (u.disabled ? '<button class="btn ghost sm" style="color:var(--red)" onclick="deleteUserAccount(\'' + esc(jsStr(u.id)) + '\')" title="永久删除该账号（用户名不可再注册，业务数据保留）">删除</button>' : '')
         : '') +
       '</div>';
   };
@@ -950,7 +948,7 @@ function renderPlanRequests(){
   const pending = reqs.filter(r=>r.status==='pending');
   const users = getUsersCache();
   const stuNameOf = sid => { const s = pool.students.find(x=>x.id===sid); return s ? s.name : '（已删除学生）'; };
-  const reqUserOf = uid2 => { const u = users.find(x=>x.id===uid2); return u ? u.name : '未知'; };
+  const reqUserOf = uid2 => { const u = users.find(x=>x.id===uid2); return u ? u.name : (getDeletedUsersCache().some(x=>x.id===uid2) ? '已删除账号' : '未知'); };
   pendEl.innerHTML = pending.length ? pending.map(r=>
     '<div class="acct-row">' +
     '<div class="grow"><b>' + esc(stuNameOf(r.studentId)) + '</b> <span class="tag mint">' + esc(shortSubject(r.subject)) + '</span>' +
@@ -1200,11 +1198,55 @@ function resetUserPwd(id){
   askConfirm('重置密码', '将重置「' + u.name + '」的登录密码，其下次登录需使用新密码并被要求修改。确定吗？', async ()=>{
     const np = 'ta' + Math.random().toString(36).slice(2,8);
     const res = await Api.resetPassword(id, np);
-    if(res.ok) toast('密码已重置为：' + np + '\n请转告该助教（销售同理），其首次登录需修改密码。');
+    if(res.ok) toast('密码已重置为：' + np + '\n初始密码只显示这一次，请立即转告；其首次登录需修改密码。');
     else toast(res.msg || '重置失败');
     await refreshUsersCache();
     renderAll();
   });
+}
+/* ---- 删除账号（v1.8.1 NEW-01）：仅已停用助教/销售；预览 → 有阻断给「去交接」/ 无阻断输完整账号确认 ---- */
+let userDelSubmitting = false;  // 防重复提交
+function deleteImpactText(u, im){
+  return '姓名：' + u.name + '\n账号：' + u.username + '\n角色：' + (u.role==='sales' ? '销售' : '助教') +
+    '\n\n业务关联检查：' +
+    '\n· 在服务学生 ' + im.activeStu + ' 人' +
+    '\n· 已归档学生 ' + im.archivedStu + ' 人' +
+    '\n· 作业记录 ' + im.recCnt + ' 条' +
+    '\n· 未交记录 ' + im.missCnt + ' 条' +
+    (im.fileCnt ? '\n· 附件 ' + im.fileCnt + ' 个' : '') +
+    '\n· 待审批计划申请 ' + im.pendingPlanReq + ' 条' +
+    (im.pendingUnbindReq ? '\n· 待审批解绑申请 ' + im.pendingUnbindReq + ' 条' : '');
+}
+async function deleteUserAccount(id){
+  const u = getUsersCache().find(x=>x.id===id);
+  if(!u) return;
+  const r = await Api.getUserDeleteImpact(id);
+  if(!r.ok){ toast(r.msg || '查询删除影响失败'); return; }
+  if(!r.canDelete){
+    // 有阻断（或硬规则不满足）：不可提交；提供「去交接」（跳学生页按该助教筛选）
+    askConfirm('暂不能删除账号', deleteImpactText(r.target, r.impact) +
+      '\n\n' + (r.reason || '存在业务关联') + '。删除为阻断式：需先将其名下学生与待审批事项交接清零；业务数据和历史操作记录始终保留。',
+      ()=>{ setStuTaFilter(id); switchTab('stats'); });
+    return;
+  }
+  askConfirm('删除账号', deleteImpactText(r.target, r.impact) +
+    '\n\n将永久删除该账号：删除后无法再登录，用户名「' + r.target.username + '」永久不可再注册；业务数据和历史操作记录保留。' +
+    '\n请输入完整登录账号「' + r.target.username + '」确认：',
+    async (v)=>{
+      if(userDelSubmitting) return;
+      userDelSubmitting = true;
+      try{
+        const res = await Api.deleteUser(id, v);
+        if(!res.ok){
+          toast(res.msg || '删除失败');
+          deleteUserAccount(id);  // 失败保留弹窗：重取影响并重新展示原因
+          return;
+        }
+        toast('已删除账号「' + r.target.name + '（' + r.target.username + '）」，用户名永久锁定');
+        await refreshUsersCache();
+        renderAll();
+      }finally{ userDelSubmitting = false; }
+    }, {input: '输入完整登录账号确认'});
 }
 function toggleUser(id){
   const u = getUsersCache().find(x=>x.id===id);
@@ -1233,7 +1275,7 @@ document.getElementById('btn-create-ta').addEventListener('click', async ()=>{
   document.getElementById('ac-password').value = '';
   await refreshUsersCache();
   renderAll();
-  toast('已创建' + (role==='sales' ? '销售' : '助教') + '账号「' + name + '」，初始密码：' + pwd + '，首次登录需修改。');
+  toast('已创建' + (role==='sales' ? '销售' : '助教') + '账号「' + name + '」，初始密码：' + pwd + '。\n初始密码只显示这一次，请立即转告；首次登录需修改。');
 });
 
 /* ================= 教务：转移学生归属 ================= */
