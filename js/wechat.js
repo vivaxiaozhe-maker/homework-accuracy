@@ -454,8 +454,8 @@ function bookMockExam(){
   slot.date = d;
   const mst = getMockStu();
   logAction('预约模考', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '预约日期 ' + d, {ownerId: mst ? mst.ownerId : undefined});
-  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: {[quickEntry.subject]: mst.mock[quickEntry.subject]}}),
-    r=>{ if(r && r.pushed) toast('模考时间已推送给家长'); });  // API 模式：最小补丁按科目键提交；开关打开时服务端自动推送
+  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: {[quickEntry.subject]: {date: d}}}),
+    r=>{ if(r && r.pushed) toast('模考时间已推送给家长'); });  // 字段级补丁（v1.8.3 ENG-01）：只提交本次变化的 date，不带 score 旧值；服务端 slot 内字段级合并
   mockEdit = null;
   save();
   renderAll();
@@ -468,11 +468,8 @@ function cancelMockExam(){
     const slotEmpty = !Object.keys(st.mock[quickEntry.subject]).length;
     if(slotEmpty) delete st.mock[quickEntry.subject];
     logAction('取消模考预约', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '', {ownerId: st.ownerId});
-    // 服务端 v1.7.0 起为按键合并：删除需 null 墓碑（整 slot 删空 → slot 置 null；仅删日期 → date 置 null）
-    const patch = JSON.parse(JSON.stringify(st.mock));
-    if(slotEmpty) patch[quickEntry.subject] = null;
-    else patch[quickEntry.subject] = Object.assign({}, patch[quickEntry.subject], { date: null });
-    apiPersist(HttpApi.updateSubjFields(st.id, {mock: patch}));
+    // 精确墓碑补丁（v1.8.3 ENG-01）：只提交本科目键——整 slot 删空 → slot 置 null；仅删日期 → date 置 null（不复制其他科目旧值）
+    apiPersist(HttpApi.updateSubjFields(st.id, {mock: {[quickEntry.subject]: slotEmpty ? null : { date: null }}}));
   }
   mockEdit = null;
   save();
@@ -486,8 +483,8 @@ function saveMockScore(){
   slot.score = v;
   const mst = getMockStu();
   logAction('保存模考分数', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '结课模考 ' + v + ' 分', {ownerId: mst ? mst.ownerId : undefined});
-  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: {[quickEntry.subject]: mst.mock[quickEntry.subject]}}),
-    r=>{ if(r && r.pushed) toast('模考成绩已推送给家长'); });  // 开关打开时服务端自动推送成绩通知
+  if(mst) apiPersist(HttpApi.updateSubjFields(mst.id, {mock: {[quickEntry.subject]: {score: v}}}),
+    r=>{ if(r && r.pushed) toast('模考成绩已推送给家长'); });  // 字段级补丁（v1.8.3 ENG-01）：只提交本次变化的 score；开关打开时服务端自动推送成绩通知
   mockEdit = null;
   save();
   renderAll();
@@ -500,11 +497,8 @@ function clearMockScore(){
     const slotEmpty = !Object.keys(st.mock[quickEntry.subject]).length;
     if(slotEmpty) delete st.mock[quickEntry.subject];
     logAction('清除模考分数', 'record', auditStuDesc(quickEntry.gid, quickEntry.subject), '', {ownerId: st.ownerId});
-    // 服务端 v1.7.0 起为按键合并：删除需 null 墓碑（整 slot 删空 → slot 置 null；仅删分数 → score 置 null）
-    const patch = JSON.parse(JSON.stringify(st.mock));
-    if(slotEmpty) patch[quickEntry.subject] = null;
-    else patch[quickEntry.subject] = Object.assign({}, patch[quickEntry.subject], { score: null });
-    apiPersist(HttpApi.updateSubjFields(st.id, {mock: patch}));
+    // 精确墓碑补丁（v1.8.3 ENG-01）：只提交本科目键——整 slot 删空 → slot 置 null；仅删分数 → score 置 null（不复制其他科目旧值）
+    apiPersist(HttpApi.updateSubjFields(st.id, {mock: {[quickEntry.subject]: slotEmpty ? null : { score: null }}}));
   }
   mockEdit = null;
   save();

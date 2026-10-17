@@ -80,7 +80,7 @@ function ok(cond, name){
   const sessionStore = ctx.sessionStorage;  // vm context 内同一引用
 
   const html = fs.readFileSync(path.join(__dirname, '..', '学生作业正确率.html'), 'utf8');
-  /* 前端已拆分为 js/*.js（v1.8.2）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
+  /* 前端已拆分为 js/*.js（v1.8.3）：按 html 中 <script src> 顺序逐个读文件拼接（与原单文件字节级一致），再 vm 执行 */
   const srcs = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]);
   if(!srcs.length){ console.error('未找到 <script src> 引用'); process.exit(1); }
   const scriptSrc = srcs.map(s => fs.readFileSync(path.join(__dirname, '..', s), 'utf8')).join('\n');
@@ -94,7 +94,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.8.2', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.8.3', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -132,10 +132,10 @@ function ok(cond, name){
   /* ---- 账号管理按钮点击路径（resetUserPwd / toggleUser + askConfirm 确认回调） ---- */
   await vm.runInContext('refreshUsersCache()', ctx);  // 同步账号缓存（上面是直连 Api 创建的，没走 UI 按钮）
   ok(made.user.tempPassword === 'ta123456', '创建账号当次响应返回初始密码 tempPassword（只显示一次）');
-  ok((await wb.Api.listUsers()).find(u=>u.id===made.user.id).tempPassword === undefined, '创建后列表不返回 tempPassword（v1.8.2）');
+  ok((await wb.Api.listUsers()).find(u=>u.id===made.user.id).tempPassword === undefined, '创建后列表不返回 tempPassword（v1.8.3）');
   await vm.runInContext('renderAccounts()', ctx);
   const accHtmlA = documentStub.getElementById('accounts-list').innerHTML;
-  ok(accHtmlA.indexOf('初始密码') === -1, '账号列表不再有「初始密码」副标题行（v1.8.2）');
+  ok(accHtmlA.indexOf('初始密码') === -1, '账号列表不再有「初始密码」副标题行（v1.8.3）');
   ok(/创建于 \d{4}-\d{2}-\d{2}</.test(accHtmlA) && !/创建于 \d{4}-\d{2}-\d{2}T/.test(accHtmlA),
     '副标题「创建于」格式化为 YYYY-MM-DD（不再显示 ISO 原始串）');
   vm.runInContext('resetUserPwd("' + made.user.id + '")', ctx);
@@ -159,7 +159,7 @@ function ok(cond, name){
   ok(alerts[alerts.length-1].indexOf('已启用「王助教」') !== -1, '启用成功后 alert 反馈');
   await wb.Api.resetPassword(made.user.id, 'ta123456');  // 复位密码，供后续登录用例使用
 
-  /* ---- 账号删除全链路（v1.8.2 NEW-01，API 模式）：预览 → 确认账号 → 删除 → 列表/锁定/旧会话 ---- */
+  /* ---- 账号删除全链路（v1.8.3 NEW-01，API 模式）：预览 → 确认账号 → 删除 → 列表/锁定/旧会话 ---- */
   {
     const dd = await wb.Api.createUser('删除 e2e', 'dele2e1', 'del123456', 'ta');
     const ddId = dd.user.id;
@@ -323,7 +323,7 @@ function ok(cond, name){
   const salesMade = await wb.Api.createUser('张顾问', 'sales1', 'sales123456', 'sales');
   await wb.Api.transferStudent([sid], (await wb.Api.listUsers()).find(u=>u.username==='ta1').id);
   wb.doLogout();
-  // 强制改密硬限制（v1.8.2）：新账号登录后待改密，业务接口一律 403——先走改密流程再使用
+  // 强制改密硬限制（v1.8.3）：新账号登录后待改密，业务接口一律 403——先走改密流程再使用
   await wb.Api.login('sales1', 'sales123456', 'sales');
   await wb.HttpApi._req('POST', '/api/password', { oldPwd: 'sales123456', newPwd: 'sales654321' });
   wb.doLogout();
@@ -337,7 +337,7 @@ function ok(cond, name){
   const panelEl = documentStub.getElementById('sales-api-panel-' + sid);
   ok(panelEl && panelEl.innerHTML.indexOf('作业打卡（只读）') !== -1, '销售科目只读详情面板渲染');
 
-  /* ---- v1.8.2 P2-3：销售历史学生「近 30 天归档」筛选（搜索接口带 archivedAt，客户端叠加过滤） ---- */
+  /* ---- v1.8.3 P2-3：销售历史学生「近 30 天归档」筛选（搜索接口带 archivedAt，客户端叠加过滤） ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
   await wb.HttpApi.addStudent({ id: 'e2e-arch-new', name: '归档新生', gradYear: '2026' });
   await wb.HttpApi.addStudent({ id: 'e2e-arch-old', name: '归档旧生', gradYear: '2026' });
@@ -358,7 +358,7 @@ function ok(cond, name){
   ok(al30.indexOf('归档新生') !== -1 && al30.indexOf('归档旧生') === -1, '销售历史学生「近 30 天归档」：过滤掉 40 天前归档的学生');
   vm.runInContext("setAlumniRange('all'); alumniQuery='';", ctx);
 
-  /* ---- BUG-04/05（v1.8.2）：销售摘要纯无作业芯片（入口 + 正确率 —）与只读详情未交四态文案 ---- */
+  /* ---- BUG-04/05（v1.8.3）：销售摘要纯无作业芯片（入口 + 正确率 —）与只读详情未交四态文案 ---- */
   await wb.doLogin('ta1', 'ta654321', 'ta');
   await wb.HttpApi._req('POST', '/api/records', { studentId: sid, date: '2026-10-13', subject: '纯无作业e2e', noHomework: true });
   // 独立「四态e2e」科目：成绩 + 无作业 + 未交 各一（不碰 subj，避免影响后续报告断言）
@@ -392,23 +392,23 @@ function ok(cond, name){
   wb.saveMockScore();
   await sleep(400);
   ok(vm.runInContext('qeDirty.comment === false && qeDirty.advice === false', ctx) === true,
-    'API 模式保存经服务端确认后 dirty 清除（「已保存」提示改在 onOk 显示，v1.8.2）');
+    'API 模式保存经服务端确认后 dirty 清除（「已保存」提示改在 onOk 显示，v1.8.3）');
   st1 = await apiGetState();
   const stuRow = st1.students.find(s=>s.id===sid);
   ok(stuRow.subjComments && stuRow.subjComments[subj] === '本月进步明显', '评语已持久化到服务端（state 回读）');
   ok(stuRow.subjAdvice && stuRow.subjAdvice[subj] === '每周复盘错题', '学习计划建议已持久化（state 回读）');
   ok(stuRow.mock && stuRow.mock[subj] && stuRow.mock[subj].score === 92, '模考分数已持久化（state 回读）');
-  // 最小补丁（v1.8.2）：保存第二科目评语不覆盖第一科目
+  // 最小补丁（v1.8.3）：保存第二科目评语不覆盖第一科目
   wb.setQuickEntry({ gid: sid, subject: '竞赛 / AMC10' });
   setVal('qe-comment', 'AMC 评语');
   wb.saveSubjectComment();
   await sleep(300);
   const stuRowMp = (await apiGetState()).students.find(s=>s.id===sid);
   ok(stuRowMp.subjComments['竞赛 / AMC10'] === 'AMC 评语' && stuRowMp.subjComments[subj] === '本月进步明显',
-    '评语最小补丁：保存第二科目不覆盖第一科目（v1.8.2）');
+    '评语最小补丁：保存第二科目不覆盖第一科目（v1.8.3）');
   wb.setQuickEntry({ gid: sid, subject: subj });  // 还原，后续报告用例依赖
 
-  /* ---- BUG-01（v1.8.2）：API 模式保存失败草稿保留可重试；重试成功经确认后清除 ---- */
+  /* ---- BUG-01（v1.8.3）：API 模式保存失败草稿保留可重试；重试成功经确认后清除 ---- */
   vm.runInContext("draftSave('" + sid + "','" + subj + "','comment','失败保留草稿')", ctx);
   setVal('qe-comment', '失败保留草稿');
   // 模拟一次服务端失败（拦截 updateSubjFields）
@@ -425,6 +425,31 @@ function ok(cond, name){
     && vm.runInContext('qeDirty.comment === false', ctx) === true, '草稿：重试成功经服务端确认后草稿与 dirty 清除');
   ok((await apiGetState()).students.find(s=>s.id===sid).subjComments[subj] === '失败保留草稿',
     '草稿：重试成功后服务端读回保存值（刷新后与服务端一致）');
+
+  /* ---- ENG-01（v1.8.3）：模考字段级补丁——同科目分数/日期不互踩；取消预约提交精确墓碑 ---- */
+  setVal('mock-date', '2026-11-20');
+  vm.runInContext('bookMockExam()', ctx);  // 已存分数 92，再约日期（字段级 {date} 提交）
+  await sleep(300);
+  let mockStE = (await apiGetState()).students.find(s=>s.id===sid).mock[subj];
+  ok(mockStE.score === 92 && mockStE.date === '2026-11-20', 'ENG-01：先存分数再约日期，同科目两字段都生效不互踩');
+  // 捕获请求体验证精确墓碑：cancelMockExam 只提交 {mock:{本科目:{date:null}}}，不复制其他科目旧值
+  vm.runInContext("window.__lastPatch=null; const __oUSF=HttpApi.updateSubjFields.bind(HttpApi); HttpApi.updateSubjFields=async (i,p)=>{ window.__lastPatch=p; return __oUSF(i,p); };", ctx);
+  vm.runInContext('cancelMockExam()', ctx);
+  await sleep(300);
+  const lastPatch = vm.runInContext('window.__lastPatch', ctx);
+  ok(lastPatch && Object.keys(lastPatch.mock).length === 1 && lastPatch.mock[subj] && lastPatch.mock[subj].date === null
+    && !('score' in lastPatch.mock[subj]), 'ENG-01：取消预约提交精确字段级墓碑（{mock:{科目:{date:null}}}）');
+  vm.runInContext("HttpApi.updateSubjFields = window.__origUSF;", ctx);  // 恢复原实现（BUG-01 块存过原始引用）
+  mockStE = (await apiGetState()).students.find(s=>s.id===sid).mock[subj];
+  ok(mockStE && mockStE.date === undefined && mockStE.score === 92, 'ENG-01：取消预约只清日期留分数');
+  // 再验证：清分数提交 {score:null} 且整 slot 清空
+  vm.runInContext("window.__lastPatch=null; const __oUSF2=HttpApi.updateSubjFields.bind(HttpApi); HttpApi.updateSubjFields=async (i,p)=>{ window.__lastPatch=p; return __oUSF2(i,p); };", ctx);
+  vm.runInContext('clearMockScore()', ctx);
+  await sleep(300);
+  const lastPatch2 = vm.runInContext('window.__lastPatch', ctx);
+  ok(lastPatch2 && lastPatch2.mock[subj] === null, 'ENG-01：清除最后字段提交整 slot null 墓碑');
+  vm.runInContext("HttpApi.updateSubjFields = window.__origUSF;", ctx);
+  ok(!(await apiGetState()).students.find(s=>s.id===sid).mock[subj], 'ENG-01：整 slot 清空后服务端无残留');
   documentStub.getElementById('as-' + sid + '-s1').value = '__custom__';
   documentStub.getElementById('as-' + sid + '-custom').value = '测试科目X';
   wb.confirmAddSubject(sid);
@@ -559,7 +584,7 @@ function ok(cond, name){
   const bindsFoot2 = documentStub.getElementById('binds-foot').innerHTML;
   ok(bindsFoot2.indexOf('已绑定 2 / 2 名家长') !== -1 && bindsFoot2.indexOf('已绑定 2 名家长（上限）') !== -1
     && bindsFoot2.indexOf('+ 绑定新家长') === -1, '满 2 名家长时弹窗显示上限提示且无绑定入口');
-  // 家长显示名（v1.8.2）：无备注按绑定早晚显示「家长 N」，openid 退居副行；有备注显示备注
+  // 家长显示名（v1.8.3）：无备注按绑定早晚显示「家长 N」，openid 退居副行；有备注显示备注
   const bindsList2 = documentStub.getElementById('binds-list').innerHTML;
   ok(bindsList2.indexOf('家长 1') !== -1 && bindsList2.indexOf('家长 2') !== -1 && bindsList2.indexOf('openid ') !== -1,
     '无备注时按绑定早晚显示「家长 N」序号，openid 退居副行');
@@ -602,7 +627,7 @@ function ok(cond, name){
   const sharePg2 = await (await fetch(base + shareR2.url)).text();
   ok(sharePg2.indexOf('本次无作业') !== -1 && sharePg2.indexOf('2026-09-18') !== -1, '落地页无作业行渲染「本次无作业」+ 日期');
 
-  /* ---- v1.8.2：落地页打卡表与格子序列对齐（未交行 + 统计卡口径） ---- */
+  /* ---- v1.8.3：落地页打卡表与格子序列对齐（未交行 + 统计卡口径） ---- */
   const missForReport = await wb.HttpApi.addMissed({ studentId: sid, date: '2026-09-10', subject: subj });
   ok(missForReport.ok, '造一条未处理未交记录（落地页序列对齐测试）');
   const sharePg3 = await (await fetch(base + shareR2.url)).text();  // 复用分享链接（落地页实时渲染）
@@ -638,7 +663,7 @@ function ok(cond, name){
   ok(ta2Login.ok && !forbid.ok && forbid.msg.indexOf('权限') !== -1, '助教不能处理他人名下学生的预警（403）');
   await wb.doLogin('ta1', 'ta654321', 'ta');  // 恢复
 
-  /* ---- v1.8.2 零碎项（API 模式）：看板卡拆分 + 审计系统操作人 + 教务管理页四卡 ---- */
+  /* ---- v1.8.3 零碎项（API 模式）：看板卡拆分 + 审计系统操作人 + 教务管理页四卡 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
   const dashOv2 = documentStub.getElementById('dash-overview').innerHTML;
   ok(dashOv2.indexOf('在服务学生') !== -1 && dashOv2.indexOf('已归档学生') !== -1 && dashOv2.indexOf('含历史') === -1,
@@ -658,7 +683,7 @@ function ok(cond, name){
     && html.indexOf('备份与恢复') < html.indexOf('id="data-clean-zone"'),
     '教务管理页四卡重排（通知设置→科目设置→备份恢复→危险操作区）');
 
-  /* ---- 走查 P1（v1.8.2）：API 模式导入恢复隐藏 + 提示 ---- */
+  /* ---- 走查 P1（v1.8.3）：API 模式导入恢复隐藏 + 提示 ---- */
   ok(documentStub.getElementById('btn-import').style.display === 'none'
     && documentStub.getElementById('import-api-tip').style.display !== 'none',
     'API 模式隐藏「导入恢复」并提示「生产环境数据在服务器，恢复数据请联系管理员」');

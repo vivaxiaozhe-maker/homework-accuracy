@@ -394,6 +394,21 @@ function ok(cond, name){
   await req('POST', '/api/plan/set', { studentId: stuA, subject: '竞赛 / AMC12', plan: null }, T1);  // 清理
   await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjFirstClass: { '竞赛 / AMC10': null } }, T1);  // 清理
 
+  /* ---- v1.8.3 ENG-01：mock slot 内字段级合并（同科目 date/score 分别保存不互踩；字段级 null 墓碑；空 slot 不残留） ---- */
+  await req('PUT', '/api/students/' + stuA + '/subj-fields', { mock: { '字段科目': { date: '2026-11-01' } } }, T1);
+  await req('PUT', '/api/students/' + stuA + '/subj-fields', { mock: { '字段科目': { score: 88 } } }, T1);
+  let mockFc = JSON.parse(db.prepare('SELECT mock FROM students WHERE id = ?').get(stuA).mock);
+  ok(mockFc['字段科目'].date === '2026-11-01' && mockFc['字段科目'].score === 88, 'ENG-01：同科目先存日期再存分数，两字段都生效不互踩');
+  await req('PUT', '/api/students/' + stuA + '/subj-fields', { mock: { '字段科目': { date: '2026-11-05' } } }, T1);
+  mockFc = JSON.parse(db.prepare('SELECT mock FROM students WHERE id = ?').get(stuA).mock);
+  ok(mockFc['字段科目'].date === '2026-11-05' && mockFc['字段科目'].score === 88, 'ENG-01：只改日期不覆盖同科目分数字段');
+  await req('PUT', '/api/students/' + stuA + '/subj-fields', { mock: { '字段科目': { date: null } } }, T1);
+  mockFc = JSON.parse(db.prepare('SELECT mock FROM students WHERE id = ?').get(stuA).mock);
+  ok(mockFc['字段科目'] && mockFc['字段科目'].date === undefined && mockFc['字段科目'].score === 88, 'ENG-01：字段级 null 墓碑只清日期留分数');
+  await req('PUT', '/api/students/' + stuA + '/subj-fields', { mock: { '字段科目': { score: null } } }, T1);
+  mockFc = JSON.parse(db.prepare('SELECT mock FROM students WHERE id = ?').get(stuA).mock);
+  ok(mockFc['字段科目'] === undefined, 'ENG-01：字段清空后空 slot 不残留');
+
   /* ---- 待办预警动作接口（/api/alerts/action；state 同步 alertActions） ---- */
   r = await req('POST', '/api/missed', { studentId: stuA, date: today(), subject: '学科 / AP / 微积分BC' }, T1);
   const alertMissId = r.data.missed.id;

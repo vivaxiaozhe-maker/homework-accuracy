@@ -55,7 +55,7 @@ app.use((req, res, next) => {
 });
 
 // 健康检查（公开）
-app.get('/api/health', (req, res) => res.json({ ok: true }));
+app.get('/api/health', (req, res) => res.json({ ok: true, app: 'xueqing-api' }));  // app 标识：前端探测据此区分真后端与 200 HTML 静态页（v1.8.3 ENG-03）
 
 /* 家长 H5 报告页（公开，/api 全局守卫之外；静态白名单中间件对 /r/* 一律放行到此处）。
    页面零 JS、样式内联，helmet CSP（style-src 含 'unsafe-inline'）天然兼容 */

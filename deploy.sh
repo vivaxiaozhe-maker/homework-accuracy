@@ -5,6 +5,8 @@
 #   ./deploy.sh --with-server "提交信息"  # 后端也有改动：追加 scp server/ 并 pm2 restart
 #   ./deploy.sh --skip-prod "提交信息"    # 只提交推送（只更新演示站，不动生产）
 #   ./deploy.sh --skip-tests "提交信息"   # 跳过冒烟测试（紧急小改时用，慎用）
+# 回滚步骤：git revert 对应 commit → 重跑本脚本（--with-server 视是否动过后端）即可；
+#   后端依赖随之回滚（脚本会检测 server/package*.json 变更并在生产重装）。
 set -e
 set -o pipefail  # 管道吞退出码防护：node test/smoke.js | tail -1 失败即中断部署（已走查发现）
 cd "$(dirname "$0")"
@@ -47,6 +49,15 @@ if [ $SKIP_PROD -eq 0 ]; then
     scp -o BatchMode=yes server/*.js root@47.113.184.105:/opt/xueqing/server/
     scp -o BatchMode=yes -r server/routes root@47.113.184.105:/opt/xueqing/server/
     ssh -o BatchMode=yes root@47.113.184.105 'pm2 restart xueqing >/dev/null 2>&1 && sleep 2 && curl -s http://localhost:3000/api/health'
+  fi
+  # v1.8.3 ENG-04 依赖门禁：--with-server 时始终同步依赖；或本次提交动了 server/package*.json 时也触发
+  # （防「仓库依赖已更新、生产没装」漂移）。npm install 失败 → set -e 中断部署；安装后输出关键包版本供对照。
+  DEPS_CHANGED=0
+  if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -qE '^server/package(-lock)?\.json$'; then DEPS_CHANGED=1; fi
+  if [ $WITH_SERVER -eq 1 ] || [ $DEPS_CHANGED -eq 1 ]; then
+    echo "==> 4.5/5 同步后端依赖（package*.json 变更=$DEPS_CHANGED，with-server=$WITH_SERVER）"
+    scp -o BatchMode=yes server/package.json server/package-lock.json root@47.113.184.105:/opt/xueqing/server/
+    ssh -o BatchMode=yes root@47.113.184.105 'cd /opt/xueqing/server && npm install --omit=dev && pm2 restart xueqing && echo "[deps] 生产安装版本：" && npm ls express better-sqlite3 helmet multer bcryptjs express-rate-limit --depth=0 2>/dev/null'
   fi
 else
   echo "==> 4/5 跳过生产部署"

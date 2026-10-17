@@ -38,6 +38,7 @@ function ok(cond, name){
   /* ---- 健康检查与登录 ---- */
   let r = await req('GET', '/api/health');
   ok(r.status === 200 && r.data && r.data.ok === true, 'GET /api/health 返回 ok');
+  ok(r.data.app === 'xueqing-api', '健康检查带 app 服务标识（v1.8.3 ENG-03，前端据此区分真后端与 200 HTML）');
 
   r = await req('POST', '/api/login', { username: 'admin', password: 'wrong-pwd' });
   ok(r.status === 401 && r.data.ok === false, '错误密码登录 401');  // 限流计数 1

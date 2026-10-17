@@ -298,7 +298,9 @@ document.getElementById('today-str').textContent =
   todayStr() + ' · ' + ['周日','周一','周二','周三','周四','周五','周六'][new Date().getDay()];
 
 window.__ready = (async function init(){
-  USE_API = await detectApi();  // 同 origin 探测到后端 → API 模式；否则 mock 演示模式
+  USE_API = await detectApi();  // 同 origin 探测到后端（200 + JSON 服务标识）→ API 模式；否则 mock 演示模式
+  // v1.8.3 ENG-03：生产域名下探测失败 → 明确错误页 + 重试按钮，阻止进入可编辑演示模式（防数据来源/保存位置静默切换）
+  if(!USE_API && isProdHost()){ showApiOutage(); return; }
   // 侧栏脚注按运行模式区分：mock 保持「演示环境」静态文案，API 模式（正式环境）改为内部系统
   const sideFoot = document.getElementById('side-foot');
   if(sideFoot && USE_API) sideFoot.textContent = '学情跟踪平台 · 内部系统 · ' + APP_VERSION;
@@ -338,11 +340,22 @@ window.__ready = (async function init(){
   }
 })();
 
+/* v1.8.3 ENG-03：生产站后端故障阻断页——显示错误横幅 + 重试按钮，隐藏登录卡（不回落演示数据） */
+function showApiOutage(){
+  const o = document.getElementById('api-outage');
+  if(o) o.style.display = 'flex';
+  const lc = document.querySelector('.login-card');
+  if(lc) lc.style.display = 'none';
+  const ls = document.getElementById('login-screen');
+  if(ls) ls.style.display = 'flex';
+}
+
 /* 测试钩子：供 node DOM 桩冒烟测试访问内部状态（不影响 UI） */
 window.__wb = {
   Api, HttpApi, LocalApi,
   get USE_API(){ return USE_API; },
   setUseApi(v){ USE_API = v; apiImpl = v ? HttpApi : LocalApi; },  // 测试用：强制切换模式
+  detectApi, isProdHost, showApiOutage,
   refreshUsersCache,
   doLogin, doChangePwd, doLogout, enterApp, showLogin,
   saveQuickEntry, saveSlot, removeMissed, markMissedToday, buildExport,
