@@ -1107,6 +1107,7 @@ function saveQuickEntry(){
 // refType 'new' = 空位补录（无记录 id，按位置语义）
 let slotEdit = null;
 let slNoHw = false;   // 「本次无作业」态（第四次态）：随格子开闭重置；打开已存的无作业记录时自动开启
+let slotMakeupOpen = false;  // 未交格子是否已展开「补录成绩」表单（默认只展示未交状态，不要求填题数）
 let slTmpVals = null; // 切入无作业前的表单值暂存（「取消无作业」切回时恢复）
 function countSubjectRecs(gid, subject){
   return state.records.filter(r=>r.studentId===gid && r.subject===subject).length;
@@ -1247,7 +1248,18 @@ function markMissedToday(){
   logAction('登记未交', 'missed', auditStuDesc(gid, subject), '日期 ' + date, {ownerId: st.ownerId});
   apiPersist(HttpApi.addMissed({id: newMiss.id, studentId: gid, date: date, subject: subject}));  // id 客户端生成并贯穿
   save();
+  // 登记即完成：关闭编辑面板（否则会立刻显示该未交的「补录成绩」表单，让人误以为还要填题数）
+  slotEdit = null;
+  slotMakeupOpen = false;
   renderAll();
+  toast('已登记未交');
+}
+/* 未交格子点「补录成绩」：展开补交表单（默认只展示未交状态，未交作业没有题目信息不该强制填题数） */
+function startMakeup(){
+  if(!slotEdit) return;
+  slotMakeupOpen = true;
+  renderStats();
+  if(document.getElementById('sl-wrongs')) slCalc();
 }
 /* 该科目打卡序列：作业记录 + 未处理的未交记录按日期合并排序，作为打卡格子数据源。
    同日稳定次序（v1.8.0 BUG-02）：日期 → 类型（rec 在 miss 前）→ id 字典序，与 server/routes/search.js 同规则，两端一致 */
@@ -1339,6 +1351,7 @@ function openSlot(idx){
   }
   // 无作业态随格子开闭重置；打开已存的无作业记录时自动进入无作业态（日期可改、可切回正常录入）
   slNoHw = false;
+  slotMakeupOpen = false;  // 未交格子默认只展示状态，点「补录成绩」才展开表单
   if(slotEdit && slotEdit.refType==='rec'){
     const r0 = state.records.find(x=>x.id===slotEdit.refId);
     if(r0 && r0.noHomework) slNoHw = true;
@@ -1452,8 +1465,18 @@ function slotEditHtml(){
       '</div>' +
       '<div class="se-actions"><button class="btn ghost sm" onclick="openSlot(' + slotEdit.idx + ')">关闭</button></div></div>';
   }
-  // 该次为未交记录：展示未交信息并直接提供补录表单（保存后该次未交自动视为已补交）
+  // 该次为未交记录：默认只展示未交状态（未交作业没有题目信息，不该一进来就要求填题数）；
+  // 点「补录成绩」才展开补交表单（保存后该次未交自动视为已补交）
   if(miss){
+    if(!slotMakeupOpen){
+      return '<div class="slot-edit">' +
+        '<div class="se-title">第 ' + slotEdit.idx + ' 次作业（' + esc(shortSubject(slotEdit.subject)) + '）</div>' +
+        '<div style="font-size:13px;color:var(--red);padding:4px 0 6px">该次为 ' + miss.date + ' 的未交作业，登记状态「未交 · 待补交」，无成绩数据。</div>' +
+        '<div class="se-actions">' +
+        '<button class="btn mint sm" onclick="startMakeup()">补录成绩</button>' +
+        '<button class="btn ghost sm" onclick="openSlot(' + slotEdit.idx + ')">关闭</button>' +
+        '</div></div>';
+    }
     return '<div class="slot-edit">' +
       '<div class="se-title">补录第 ' + slotEdit.idx + ' 次作业（' + esc(shortSubject(slotEdit.subject)) + '）</div>' +
       '<div style="font-size:13px;color:var(--red);padding:4px 0 2px">该次为 ' + miss.date + ' 的未交作业，登记状态「未交 · 待补交」，无成绩数据。填写下方信息并保存即完成这次补交；取消则保持未交状态。</div>' +

@@ -20,8 +20,8 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
-const LS_DELETED_USERS = 'wb_ha_v2_deleted_users';  // 账号删除 tombstone（v1.9.0 NEW-01）：用户名永久锁定
-const APP_VERSION = 'v1.9.0';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const LS_DELETED_USERS = 'wb_ha_v2_deleted_users';  // 账号删除 tombstone（v1.9.1 NEW-01）：用户名永久锁定
+const APP_VERSION = 'v1.9.1';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [], alertActions: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志；alertActions = 待办预警动作）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -184,7 +184,7 @@ function logAction(action, targetType, targetDesc, detail, opts){
 function ownerName(ownerId){
   const u = getUsersCache().find(x=>x.id===ownerId);
   if(u) return u.name;
-  // 账号已删除（v1.9.0 NEW-01）：tombstone 命中显示回退文案
+  // 账号已删除（v1.9.1 NEW-01）：tombstone 命中显示回退文案
   if(getDeletedUsersCache().some(x=>x.id===ownerId)) return '已删除账号';
   return '未分配';
 }
@@ -244,7 +244,7 @@ const LocalApi = {
   getState(){ return pool; },
   // PUT /api/state
   saveState(p){ pool = p; save(); refreshView(); },
-  // GET /api/users（教务）；v1.9.0 ENG-02：初始密码只显示一次，列表永不携带 tempPassword（老本地数据残留也剥离）
+  // GET /api/users（教务）；v1.9.1 ENG-02：初始密码只显示一次，列表永不携带 tempPassword（老本地数据残留也剥离）
   listUsers(){ return this._loadUsers().map(u=>{ const j = Object.assign({}, u); delete j.tempPassword; delete j.salt; delete j.passHash; return j; }); },
   // GET /api/users tombstone 名单（deleted_users）
   listDeletedUsers(){ return this._loadDeletedUsers().slice(); },
@@ -263,7 +263,7 @@ const LocalApi = {
     if(this._loadUsers().some(x=>x.username===username)) return {ok:false, msg:'该登录账号已存在'};
     if(this._loadDeletedUsers().some(x=>x.username===username)) return {ok:false, msg:'该登录账号已被注销，永久不可复用'};
     const salt = makeSalt();
-    // 初始密码不写存储，仅当次响应返回一次（v1.9.0 ENG-02）
+    // 初始密码不写存储，仅当次响应返回一次（v1.9.1 ENG-02）
     const u = {id:uid(), username, name, role, salt, passHash:await hashPwd(salt, password),
       disabled:false, createdAt:todayStr(), mustChangePwd:true};
     this._users.push(u); this._saveUsers();
@@ -277,7 +277,7 @@ const LocalApi = {
     u.salt = makeSalt();
     u.passHash = await hashPwd(u.salt, newPwd);
     u.mustChangePwd = true;
-    delete u.tempPassword;  // 不再长期存明文（v1.9.0 ENG-02）
+    delete u.tempPassword;  // 不再长期存明文（v1.9.1 ENG-02）
     this._saveUsers();
     logAction('重置密码', 'account', u.name + '（' + u.username + '）', '');
     return {ok:true, tempPassword:newPwd};
@@ -297,7 +297,7 @@ const LocalApi = {
     logAction(act, 'account', u.name + '（' + u.username + '）', '');
     return {ok:true, user:u};
   },
-  /* ---- 账号删除（v1.9.0 NEW-01，与服务端同规则）：仅教务、仅已停用助教/销售；阻断式不级联 ---- */
+  /* ---- 账号删除（v1.9.1 NEW-01，与服务端同规则）：仅教务、仅已停用助教/销售；阻断式不级联 ---- */
   _deleteRuleViolation(u){
     if(!u) return '账号不存在';
     if(u.role==='admin') return '教务账号不可删除';
@@ -537,7 +537,7 @@ const HttpApi = {
       if(!s || !s.token) return null;
       this._token = s.token;
       const r = await this._req('GET', '/api/me');
-      if(!r.ok){ this._token = null; sessionStorage.removeItem(SS_SESSION); return null; }  // 401 恢复失败清本地凭据，防跨账号缓存残留（v1.9.0 ENG-03）
+      if(!r.ok){ this._token = null; sessionStorage.removeItem(SS_SESSION); return null; }  // 401 恢复失败清本地凭据，防跨账号缓存残留（v1.9.1 ENG-03）
       return r.user;
     }catch(e){ return null; }
   },
@@ -572,7 +572,7 @@ const HttpApi = {
     const r = await this._req('GET', '/api/users');
     return r.ok ? (r.deletedUsers || []) : [];
   },
-  // GET /api/users/:id/delete-impact（删除影响预览，v1.9.0 NEW-01）
+  // GET /api/users/:id/delete-impact（删除影响预览，v1.9.1 NEW-01）
   async getUserDeleteImpact(id){
     return this._req('GET', '/api/users/' + id + '/delete-impact');
   },
@@ -615,7 +615,7 @@ const HttpApi = {
   updateStudent(id, b){ return this._req('PUT', '/api/students/' + id, b); },
   setStudentArchived(id, flag, reason){
     return this._req('POST', '/api/students/' + id + (flag ? '/archive' : '/restore'),
-      flag ? { reason: reason || '' } : undefined);  // 归档可带原因（v1.9.0）
+      flag ? { reason: reason || '' } : undefined);  // 归档可带原因（v1.9.1）
   },
   // 转移归属：后端为单 id 接口，同名组逐个调用；本地乐观更新，失败重取（服务端校验目标助教）
   async transferStudent(ids, newOwnerId){
@@ -719,12 +719,12 @@ async function detectApi(){
     const res = await fetch('/api/health', ctl ? { signal: ctl.signal } : {});
     if(timer) clearTimeout(timer);
     if(!res.ok) return false;
-    // v1.9.0 ENG-03：必须 200 + JSON 服务标识——200 HTML（静态页/SPA 回退/错误页）一律不算 API
+    // v1.9.1 ENG-03：必须 200 + JSON 服务标识——200 HTML（静态页/SPA 回退/错误页）一律不算 API
     const data = await res.json().catch(() => null);
     return !!(data && data.app === 'xueqing-api');
   }catch(e){ return false; }
 }
-/* v1.9.0 ENG-03：生产域名判定（桩环境 location 缺省 → 非生产，允许 mock 演示） */
+/* v1.9.1 ENG-03：生产域名判定（桩环境 location 缺省 → 非生产，允许 mock 演示） */
 function isProdHost(){
   try{ return typeof location !== 'undefined' && !!location && location.hostname === 'xueqing.rocketacademy.com.cn'; }catch(e){ return false; }
 }
@@ -732,7 +732,7 @@ function isProdHost(){
 /* 用户列表缓存：mock 模式实时读 LocalApi；API 模式读缓存（登录/账号操作后刷新）。
    渲染层（归属标签/看板/审批等）全部走这个同步入口，避免渲染函数异步化 */
 let usersCache = [];
-let deletedUsersCache = [];  // tombstone 名单（v1.9.0 NEW-01）：「已删除账号」回退显示用
+let deletedUsersCache = [];  // tombstone 名单（v1.9.1 NEW-01）：「已删除账号」回退显示用
 function getUsersCache(){ return USE_API ? usersCache : LocalApi.listUsers(); }
 function getDeletedUsersCache(){ return USE_API ? deletedUsersCache : LocalApi.listDeletedUsers(); }
 async function refreshUsersCache(){
