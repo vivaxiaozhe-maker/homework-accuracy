@@ -14,7 +14,8 @@ function alertActionMap(){
   (state.alertActions || []).forEach(a=>{ map[a.kind + '|' + a.refKey] = a; });
   return map;
 }
-function isDoneAlert(amap, kind, refKey){ const a = amap[kind + '|' + refKey]; return !!(a && a.action==='done'); }
+// done（已完成）与 shelve（搁置：家长侧等暂不可控，长期退出待办）都让预警关闭
+function isDoneAlert(amap, kind, refKey){ const a = amap[kind + '|' + refKey]; return !!(a && (a.action==='done' || a.action==='shelve')); }
 // snooze 当天有效（snoozeUntil >= 今天 → 今天不显示，明天再出现）
 function snoozedToday(amap, kind, refKey){
   const a = amap[kind + '|' + refKey];
@@ -60,6 +61,25 @@ function alertDone(kind, refKey){
     toast('已完成处理');
     renderAll();
   });
+}
+/* 搁置（v1.8.6）：家长侧等暂不可控的逾期未交——长期退出待办（不像 snooze 只当天），进已处理事项可查；
+   未交记录本身保留，补录成绩后自然关闭。可选填原因 */
+function alertShelve(missId){
+  askConfirm('搁置该逾期项', '用于家长侧等暂不可控的情况。搁置后不再出现在待办，可在「已处理事项」查看；未交记录本身保留，补录成绩后自然关闭。确定搁置吗？', (note)=>{
+    const a = { id: uid(), kind: 'miss', refKey: missId, action: 'shelve',
+      actorId: currentUser ? currentUser.id : null, actorName: currentUser ? currentUser.name : '',
+      note: (note || '').trim(), createdAt: new Date().toISOString(), snoozeUntil: null };
+    if(USE_API){
+      apiPersist(HttpApi._req('POST', '/api/alerts/action', { kind: 'miss', refKey: missId, action: 'shelve', note: a.note }),
+        ()=>resyncState());
+    } else {
+      pool.alertActions = pool.alertActions || [];
+      pool.alertActions.push(a);
+      save(); refreshView();
+    }
+    toast('已搁置，可在已处理事项查看');
+    renderAll();
+  }, { input: '搁置原因（选填，如：家长暂停课程）' });
 }
 /* 计数条/组头点击：展开对应分组并滚动定位 */
 function todayCatGo(key){
@@ -148,6 +168,10 @@ function renderToday(){
       '<button class="btn mint sm" onclick="resolveMissed(\'' + esc(jsStr(m.id)) + '\')" title="跳转到该生该科目的打卡面板补录这次作业；填写并保存后，该条未交才算补交完成">去补录</button>' +
       '<button class="btn ghost sm" onclick="removeMissed(\'' + esc(jsStr(m.id)) + '\')" title="删除该未交记录">删除</button>') +
     '<button class="btn ghost sm" onclick="alertSnooze(\'miss\',\'' + esc(jsStr(m.id)) + '\')" title="今天不再提醒，明天恢复显示（不解决问题，只是暂缓）">稍后处理</button>' +
+    // 搁置出口（v1.8.6）：仅逾期行（宽限内是新鲜事项不该被搁置）；家长侧等暂不可控场景出清待办
+    (overdueRows.indexOf(m)!==-1
+      ? '<button class="btn ghost sm" onclick="alertShelve(\'' + esc(jsStr(m.id)) + '\')" title="家长侧等暂不可控的情况：长期退出待办，可在已处理事项查看；未交记录本身保留">搁置</button>'
+      : '') +
     '</div>';
   const renderLowRow = x => {
     const r = x.rec;

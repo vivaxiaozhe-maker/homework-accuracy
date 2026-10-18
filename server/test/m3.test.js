@@ -439,6 +439,16 @@ function ok(cond, name){
   ok(aa.find(a=>a.refKey===alertMissId && a.action==='done').actorName === '王助教', 'alertActions 带操作人姓名');
   r = await req('GET', '/api/state', null, T2);
   ok(!(r.data.state.alertActions || []).some(a=>a.refKey===alertMissId), '助教 state 不含他人名下学生的预警动作');
+  /* ---- 搁置（v1.8.6）：逾期未交的家长侧出清出口 ---- */
+  r = await req('POST', '/api/alerts/action', { kind: 'miss', refKey: alertMissId, action: 'shelve', note: '家长暂停课程' }, T1);
+  ok(r.status === 200 && r.data.ok, '预警搁置（shelve）成功');
+  r = await req('POST', '/api/alerts/action', { kind: 'lowAcc', refKey: alertMissId.split('|')[0] + '|x', action: 'shelve' }, T1);
+  ok(r.status === 400 && r.data.msg.indexOf('仅未交类') !== -1, '非未交类预警不允许搁置（400）');
+  ok(db.prepare("SELECT * FROM audit_logs WHERE action = '搁置逾期预警' AND detail LIKE '%家长暂停课程%'").all().length === 1,
+    '搁置写审计日志（含原因）');
+  r = await req('GET', '/api/state', null, T1);
+  ok(r.data.state.alertActions.find(a=>a.refKey===alertMissId && a.action==='shelve').note === '家长暂停课程',
+    'state 同步带搁置动作与原因');
 
   console.log('\nM3 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();

@@ -837,6 +837,21 @@ function ok(cond, name){
   ok(missGrpHtml.indexOf('未交 · 宽限至 ' + dAgo(6).slice(5)) !== -1, '宽限行显示「未交 · 宽限至 MM-DD」（tf-m3 未交日期 -1 → 宽限至 +6）');
   ok(tfHtml.indexOf('未交超过 7 天宽限，最紧急') !== -1 && tfHtml.indexOf('登记未交未满 7 天，宽限内补交不计逾期') !== -1,
     '组头显示逾期/宽限口径副标题');
+  /* ---- 逾期行「搁置」出口（v1.8.6）：逾期行有、宽限行没有；搁置后退出待办并进已处理区 ---- */
+  const odBtn = tfHtml.split('id="today-grp-overdueMiss"')[1].split('id="today-grp-miss"')[0] || '';
+  const graceBtn = tfHtml.split('id="today-grp-miss"')[1].split('id="today-grp-lowAcc"')[0] || '';
+  ok(odBtn.indexOf('>搁置<') !== -1, '逾期行有「搁置」按钮');
+  ok(graceBtn.indexOf('>搁置<') === -1, '宽限内行不提供「搁置」');
+  vm.runInContext("alertShelve('tf-m2')", ctx);
+  ok(documentStub.getElementById('cf-title').textContent.indexOf('搁置') !== -1, '搁置弹确认框');
+  documentStub.getElementById('cf-input').value = '家长暂停课程';
+  documentStub.getElementById('cf-ok').onclick();
+  wb.renderToday();
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf('筛选测试生B') === -1, '搁置后该行退出待办');
+  ok(documentStub.getElementById('done-list').innerHTML.indexOf('已搁置') !== -1
+    && documentStub.getElementById('done-list').innerHTML.indexOf('家长暂停课程') !== -1, '已处理区显示「已搁置 · 原因」');
+  ok((wb.pool.alertActions || []).some(a=>a.refKey==='tf-m2' && a.action==='shelve' && a.note==='家长暂停课程'),
+    '搁置写入 alertActions（含原因）');
   // 助教视角无筛选 chips
   wb.doLogout();
   await wb.doLogin('ta1', 'ta123456', 'ta');

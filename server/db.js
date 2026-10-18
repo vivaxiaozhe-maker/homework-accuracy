@@ -171,14 +171,15 @@ if(!recCols.includes('no_homework')){
   db.exec('ALTER TABLE records ADD COLUMN no_homework INTEGER NOT NULL DEFAULT 0');
 }
 /* 首页待办预警操作迁移（v1.5.0）：alert_actions 表。
-   每条预警动作一行，同一 ref_key 取最新一条生效：snooze（稍后处理，snooze_until 当天有效）/ done（完成，永久消失并进已处理事项）。
+   每条预警动作一行，同一 ref_key 取最新一条生效：snooze（稍后处理，snooze_until 当天有效）/ done（完成，永久消失并进已处理事项）
+   / shelve（搁置：家长侧等暂不可控的逾期项，长期退出待办，v1.8.6）。
    ref_key 稳定键：miss → missed.id；lowAcc / planStall → studentId|subject（按学生+科目聚合预警） */
 db.exec(`
 CREATE TABLE IF NOT EXISTS alert_actions (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL CHECK(kind IN ('miss','lowAcc','planStall')),
   ref_key TEXT NOT NULL,
-  action TEXT NOT NULL CHECK(action IN ('snooze','done')),
+  action TEXT NOT NULL CHECK(action IN ('snooze','done','shelve')),
   actor_id TEXT,
   actor_name TEXT,
   note TEXT,
@@ -187,6 +188,23 @@ CREATE TABLE IF NOT EXISTS alert_actions (
 );
 CREATE INDEX IF NOT EXISTS idx_alert_actions_ref ON alert_actions(ref_key);
 `);
+/* v1.8.6：老库的 action CHECK 只有 snooze/done，SQLite 不能改约束 → 按 files 表同款重建模式迁移（幂等：已含 shelve 则跳过） */
+const aaSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='alert_actions'").get() || {}).sql || '';
+if(aaSql && aaSql.indexOf('shelve') === -1){
+  db.exec(`
+    CREATE TABLE alert_actions_new (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL CHECK(kind IN ('miss','lowAcc','planStall')),
+      ref_key TEXT NOT NULL,
+      action TEXT NOT NULL CHECK(action IN ('snooze','done','shelve')),
+      actor_id TEXT, actor_name TEXT, note TEXT, created_at TEXT NOT NULL, snooze_until TEXT
+    );
+    INSERT INTO alert_actions_new SELECT * FROM alert_actions;
+    DROP TABLE alert_actions;
+    ALTER TABLE alert_actions_new RENAME TO alert_actions;
+    CREATE INDEX IF NOT EXISTS idx_alert_actions_ref ON alert_actions(ref_key);
+  `);
+}
 /* 首次课程时间迁移：students 补 subj_first_class JSON 列（科目 → 开课日期 YYYY-MM-DD） */
 if(!db.prepare("PRAGMA table_info(students)").all().map(c => c.name).includes('subj_first_class')){
   db.exec('ALTER TABLE students ADD COLUMN subj_first_class TEXT');

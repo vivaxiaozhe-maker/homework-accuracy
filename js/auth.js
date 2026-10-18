@@ -1063,7 +1063,7 @@ function renderDoneZone(){
       reason = a.kind==='lowAcc' ? '正确率偏低预警' : '计划停滞预警';
     }
     items.push({ kind:'alert', at:a.createdAt.slice(0,10), action:a.action,
-      name:name, subject:subject, reason:reason, actor:a.actorName || '未知' });
+      name:name, subject:subject, reason:reason, actor:a.actorName || '未知', note: a.note || '' });
   });
   items.sort((a,b)=> a.at===b.at ? 0 : (a.at<b.at ? 1 : -1));  // 按处理时间倒序
   if(!items.length){ zone.style.display = 'none'; return; }
@@ -1072,12 +1072,17 @@ function renderDoneZone(){
   const shown = doneZoneExpand ? items : items.slice(0,10);
   let html = shown.map(it=>{
     if(it.kind==='alert'){
-      const dn = it.action==='done';
+      // done=预警完成（mint）；snooze=稍后处理（amber）；shelve=已搁置（灰，v1.8.6）
+      const tagCls = it.action==='done' ? 'mint' : (it.action==='shelve' ? '' : 'amber');
+      const tagTxt = it.action==='done' ? '预警完成' : (it.action==='shelve' ? '已搁置' : '稍后处理');
+      const tagStyle = it.action==='shelve' ? ' style="background:#EFE7D2;color:#8A7B52"' : '';
       return '<div class="todo-item">' +
-        '<div class="grow"><span class="tag ' + (dn ? 'mint' : 'amber') + '">' + (dn ? '预警完成' : '稍后处理') + '</span>' +
+        '<div class="grow"><span class="tag ' + tagCls + '"' + tagStyle + '>' + tagTxt + '</span>' +
         '<span class="who">' + esc(it.name) + '</span>' +
         (it.subject ? '<span class="tag mint">' + esc(shortSubject(it.subject)) + '</span>' : '') +
-        '<div style="font-size:13px;color:var(--ink2)">' + esc(it.reason) + ' · 操作人 ' + esc(it.actor) + ' · 处理于 ' + it.at + '</div></div>' +
+        '<div style="font-size:13px;color:var(--ink2)">' + esc(it.reason) +
+        (it.note ? ' · 原因：' + esc(it.note) : '') +
+        ' · 操作人 ' + esc(it.actor) + ' · 处理于 ' + it.at + '</div></div>' +
         '</div>';
     }
     if(it.kind==='miss'){
