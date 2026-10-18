@@ -161,26 +161,34 @@ document.body.addEventListener('keydown', function(e){
     });
   }
 });
-/* ---- 逾期统一判定（首次课程时间口径） ----
-   逾期 ⟺ 未处理 && 该科目已填开课时间（未填一律不算逾期）&& 开课时间 ≤ 今天（未开课不算）&& 未交日期 + 7 天宽限 < 今天
-   「未指定科目」的未交无法定位开课时间 → 不算逾期 */
+/* ---- 逾期统一判定（v1.9.0 科目级口径；v1.8.x 的按未交记录 7 天宽限口径 isOverdueMissed 已废除） ----
+   逾期 = 科目级欠账：已开课（firstClass ≤ 今天）+ 格子没录满（已完成 < 应完成）+ 最近活跃 > 7 天没动静。
+   最近活跃 = max(该科目最近成绩日期, 最近未交登记日期, 计划设定日)；无活跃记录（刚建计划等）不立刻催。
+   无计划（无「应完成」口径）的科目不算逾期。src 默认 state（首页/学生卡），看板传 pool（dashboard 基于 pool） */
 function addDays(dateStr, n){ const d = new Date(dateStr + 'T00:00:00'); d.setDate(d.getDate() + n); return fmtDate(d); }
-function isOverdueMissed(m, st){
-  if(!m || m.resolved) return false;
-  if(!m.subject) return false;
-  const fc = st && st.subjFirstClass && st.subjFirstClass[m.subject];
-  if(!fc) return false;
+function subjectOverdueInfo(st, sub, src){
+  const data = src || state;
+  if(!st || st.archived) return null;
+  const plan = st.subjPlans && st.subjPlans[sub];
+  if(plan === undefined || plan === null) return null;  // 无计划 → 无欠账口径
   const t = todayStr();
-  if(fc > t) return false;
-  return addDays(m.date, 7) < t;
+  const fc = st.subjFirstClass && st.subjFirstClass[sub];
+  if(!fc || fc > t) return null;  // 未开课
+  const done = data.records.filter(r=>r.studentId===st.id && r.subject===sub).length;
+  if(done >= plan) return null;  // 格子录满不催
+  const lastRec = data.records.filter(r=>r.studentId===st.id && r.subject===sub).map(r=>r.date);
+  const lastMiss = data.missed.filter(m=>m.studentId===st.id && (m.subject||'')===sub).map(m=>m.date);
+  const setAt = st.subjPlanSetAt && st.subjPlanSetAt[sub];
+  const last = lastRec.concat(lastMiss).concat(setAt ? [setAt] : []).sort().pop();
+  if(!last) return null;  // 无活跃记录：刚建计划不立刻催
+  const days = Math.round((new Date(t) - new Date(last)) / 86400000);
+  if(days <= 7) return null;
+  return { days: days, owed: plan - done, plan: plan, lastActive: last };
 }
-// 某学生（组）某科目的逾期未交次数（统一逾期口径）
-function overdueMissCount(ids, subject){
-  return state.missed.filter(m=>{
-    if((m.subject||'')!==subject || ids.indexOf(m.studentId)===-1) return false;
-    const st = state.students.find(x=>x.id===m.studentId);
-    return isOverdueMissed(m, st);
-  }).length;
+function subjectOverdue(st, sub, src){ return !!subjectOverdueInfo(st, sub, src); }
+// 某学生（组）某科目的未处理未交次数（学生卡「!」角标口径：未交未处理 ≥2 触发，v1.9.0 起不再叫逾期）
+function unresolvedMissCount(ids, subject){
+  return state.missed.filter(m=>!m.resolved && (m.subject||'')===subject && ids.indexOf(m.studentId)!==-1).length;
 }
 function hasSample(){
   return state.students.some(s=>s.sample) || state.records.some(r=>r.sample) || state.missed.some(m=>m.sample);

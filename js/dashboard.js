@@ -19,7 +19,17 @@ function computeDash(){
   // 已归档学生的未交不算逾期（学习已结束，不再催办）
   const isActiveMissed = m => { const st = pool.students.find(x=>x.id===m.studentId); return !(st && st.archived); };
   const openMiss = missed.filter(m=>!m.resolved && isActiveMissed(m));
-  const overdue = openMiss.filter(m=>isOverdueMissed(m, pool.students.find(x=>x.id===m.studentId)));
+  // 逾期（v1.9.0 科目级口径，与首页同函数 subjectOverdueInfo）：已开课 + 欠账 + 超 7 天没动静；
+  // 基于 pool 计算（看板与 topbar 数据范围独立，不受 state 视图过滤影响）
+  const overdueSubs = [];
+  students.filter(s=>!s.archived && s.subjPlans).forEach(st=>{
+    Object.keys(st.subjPlans).forEach(sub=>{
+      const info = subjectOverdueInfo(st, sub, pool);
+      if(info) overdueSubs.push({ refKey: st.id + '|' + sub, name: st.name, ownerId: st.ownerId, subject: sub,
+        days: info.days, owed: info.owed });
+    });
+  });
+  overdueSubs.sort((a,b)=>b.days-a.days);  // 最久没动静在前
 
   // 近 30 天录入趋势：始终画 30 天，受助教筛选影响
   const trend = [];
@@ -43,7 +53,9 @@ function computeDash(){
       recCnt: rs.length,
       avg: gradedRecs(rs).length ? Math.round(gradedRecs(rs).reduce((s,r)=>s+acc(r),0)/gradedRecs(rs).length) : null,
       missCnt: ms.filter(m=>!m.resolved).length,
-      overdueCnt: ms.filter(m=>isOverdueMissed(m, pool.students.find(x=>x.id===m.studentId))).length,
+      // 逾期科目数（v1.9.0 科目级口径：该助教名下已开课有欠账且超 7 天没动静的科目数）
+      overdueCnt: pool.students.filter(s=>s.ownerId===u.id && !s.archived && s.subjPlans).reduce((n, st)=>
+        n + Object.keys(st.subjPlans).filter(sub=>subjectOverdue(st, sub, pool)).length, 0),
       lastDate: lastDate,
       silent: !lastDate || lastDate <= offsetDay(-7) };
   }).sort((a,b)=>b.recCnt-a.recCnt);
@@ -83,14 +95,7 @@ function computeDash(){
         .filter(x=>x.avg<60).sort((a,b)=>a.avg-b.avg) };
   }).filter(g=>g.avg !== null && g.avg<60).sort((a,b)=>a.avg-b.avg);
 
-  // 预警二：逾期未交（当前状态指标，不受时间范围影响），按逾期天数降序
-  const overdueList = overdue.map(m=>{
-    const st = pool.students.find(x=>x.id===m.studentId);  // 看板基于 pool，与 topbar 数据范围独立
-    return {
-      id: m.id, name: st ? st.name : '（已删除学生）', ownerId: m.ownerId, subject: m.subject || '', date: m.date,
-      days: Math.max(1, Math.round((new Date(t) - new Date(m.date)) / 86400000))
-    };
-  }).sort((a,b)=>b.days-a.days);
+  // 预警二：逾期科目（v1.9.0 科目级口径；当前状态指标，不受时间范围影响）——overdueSubs 已在上方按没动静天数降序
 
   // 预警三：沉睡学生拆三类（v1.7.1 降噪）——
   //   未开课（所有科目 firstClass 都在未来）：不进预警主列表
@@ -116,10 +121,10 @@ function computeDash(){
     todayRecs: recsOwner.filter(r=>r.date===t).length,
     activeStu: students.filter(s=>!s.archived).length,
     archivedStu: students.filter(s=>s.archived).length,
-    missCnt: openMiss.length, overdueCnt: overdue.length,
+    missCnt: openMiss.length, overdueCnt: overdueSubs.length,  // overdueCnt = 逾期科目数（v1.9.0 科目级口径）
     taWithRecs: tas.filter(u=>recs.some(r=>r.ownerId===u.id)).length, taTotal: tas.length,
     trend: trend, taRows: taRows, cats: cats, subs: subs,
-    lowStus: lowStus, overdueList: overdueList, sleepers: sleepers, firstTimers: firstTimers };
+    lowStus: lowStus, overdueList: overdueSubs, sleepers: sleepers, firstTimers: firstTimers };
 }
 
 function renderDashboard(){
@@ -144,7 +149,8 @@ function renderDashboard(){
     '<div class="quick"><div class="num">' + d.archivedStu + '</div><div class="lbl">已归档学生</div></div>' +
     '<div class="quick"><div class="num">' + d.recCnt + '</div><div class="lbl">范围内录入次数</div></div>' +
     '<div class="quick"><div class="num">' + (d.avgAcc===null?'—':d.avgAcc+'%') + '</div><div class="lbl">范围内平均正确率</div></div>' +
-    '<div class="quick"><div class="num" style="color:' + (d.overdueCnt?'var(--red)':'var(--mint-d)') + '">' + d.missCnt + '</div><div class="lbl">未交次数（逾期 ' + d.overdueCnt + '）</div></div>' +
+    '<div class="quick"><div class="num" style="color:' + (d.missCnt?'var(--red)':'var(--mint-d)') + '">' + d.missCnt + '</div><div class="lbl">未交次数</div></div>' +
+    '<div class="quick"><div class="num" style="color:' + (d.overdueCnt?'var(--red)':'var(--mint-d)') + '">' + d.overdueCnt + '</div><div class="lbl">逾期科目</div></div>' +
     '<div class="quick" style="cursor:pointer" onclick="openTaEntryModal()" title="点击查看助教录入明细"><div class="num">' + d.taWithRecs + '/' + d.taTotal + ' <span style="font-size:14px;color:var(--ink2)">›</span></div><div class="lbl">有录入助教/助教总数</div></div>' +
     '<div class="quick"><div class="num">' + d.todayRecs + '</div><div class="lbl">今日已录入</div></div>';
   animateNums(document.getElementById('dash-overview'));  // 数字滚动动画（桩环境/减动效直接终值）
@@ -176,7 +182,7 @@ function renderDashboard(){
     (x.avg===null
       ? '<span class="acc-badge" style="background:var(--cream2);color:var(--ink2)">未录入</span>'
       : '<span class="acc-badge ' + accClass(x.avg) + '">' + x.avg + '%</span>') +
-    '<span class="dash-ta-num">未交 ' + x.missCnt + (x.overdueCnt ? '（逾期 <b style="color:var(--red)">' + x.overdueCnt + '</b>）' : '') + '</span>' +
+    '<span class="dash-ta-num">未交 ' + x.missCnt + (x.overdueCnt ? ' · 逾期科目 <b style="color:var(--red)">' + x.overdueCnt + '</b>' : '') + '</span>' +
     '</div>').join('') : '<p class="hint">暂无助教账号。</p>';
 
   // 4. 学科维度：一级类目行 + 具体科目条形（复用 subj-row，含 60% 关注线）
@@ -213,10 +219,10 @@ function renderDashboard(){
     '<div class="meta">归属 ' + esc(ownerName(g.ownerId)) +
     (g.lowSubs.length ? ' · 低分科目：' + g.lowSubs.map(s=>esc(s.name) + ' ' + s.avg + '%').join('、') : '') + '</div>' +
     '</button>');
-  document.getElementById('dash-alert-miss').innerHTML = renderAlertList(d.overdueList, 'miss', '没有逾期未交的作业。', x=>
+  document.getElementById('dash-alert-miss').innerHTML = renderAlertList(d.overdueList, 'miss', '没有逾期科目。', x=>
     '<button class="dash-alert-item" onclick="switchTab(\'today\')">' +
-    '<b>' + esc(x.name) + '</b> <span class="tag red">逾期 ' + x.days + ' 天</span>' +
-    '<div class="meta">归属 ' + esc(ownerName(x.ownerId)) + (x.subject ? ' · ' + esc(shortSubject(x.subject)) : '') + ' · ' + x.date + '</div>' +
+    '<b>' + esc(x.name) + '</b> <span class="tag red">欠 ' + x.owed + ' 次 · ' + x.days + ' 天没动静</span>' +
+    '<div class="meta">归属 ' + esc(ownerName(x.ownerId)) + ' · ' + esc(shortSubject(x.subject)) + '</div>' +
     '</button>');
   document.getElementById('dash-alert-sleep').innerHTML = renderAlertList(d.sleepers, 'sleep', '没有沉睡学生。', x=>
     '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(jsStr(x.name)) + '\')">' +
@@ -366,7 +372,7 @@ window.__wb = {
   qePanelHtml, reportHtml, renderToday, saveSubjectAdvice, gotoPlanEntry, doLoadSampleData, renderMotto, toggleSalesSubject,
   saveSubjectComment, saveMockScore, confirmAddSubject,
   renderDoneZone, doneZoneToggle, resolveMissed,
-  isOverdueMissed, addDays, editFirstClass, saveFirstClass, openMissSubjectPicker, confirmMissSubject,
+  subjectOverdue, subjectOverdueInfo, unresolvedMissCount, addDays, editFirstClass, saveFirstClass, openMissSubjectPicker, confirmMissSubject,
   toggleSalesSubjectApi, fileUrl, renderAuditApi, resyncState,
   get salesSubjApi(){ return salesSubjApi; },
   logAction, visibleAuditLogs, renderAudit, auditLoadMore,

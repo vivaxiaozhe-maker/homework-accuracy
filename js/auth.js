@@ -574,10 +574,10 @@ function renderAlumni(){
         const mockSt = (repStuCmt && repStuCmt.mock && repStuCmt.mock[k]) || {};
         const mockDate = mockSt.date || '';
         const mockScore = (mockSt.score!==undefined && mockSt.score!==null && mockSt.score!=='') ? mockSt.score : null;
-        const omc = overdueMissCount(g.ids, k);
+        const omc = unresolvedMissCount(g.ids, k);  // v1.9.0：角标 = 未交未处理次数（不再叫逾期）
         return '<span class="sub-chip' + (isActive?' active':'') + '" tabindex="0" onclick="toggleQuickEntry(\'' + esc(jsStr(s.id)) + '\',\'' + esc(jsStr(k)) + '\')" title="点击查看该科目打卡情况、评语与模考">' +
           '<span class="sub-name">' + esc(shortSubject(k)) + '</span>' +
-          (omc>=2 ? '<span class="sub-alert" title="该科目有 ' + omc + ' 次逾期未交作业">!</span>' : '') +
+          (omc>=2 ? '<span class="sub-alert" title="该科目有 ' + omc + ' 次未交作业未处理">!</span>' : '') +
           (hasCmt ? '<span class="sub-cmt-dot" title="已有老师评语"></span>' : '') +
           (mockDate ? (isMockExpired(mockDate)
             ? '<span class="mock-tag expired" title="预约日期已过（' + esc(mockDate) + '），可修改日期或取消预约">已过期·' + esc(mockDate.slice(5)) + '</span>'
@@ -1060,7 +1060,7 @@ function renderDoneZone(){
       const parts = String(a.refKey).split('|');
       const st = pool.students.find(x=>x.id===parts[0]);
       name = st ? st.name : '（已删除学生）'; subject = parts.slice(1).join('|');
-      reason = a.kind==='lowAcc' ? '正确率偏低预警' : '计划停滞预警';
+      reason = a.kind==='lowAcc' ? '正确率偏低预警' : '逾期预警';  // v1.9.0：planStall kind 的 UI 文案改「逾期」（kind 名不变，存量动作不失效）
     }
     items.push({ kind:'alert', at:a.createdAt.slice(0,10), action:a.action,
       name:name, subject:subject, reason:reason, actor:a.actorName || '未知', note: a.note || '' });
