@@ -49,7 +49,16 @@ function computeDash(){
     const ms = pool.missed.filter(m=>m.ownerId===u.id);
     const allRs = pool.records.filter(r=>r.ownerId===u.id);
     const lastDate = allRs.length ? allRs.reduce((a,b)=>a.date>b.date?a:b).date : null;
-    return { user:u, stuCnt: pool.students.filter(s=>s.ownerId===u.id && !s.archived).length,
+    // 全量覆盖指标（v1.9.2，不随时间范围筛选）：实际录入 = 成绩记录 + 未交登记（不含已删除的未交）
+    const stuActive = pool.students.filter(s=>s.ownerId===u.id && !s.archived);
+    const hasEntry = st => pool.records.some(r=>r.studentId===st.id) || pool.missed.some(m=>m.studentId===st.id && m.resolution!=='deleted');
+    const stuWithEntry = stuActive.filter(hasEntry);
+    const entryCnt = allRs.length + pool.missed.filter(m=>m.ownerId===u.id && m.resolution!=='deleted').length;
+    const planTotal = stuActive.reduce((n,st)=> n + Object.values(st.subjPlans||{}).reduce((x,y)=>x+(Number(y)||0),0), 0);
+    return { user:u, stuCnt: stuActive.length,
+      stuCover: stuActive.length ? Math.round(stuWithEntry.length/stuActive.length*100) : null,  // 学生覆盖率
+      entryCover: planTotal>0 ? Math.round(entryCnt/planTotal*100) : null,  // 作业录入覆盖率（实际/应完成计划次数）
+      perStu: stuWithEntry.length ? (entryCnt/stuWithEntry.length).toFixed(1) : null,  // 人均录入次数（实际录入/有录入学生）
       recCnt: rs.length,
       avg: gradedRecs(rs).length ? Math.round(gradedRecs(rs).reduce((s,r)=>s+acc(r),0)/gradedRecs(rs).length) : null,
       missCnt: ms.filter(m=>!m.resolved).length,
@@ -176,7 +185,11 @@ function renderDashboard(){
     '<div class="grow"><b>' + esc(x.user.name) + '</b>' +
     (x.user.disabled ? ' <span class="tag red">已停用</span>' : '') +
     (x.silent ? ' <span class="tag amber">沉默</span>' : '') +
-    '<div class="hint" style="margin-top:2px">学生 ' + x.stuCnt + ' 人 · 最近录入 ' + (x.lastDate || '从未') + '</div></div>' +
+    '<div class="hint" style="margin-top:2px">学生 ' + x.stuCnt + ' 人 · 最近录入 ' + (x.lastDate || '从未') + '</div>' +
+    // 全量覆盖指标（v1.9.2）：学生覆盖率 / 作业录入覆盖率 / 人均录入次数（实际录入含未交登记）
+    '<div class="hint" style="margin-top:2px;font-size:12px">学生覆盖 ' + (x.stuCover===null?'—':x.stuCover+'%') +
+    ' · 录入覆盖 ' + (x.entryCover===null?'—':x.entryCover+'%') +
+    ' · 人均 ' + (x.perStu===null?'—':x.perStu) + ' 次<span style="opacity:.7">（全量）</span></div></div>' +
     '<div class="dash-ta-bar"><div class="dash-ta-fill" style="width:' + (maxTa ? Math.round(x.recCnt/maxTa*100) : 0) + '%"></div></div>' +
     '<span class="dash-ta-num">录入 ' + x.recCnt + ' 次</span>' +
     (x.avg===null

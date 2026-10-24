@@ -66,8 +66,20 @@ function ok(cond, name){
   const stuA2 = r.data.student.id;  // ta2 的林小满
   r = await req('POST', '/api/students', { name: '陈星宇', school: '', gradYear: '2026' }, T2);
   const stuB = r.data.student.id;
+  /* ---- 查重规则（v1.9.2）：拉丁不区分大小写；中文简繁视为不同姓名 ---- */
+  r = await req('POST', '/api/students', { name: 'Alice', gradYear: '2027' }, T1);
+  ok(r.status === 200, '创建英文名 Alice 成功');
+  r = await req('POST', '/api/students', { name: 'alice', gradYear: '2027' }, T1);
+  ok(r.status === 400, '大小写变体 alice 判重（不区分大小写）');
+  r = await req('POST', '/api/students', { name: 'ALICE', gradYear: '2027' }, T1);
+  ok(r.status === 400, '全大写 ALICE 同样判重');
+  r = await req('POST', '/api/students', { name: '张', gradYear: '2027' }, T1);
+  ok(r.status === 200, '创建简体「张」成功');
+  r = await req('POST', '/api/students', { name: '張', gradYear: '2027' }, T1);
+  ok(r.status === 200, '繁体「張」与简体「张」视为不同姓名，允许并存');
   // 同名组同步：往库里塞一条 ta1 同名旧档（模拟历史遗留同名合并组）
   const db = require('../db');
+  db.prepare("DELETE FROM students WHERE name IN ('Alice','张','張')").run();  // 清理查重测试数据：不干扰后续「归档后全量 archived」断言
   db.prepare("INSERT INTO students (id, owner_id, name, school, grad_year, archived, sample, created_at) VALUES ('s_dup', ?, '林小满', '', '2027', 0, 0, ?)")
     .run(ta1.user.id, new Date().toISOString());
   r = await req('PUT', '/api/students/' + stuA, { name: '林小满', school: '深圳外国语', gradYear: '2028' }, T1);

@@ -427,8 +427,8 @@ document.getElementById('ns-ok').addEventListener('click', ()=>{
     // 越权防护：只能编辑可见范围内的学生
     const denied = editStuIds.some(id=>{ const s = pool.students.find(x=>x.id===id); return !s || !canWriteOwner(s.ownerId); });
     if(denied){ toast('没有权限操作该数据'); return; }
-    // 编辑模式：同名冲突检查（排除本组）
-    const clash = activeStudents().some(s=>!editStuIds.includes(s.id) && s.name.trim()===name);
+    // 编辑模式：同名冲突检查（排除本组）；拉丁字母不区分大小写，中文简繁视为不同姓名
+    const clash = activeStudents().some(s=>!editStuIds.includes(s.id) && s.name.trim().toLowerCase()===name.toLowerCase());
     if(clash){ toast('已有另一位同名学生「' + name + '」，不能改成相同姓名。'); return; }
     pool.students.forEach(s=>{ if(editStuIds.includes(s.id)){ s.name = name; s.school = school; s.gradYear = gradYear; } });
     const firstStu = pool.students.find(x=>editStuIds.includes(x.id));
@@ -436,7 +436,7 @@ document.getElementById('ns-ok').addEventListener('click', ()=>{
     apiPersist(HttpApi.updateStudent(editStuIds[0], {name: name, school: school, gradYear: gradYear}));  // 后端会同步同名组
   } else {
     if(!canWriteOwner(writeOwnerId())){ toast('没有权限操作该数据'); return; }  // 销售等只读角色不可新增
-    if(activeStudents().some(s=>s.name.trim()===name)){ toast('「' + name + '」已在现有学生中，同名不能重复录入。'); return; }
+    if(activeStudents().some(s=>s.name.trim().toLowerCase()===name.toLowerCase())){ toast('「' + name + '」已在现有学生中，同名不能重复录入。'); return; }
     const newStu = {id:uid(), name, school, gradYear, ownerId:writeOwnerId()};
     pool.students.push(newStu);
     logAction('新增学生', 'student', name, (school || '无学校') + (gradYear ? ' · ' + gradYear + ' 届' : ''));

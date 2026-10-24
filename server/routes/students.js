@@ -16,7 +16,8 @@ router.post('/', (req, res) => {
   if(!name || !name.trim()) return res.status(400).json({ ok: false, msg: '请输入学生姓名' });
   if(!gradYear) return res.status(400).json({ ok: false, msg: '请选择毕业年份' });
   const ownerId = req.user.id;  // 助教/教务新建都归自己名下（前端口径）
-  const clash = db.prepare('SELECT 1 FROM students WHERE owner_id = ? AND archived = 0 AND TRIM(name) = ?')
+  // 查重：拼音/英文不区分大小写（SQLite LOWER 仅影响 ASCII 拉丁），中文简繁因码点不同自然视为不同姓名
+  const clash = db.prepare('SELECT 1 FROM students WHERE owner_id = ? AND archived = 0 AND LOWER(TRIM(name)) = LOWER(?)')
     .get(ownerId, name.trim());
   if(clash) return res.status(400).json({ ok: false, msg: '「' + name.trim() + '」已在现有学生中，同名不能重复录入' });
   // 客户端可选 id（贯穿式，前端不再回填替换）；未传走服务端生成
@@ -44,7 +45,7 @@ router.put('/:id', (req, res) => {
   const group = db.prepare('SELECT id FROM students WHERE owner_id = ? AND archived = 0 AND TRIM(name) = ?')
     .all(st.owner_id, st.name.trim()).map(r => r.id);
   if(newName !== st.name.trim()){
-    const clash = db.prepare('SELECT 1 FROM students WHERE owner_id = ? AND archived = 0 AND TRIM(name) = ? AND id NOT IN (' + group.map(() => '?').join(',') + ')')
+    const clash = db.prepare('SELECT 1 FROM students WHERE owner_id = ? AND archived = 0 AND LOWER(TRIM(name)) = LOWER(?) AND id NOT IN (' + group.map(() => '?').join(',') + ')')
       .get(st.owner_id, newName, ...group);
     if(clash) return res.status(400).json({ ok: false, msg: '已有另一位同名学生「' + newName + '」，不能改成相同姓名' });
   }
