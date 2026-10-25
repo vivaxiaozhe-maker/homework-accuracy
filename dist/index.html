@@ -44,7 +44,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.9.2</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.9.3</div>
   </aside>
 
   <main>
@@ -125,7 +125,7 @@
             <div id="dash-alert-low"></div>
           </div>
           <div>
-            <h3>逾期科目（已开课有欠账 · 超 7 天没动静）</h3>
+            <h3 id="dash-overdue-title">逾期科目（已开课有欠账 · 超 14 天没动静）</h3>
             <div id="dash-alert-miss"></div>
           </div>
           <div>
@@ -215,6 +215,15 @@
         <div class="push-cfg-row"><span>模考成绩通知<small>（保存结课模考分数时）</small></span>
           <span class="push-max"><button class="push-max-btn" onclick="pushMaxStep('mockScore',-1)" aria-label="减少">−</button><span class="push-max-num" id="push-max-mockScore">3</span><span class="push-max-unit">次/10分钟</span><button class="push-max-btn" onclick="pushMaxStep('mockScore',1)" aria-label="增加">＋</button></span>
           <button class="switch" id="push-cfg-mockScore" onclick="togglePushConfig('mockScore')" aria-label="模考成绩通知开关"></button></div>
+      </div>
+      <!-- 作业设置（仅教务可见可改；全系统共享） -->
+      <div class="card" id="homework-cycle-card" style="display:none">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>作业设置</h2>
+        <p class="hint" style="margin-top:0">作业周期用于逾期判定：科目已开课且有欠账，超过设定天数没有成绩、未交登记或计划调整时进入「逾期」。修改后全系统即时生效。</p>
+        <div class="form-grid">
+          <div class="field"><label for="homework-cycle-days">作业周期天数（1～30 天）</label><input id="homework-cycle-days" type="number" min="1" max="30" step="1" value="14" inputmode="numeric"></div>
+        </div>
+        <div style="margin-top:12px"><button class="btn mint sm" id="btn-save-homework-cycle" onclick="saveHomeworkCycle()">保存作业周期</button></div>
       </div>
       <!-- 科目设置（仅教务可见）：三级科目树维护，编辑草稿整体保存 -->
       <div class="card" id="subj-mgmt-card" style="display:none">
@@ -528,7 +537,7 @@
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.9.2</div>
+    <div class="login-ver" id="login-ver">v1.9.3</div>
   </div>
 </div>
 

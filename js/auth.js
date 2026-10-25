@@ -188,6 +188,36 @@ async function pushMaxStep(k, d){
   if(ok) toast('已设为每 10 分钟最多 ' + next + ' 次');
 }
 
+/* ================= 作业周期（教务管理页；全系统共享，默认 14 天） ================= */
+function renderHomeworkCycle(){
+  const card = document.getElementById('homework-cycle-card');
+  if(card) card.style.display = isAdminView() ? '' : 'none';
+  const input = document.getElementById('homework-cycle-days');
+  if(input) input.value = String(homeworkCycleDays);
+  const title = document.getElementById('dash-overdue-title');
+  if(title) title.textContent = '逾期科目（已开课有欠账 · 超 ' + homeworkCycleDays + ' 天没动静）';
+}
+async function refreshHomeworkCycle(){
+  const r = await Api.getHomeworkCycle();
+  if(r && r.ok) homeworkCycleDays = normalizeHomeworkCycle(r.days);
+  renderHomeworkCycle();
+  renderToday();
+  renderDashboard();
+}
+async function saveHomeworkCycle(){
+  if(!isAdminView()) return;
+  const input = document.getElementById('homework-cycle-days');
+  const days = Number(input.value.trim());
+  if(!Number.isInteger(days) || days < 1 || days > 30){ toast('作业周期必须为 1～30 天的整数'); return; }
+  const r = await Api.saveHomeworkCycle(days);
+  if(!r.ok){ toast(r.msg || '保存失败'); return; }
+  homeworkCycleDays = r.days;
+  renderHomeworkCycle();
+  renderToday();
+  renderDashboard();
+  toast('作业周期已设为 ' + days + ' 天');
+}
+
 /* ================= 科目重命名 ================= */
 let renaming = null;  // {gid: 学生代表id, subject: 科目路径}
 function startRenameSubject(gid, subject, ev){

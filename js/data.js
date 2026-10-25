@@ -20,8 +20,15 @@ const LS_USERS = 'wb_ha_v2_users';
 const LS_DATA  = 'wb_ha_v2_data';
 const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
+const LS_HOMEWORK_CYCLE = 'wb_ha_v2_homework_cycle';  // mock 模式作业周期（API 模式以服务端 settings 为准）
 const LS_DELETED_USERS = 'wb_ha_v2_deleted_users';  // 账号删除 tombstone（v1.9.2 NEW-01）：用户名永久锁定
-const APP_VERSION = 'v1.9.2';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.9.3';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const HOMEWORK_CYCLE_DEFAULT = 14;
+let homeworkCycleDays = HOMEWORK_CYCLE_DEFAULT;  // 全局作业周期：逾期判定的无动态天数（1–30 天）
+function normalizeHomeworkCycle(v){
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= 30 ? n : HOMEWORK_CYCLE_DEFAULT;
+}
 let pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [], alertActions: [] };   // 全量数据池（每条数据带 ownerId = 归属助教 id；planRequests = 计划次数修改申请；auditLogs = 操作审计日志；alertActions = 待办预警动作）
 let state = { students: [], records: [], missed: [] };  // 当前视图（viewState 过滤结果，元素与 pool 共享引用）
 let currentUser = null;   // 当前登录用户对象
@@ -356,6 +363,16 @@ const LocalApi = {
     logAction('更新科目树', 'data', '科目管理', '一级分类 ' + Object.keys(tree).length + ' 个');
     return { ok:true };
   },
+  // GET/PUT /api/homework-cycle：mock 模式全局作业周期，默认 14 天
+  getHomeworkCycle(){
+    return { ok:true, days:normalizeHomeworkCycle(localStorage.getItem(LS_HOMEWORK_CYCLE)) };
+  },
+  saveHomeworkCycle(days){
+    if(!Number.isInteger(days) || days < 1 || days > 30) return {ok:false, msg:'作业周期必须为 1～30 天的整数'};
+    localStorage.setItem(LS_HOMEWORK_CYCLE, String(days));
+    logAction('修改作业周期', 'data', '作业设置', '作业周期：' + days + ' 天');
+    return {ok:true, days};
+  },
   // POST /api/students/:id/owner（学生 + 其作业记录 + 未交记录一并改 ownerId）
   transferStudent(ids, newOwnerId){
     const t = this._loadUsers().find(x=>x.id===newOwnerId);
@@ -607,6 +624,9 @@ const HttpApi = {
   getSubjects(){ return this._req('GET', '/api/subjects'); },
   // PUT /api/subjects（仅教务，整体替换）
   saveSubjects(tree){ return this._req('PUT', '/api/subjects', { tree: tree }); },
+  // GET/PUT /api/homework-cycle（全角色可读，仅教务可改）
+  getHomeworkCycle(){ return this._req('GET', '/api/homework-cycle'); },
+  saveHomeworkCycle(days){ return this._req('PUT', '/api/homework-cycle', { days: days }); },
   // 计划申请的 pending 查询是纯前端过滤（pool 已从服务端同步），两种模式一致
   pendingPlanRequest(studentId, subject){ return LocalApi.pendingPlanRequest(studentId, subject); },
   /* ---- M5b：业务写路径（乐观本地更新 + 异步持久化 + 失败重取回滚） ---- */

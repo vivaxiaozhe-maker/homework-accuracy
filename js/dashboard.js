@@ -19,7 +19,7 @@ function computeDash(){
   // 已归档学生的未交不算逾期（学习已结束，不再催办）
   const isActiveMissed = m => { const st = pool.students.find(x=>x.id===m.studentId); return !(st && st.archived); };
   const openMiss = missed.filter(m=>!m.resolved && isActiveMissed(m));
-  // 逾期（v1.9.0 科目级口径，与首页同函数 subjectOverdueInfo）：已开课 + 欠账 + 超 7 天没动静；
+  // 逾期（v1.9.0 科目级口径，与首页同函数 subjectOverdueInfo）：已开课 + 欠账 + 超过作业周期没动静；
   // 基于 pool 计算（看板与 topbar 数据范围独立，不受 state 视图过滤影响）
   const overdueSubs = [];
   students.filter(s=>!s.archived && s.subjPlans).forEach(st=>{
@@ -62,7 +62,7 @@ function computeDash(){
       recCnt: rs.length,
       avg: gradedRecs(rs).length ? Math.round(gradedRecs(rs).reduce((s,r)=>s+acc(r),0)/gradedRecs(rs).length) : null,
       missCnt: ms.filter(m=>!m.resolved).length,
-      // 逾期科目数（v1.9.0 科目级口径：该助教名下已开课有欠账且超 7 天没动静的科目数）
+      // 逾期科目数（v1.9.0 科目级口径：该助教名下已开课有欠账且超过作业周期没动静的科目数）
       overdueCnt: pool.students.filter(s=>s.ownerId===u.id && !s.archived && s.subjPlans).reduce((n, st)=>
         n + Object.keys(st.subjPlans).filter(sub=>subjectOverdue(st, sub, pool)).length, 0),
       lastDate: lastDate,
@@ -308,6 +308,7 @@ function renderAll(){
   if(isAdminView()){ renderAccounts(); renderPlanRequests(); }
   refreshUnbindRequests();  // 解绑审批区 + 红点合计（异步自取数自渲染；mock 恒空）
   refreshPushConfig();      // 微信自动推送开关卡（仅教务 + API 模式显示；内部含守卫）
+  refreshHomeworkCycle();   // 全局作业周期（全角色读取；仅教务可改，内部含展示守卫）
   renderDashboard();  // 内部含教务守卫，助教端自动清空看板内容
   renderAudit();      // 内部含角色守卫（销售/未登录不产出）
   renderSubjectMgmt();  // 科目管理卡片（内部含教务守卫）

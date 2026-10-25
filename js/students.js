@@ -1,7 +1,7 @@
 /* 学生侧业务：今日概览、科目树数据源、学生统计与图表、销售端只读视图、作业录入打卡、计划次数审批申请 */
 /* ================= 今日概览（v1.5.0 分组改版） =================
    三组预警按优先级排列（v1.9.0 口径重定义）：未交 > 逾期 > 正确率偏低；
-   未交 = 登记了「未交」的作业（永久未交，不再随时间升级）；逾期 = 科目级欠账（已开课 + 欠 N 次 + 超 7 天没动静，原「计划停滞」合并进来）；
+   未交 = 登记了「未交」的作业（永久未交，不再随时间升级）；逾期 = 科目级欠账（已开课 + 欠 N 次 + 超过作业周期没动静，原「计划停滞」合并进来）；
    默认只展开最紧急的非空组，其余折叠显示组头+数量；顶部计数条点击展开对应分组并滚动定位。
    行操作：查看记录（跳该生该科目打卡面板）/ 稍后处理（snooze 当天有效，明天再出现）/ 完成（done，进已处理事项）。
    未交行的完成路径 = 去补录（现有补录流），删除未交保留；归档学生不进任何分组。
@@ -121,7 +121,7 @@ function renderToday(){
   const lowRows = Object.values(lowMap)
     .filter(x=>!isDoneAlert(amap, 'lowAcc', x.refKey) && !snoozedToday(amap, 'lowAcc', x.refKey));
 
-  // ---- 逾期（v1.9.0 科目级，原「计划停滞」合并进来）：已开课 + 欠账（已完成<应完成）+ 最近活跃 > 7 天。
+  // ---- 逾期（v1.9.0 科目级，原「计划停滞」合并进来）：已开课 + 欠账（已完成<应完成）+ 最近活跃超过作业周期。
   //      refKey/kind 沿用 planStall（存量 done/snooze/搁置动作不失效，已处理预警不重现）----
   const overdueRows = [];
   state.students.filter(s=>!s.archived && s.subjPlans).forEach(st=>{
@@ -188,7 +188,7 @@ function renderToday(){
   // ---- 分组 + 计数条（v1.9.0：三组，优先级 未交 > 逾期 > 正确率偏低）----
   const groups = [
     { key:'miss', label:'未交', sub:'登记了「未交」的作业，补录或删除后出清；家长侧暂不可控可搁置', rows: missRows, render: renderMissRow, ownerOf: m=>m.ownerId },
-    { key:'overdue', label:'逾期', sub:'科目已开课且有欠账，超过 7 天没动静', rows: overdueRows, render: renderOverdueRow, ownerOf: x=>x.st.ownerId },
+    { key:'overdue', label:'逾期', sub:'科目已开课且有欠账，超过 ' + homeworkCycleDays + ' 天没动静', rows: overdueRows, render: renderOverdueRow, ownerOf: x=>x.st.ownerId },
     { key:'lowAcc', label:'正确率偏低', sub:'近 7 天有成绩记录平均正确率低于 60%', rows: lowRows, render: renderLowRow, ownerOf: x=>x.rec.ownerId }
   ];
   const nonEmpty = groups.filter(g=>g.rows.length);

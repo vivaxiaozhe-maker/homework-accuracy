@@ -94,7 +94,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.9.2', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.9.3', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -679,6 +679,27 @@ function ok(cond, name){
   ok(doneR.ok, '预警完成接口成功');
   await wb.resyncState();
   ok((wb.pool.alertActions || []).filter(a=>a.refKey===alertMiss.missed.id).length === 2, '同一 ref_key 两条动作均同步（前端取最新生效）');
+
+  /* ---- v1.9.3：全局作业周期 API（默认 14、范围校验、仅教务可改） ---- */
+  let cycleR = await wb.HttpApi._req('GET', '/api/homework-cycle');
+  ok(cycleR.ok && cycleR.days === 14, '作业周期默认 14 天（助教可读）');
+  cycleR = await wb.HttpApi._req('PUT', '/api/homework-cycle', { days: 21 });
+  ok(!cycleR.ok && cycleR.msg === '没有权限', '助教不能修改作业周期（403）');
+  await wb.doLogin('admin', 'admin456', 'admin');
+  for(const bad of [0, 31, 14.5, '14']){
+    cycleR = await wb.HttpApi._req('PUT', '/api/homework-cycle', { days: bad });
+    ok(!cycleR.ok && cycleR.msg.indexOf('1～30') !== -1, '作业周期拒绝非法值 ' + JSON.stringify(bad) + '（400）');
+  }
+  cycleR = await wb.HttpApi._req('PUT', '/api/homework-cycle', { days: 21 });
+  ok(cycleR.ok && cycleR.days === 21, '教务可修改作业周期为 21 天');
+  cycleR = await wb.HttpApi._req('GET', '/api/homework-cycle');
+  ok(cycleR.days === 21 && require('../server/db.js').prepare("SELECT value FROM settings WHERE key = 'homework_cycle_days'").get().value === '21',
+    '作业周期写入 settings 并可重新读取');
+  await wb.HttpApi._req('PUT', '/api/homework-cycle', { days: 14 });
+  await vm.runInContext('refreshHomeworkCycle()', ctx);
+  ok(documentStub.getElementById('homework-cycle-days').value === '14'
+    && documentStub.getElementById('dash-overdue-title').textContent.indexOf('超 14 天') !== -1,
+    '作业周期同步到教务设置输入框与看板口径标题');
 
   /* ---- v1.9.2：科目级逾期端到端（plan/set → 推远活跃日 → 今日概览「逾期」组出现） ---- */
   await wb.HttpApi.addStudent({ id: 'e2e-od-stu', name: '逾期口径生', gradYear: '2027' });

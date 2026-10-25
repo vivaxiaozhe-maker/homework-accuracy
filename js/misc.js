@@ -162,7 +162,8 @@ document.body.addEventListener('keydown', function(e){
   }
 });
 /* ---- 逾期统一判定（v1.9.0 科目级口径；v1.8.x 的按未交记录 7 天宽限口径 isOverdueMissed 已废除） ----
-   逾期 = 科目级欠账：已开课（firstClass ≤ 今天）+ 格子没录满（已完成 < 应完成）+ 最近活跃 > 7 天没动静。
+   逾期 = 科目级欠账：已开课（firstClass ≤ 今天）+ 格子没录满（已完成 < 应完成）+ 最近活跃超过作业周期没动静。
+   作业周期为全局设置 homeworkCycleDays（默认 14 天，教务可配 1–30 天）。
    最近活跃 = max(该科目最近成绩日期, 最近未交登记日期, 计划设定日)；无活跃记录（刚建计划等）不立刻催。
    无计划（无「应完成」口径）的科目不算逾期。src 默认 state（首页/学生卡），看板传 pool（dashboard 基于 pool） */
 function addDays(dateStr, n){ const d = new Date(dateStr + 'T00:00:00'); d.setDate(d.getDate() + n); return fmtDate(d); }
@@ -182,7 +183,7 @@ function subjectOverdueInfo(st, sub, src){
   const last = lastRec.concat(lastMiss).concat(setAt ? [setAt] : []).sort().pop();
   if(!last) return null;  // 无活跃记录：刚建计划不立刻催
   const days = Math.round((new Date(t) - new Date(last)) / 86400000);
-  if(days <= 7) return null;
+  if(days <= homeworkCycleDays) return null;
   return { days: days, owed: plan - done, plan: plan, lastActive: last };
 }
 function subjectOverdue(st, sub, src){ return !!subjectOverdueInfo(st, sub, src); }

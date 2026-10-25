@@ -179,7 +179,7 @@ function ok(cond, name){
     && accGrp.indexOf('助教<span class="cnt">') < accGrp.indexOf('销售<span class="cnt">'), '组序：教务管理员 → 助教 → 销售');
   ok(/教务管理员<span class="cnt">1 个账号/.test(accGrp) && /助教<span class="cnt">3 个账号/.test(accGrp)
     && /销售<span class="cnt">1 个账号/.test(accGrp), '分组数量正确（教务 1 / 助教 3 / 销售 1）');
-  ok(html.indexOf('id="login-ver">v1.9.2') !== -1, '登录页版本号升至 v1.9.2');
+  ok(html.indexOf('id="login-ver">v1.9.3') !== -1, '登录页版本号升至 v1.9.3');
 
   /* ---- 账号删除（v1.9.2 NEW-01，mock 与 API 同规则）：tombstone + 阻断式 + 用户名锁定 ---- */
   {
@@ -768,11 +768,11 @@ function ok(cond, name){
   wb.doLogout();
   await wb.doLogin('ta1', 'ta123456', 'ta');
   const dAgo = n => vm.runInContext('offsetDay(' + n + ')', ctx);
-  // al-s1：计划 5 次、已开课 30 天、1 条 20 天前成绩 + 两条未交（-10/-1）→ 未交 2 条 + 逾期 1 科（欠 4 次 · 10 天没动静）
+  // al-s1：计划 5 次、已开课 30 天、1 条 20 天前成绩 + 两条未交（-20/-1）→ 未交 2 条 + 逾期 1 科（欠 4 次 · 20 天没动静）
   wb.pool.students.push({id:'al-s1', name:'预警测试生', ownerId:ta1.id,
     subjPlans:{'学科 / AP / 统计':5}, subjPlanSetAt:{'学科 / AP / 统计':dAgo(-30)}, subjFirstClass:{'学科 / AP / 统计': dAgo(-30)}});
   wb.pool.records.push({id:'al-r0', studentId:'al-s1', date:dAgo(-20), total:10, correct:9, wrongs:[], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
-  wb.pool.missed.push({id:'al-m1', studentId:'al-s1', date:dAgo(-10), subject:'学科 / AP / 统计', resolved:false, ownerId:ta1.id});
+  wb.pool.missed.push({id:'al-m1', studentId:'al-s1', date:dAgo(-20), subject:'学科 / AP / 统计', resolved:false, ownerId:ta1.id});
   wb.pool.missed.push({id:'al-m2', studentId:'al-s1', date:dAgo(-1), subject:'竞赛 / AMC10', resolved:false, ownerId:ta1.id});  // 另一科目：不刷新「统计」活跃度
   wb.refreshView();
   vm.runInContext('todayExpandKey = null', ctx);  // 重置展开状态（登录时已渲染过一轮），让默认展开重新自动选择
@@ -786,13 +786,13 @@ function ok(cond, name){
   ok(todayHtmlA.indexOf('id="today-grp-miss"') < todayHtmlA.indexOf('id="today-grp-overdue"'), '分组按优先级排列（未交在逾期前）');
   ok(/id="today-grp-miss"[\s\S]*?today-grp-body">/.test(todayHtmlA), '默认展开最紧急非空组（未交）');
   ok(/id="today-grp-overdue"[\s\S]*?today-grp-body" style="display:none">/.test(todayHtmlA), '其余组默认折叠');
-  // 未交永不升级：登记超 7 天的 al-m1 仍在未交组，徽章「未交 · 已 N 天」，无宽限/升级文案残留
+  // 未交永不升级：登记超作业周期的 al-m1 仍在未交组，徽章「未交 · 已 N 天」，无宽限/升级文案残留
   const missGrpA = todayHtmlA.split('id="today-grp-miss"')[1].split('id="today-grp-overdue"')[0] || '';
-  ok(missGrpA.indexOf('未交 · 已 10 天') !== -1 && missGrpA.indexOf('未交 · 已 1 天') !== -1, '未交行徽章「未交 · 已 N 天」（-10/-1 天两条，跨科目同组）');
+  ok(missGrpA.indexOf('未交 · 已 20 天') !== -1 && missGrpA.indexOf('未交 · 已 1 天') !== -1, '未交行徽章「未交 · 已 N 天」（-20/-1 天两条，跨科目同组）');
   ok(missGrpA.indexOf('宽限') === -1 && todayHtmlA.indexOf('宽限') === -1, '新口径无「宽限」旧文案残留');
   // 逾期组科目级行：欠 N 次 · M 天没动静
   const odGrpA = todayHtmlA.split('id="today-grp-overdue"')[1] || '';
-  ok(odGrpA.indexOf('欠 4 次 · 10 天没动静') !== -1 && odGrpA.indexOf('>逾期<') !== -1, '逾期行显示「欠 N 次 · M 天没动静」');
+  ok(odGrpA.indexOf('欠 4 次 · 20 天没动静') !== -1 && odGrpA.indexOf('>逾期<') !== -1, '逾期行显示「欠 N 次 · M 天没动静」');
   // 计数条点击切换展开组
   vm.runInContext("todayCatGo('overdue')", ctx);
   ok(/id="today-grp-overdue"[\s\S]*?today-grp-body">/.test(documentStub.getElementById('today-list').innerHTML), '点击计数条展开「逾期」组');
@@ -807,7 +807,7 @@ function ok(cond, name){
   // 完成：二次确认后永久消失 + 已处理区出现「预警完成」
   vm.runInContext("alertDone('miss','al-m1')", ctx);
   documentStub.getElementById('cf-ok').onclick();
-  ok(documentStub.getElementById('today-list').innerHTML.indexOf(dAgo(-10)) === -1, '完成后该未交行不再显示');
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf(dAgo(-20)) === -1, '完成后该未交行不再显示');
   ok(documentStub.getElementById('done-list').innerHTML.indexOf('预警完成') !== -1, '完成记录进「已处理事项」区');
   // 稍后徽章时效（v1.9.2）：snooze 过期后行恢复显示、不再挂旧「稍后至」徽章
   vm.runInContext("(function(){ var a = pool.alertActions.find(x=>x.refKey==='al-m2'); a.snoozeUntil = '" + dAgo(-1) + "'; })()", ctx);
@@ -927,6 +927,22 @@ function ok(cond, name){
   wb.switchTab('data');
   ok(documentStub.getElementById('page-title').textContent === '教务管理', '切到教务管理页，topbar 标题联动');
   ok(documentStub.getElementById('push-config-card').style.display === 'none', 'mock 模式推送开关卡隐藏（演示环境无微信）');
+  /* ---- v1.9.3：作业周期设置（默认 14；1–30 整数；保存后同步逾期口径） ---- */
+  vm.runInContext('renderHomeworkCycle()', ctx);
+  ok(documentStub.getElementById('homework-cycle-card').style.display !== 'none'
+    && documentStub.getElementById('homework-cycle-days').value === '14', '教务管理页显示作业周期设置，默认 14 天');
+  documentStub.getElementById('homework-cycle-days').value = '0';
+  await vm.runInContext('saveHomeworkCycle()', ctx);
+  ok(vm.runInContext('homeworkCycleDays', ctx) === 14 && alerts[alerts.length-1].indexOf('1～30') !== -1,
+    '作业周期越界值不保存并提示 1～30 天');
+  documentStub.getElementById('homework-cycle-days').value = '21';
+  await vm.runInContext('saveHomeworkCycle()', ctx);
+  ok(vm.runInContext('homeworkCycleDays', ctx) === 21
+    && vm.runInContext("localStorage.getItem(LS_HOMEWORK_CYCLE)", ctx) === '21'
+    && documentStub.getElementById('dash-overdue-title').textContent.indexOf('超 21 天') !== -1,
+    '作业周期保存到 mock 存储并同步看板标题');
+  documentStub.getElementById('homework-cycle-days').value = '14';
+  await vm.runInContext('saveHomeworkCycle()', ctx);  // 复位，隔离后续逾期用例
   wb.switchTab('today');
   // 模考区手动推送按钮（已预约 → 推送报名通知；已录分数 → 推送成绩通知）
   bindStu.mock = { '学科 / AP / 微积分BC': { date: '2026-09-25', score: 92 } };
@@ -1153,8 +1169,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.9.2') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.9.2」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.9.3') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.9.3」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -1236,18 +1252,18 @@ function ok(cond, name){
   wb.pool.students.push(lowStu);
   wb.pool.records.push({id:'dash-low-rec', studentId:lowStu.id, date:offDay(0), total:10, correct:3,
     wrongs:[1,2,3,4,5,6,7], subject:'学科 / AP / 物理2', images:[], ownerId:ta1.id});
-  // 科目级逾期：另一科目「统计」计划 5 次、零完成、最近活跃（未交登记）10 天前
+  // 科目级逾期：另一科目「统计」计划 5 次、零完成、最近活跃（未交登记）20 天前
   lowStu.subjFirstClass = {'学科 / AP / 物理2': offDay(-20), '学科 / AP / 统计': offDay(-20)};
   lowStu.subjPlans = {'学科 / AP / 统计': 5};
   lowStu.subjPlanSetAt = {'学科 / AP / 统计': offDay(-20)};
-  wb.pool.missed.push({id:'dash-od-miss', studentId:lowStu.id, date:offDay(-10), resolved:false,
+  wb.pool.missed.push({id:'dash-od-miss', studentId:lowStu.id, date:offDay(-20), resolved:false,
     subject:'学科 / AP / 统计', ownerId:ta1.id});
   wb.pool.students.push({id:'dash-sleep-stu', name:'看板沉睡测试', ownerId:ta2.id});
   wb.renderDashboard();
   const dFix = wb.computeDash();
   ok(dFix.lowStus.some(g=>g.name==='看板低分测试' && g.avg===30), '预警名单：平均 <60% 的低分学生入选');
-  ok(dFix.overdueList.some(x=>x.refKey==='dash-low-stu|学科 / AP / 统计' && x.days===10 && x.owed===5),
-    '预警名单：科目级逾期入选（欠 5 次 · 10 天没动静）');
+  ok(dFix.overdueList.some(x=>x.refKey==='dash-low-stu|学科 / AP / 统计' && x.days===20 && x.owed===5),
+    '预警名单：科目级逾期入选（欠 5 次 · 20 天没动静）');
   ok(dFix.sleepers.some(x=>x.name==='看板沉睡测试' && x.days===null) === false
     && dFix.firstTimers.some(x=>x.name==='看板沉睡测试'),
     '预警名单：从未有记录学生归入「待首录」（不进沉睡预警主列表，v1.9.2 降噪）');
@@ -1496,28 +1512,28 @@ function ok(cond, name){
   Api.reviewPlanRequest(setAtReq.id, true);
   ok(planStu.subjPlanSetAt[planSubj] === todayS && planStu.subjPlans[planSubj] === 32,
     '审批通过时写入 subjPlanSetAt 并生效次数');
-  // 逾期提醒（v1.9.2 科目级口径，ta1 视角）：已开课 + 欠账 + 最近活跃 > 7 天
+  // 逾期提醒（v1.9.3 默认作业周期 14 天，ta1 视角）：已开课 + 欠账 + 最近活跃超过作业周期
   wb.doLogout();
   await wb.doLogin('ta1', 'ta123456', 'ta');
   const stagSubj = '学科 / AP / 化学';
   planStu.subjPlans[stagSubj] = 5;
-  planStu.subjPlanSetAt[stagSubj] = offDay(-8);
+  planStu.subjPlanSetAt[stagSubj] = offDay(-15);
   planStu.subjFirstClass = planStu.subjFirstClass || {};
   planStu.subjFirstClass[stagSubj] = offDay(-30);  // 新口径需已开课（firstClass ≤ 今天）
   wb.refreshView(); wb.renderToday();
   let todayHtml = documentStub.getElementById('today-list').innerHTML;
-  ok(todayHtml.indexOf('AP·化学') !== -1 && todayHtml.indexOf('欠 5 次 · 8 天没动静') !== -1 && todayHtml.indexOf('>逾期<') !== -1,
-    '逾期提醒：已开课 + 欠 5 次 + 8 天没动静 → 出现（欠账与天数正确）');
-  planStu.subjPlanSetAt[stagSubj] = offDay(-6);
+  ok(todayHtml.indexOf('AP·化学') !== -1 && todayHtml.indexOf('欠 5 次 · 15 天没动静') !== -1 && todayHtml.indexOf('>逾期<') !== -1,
+    '逾期提醒：已开课 + 欠 5 次 + 15 天没动静 → 出现（欠账与天数正确）');
+  planStu.subjPlanSetAt[stagSubj] = offDay(-14);
   wb.refreshView(); wb.renderToday();
   todayHtml = documentStub.getElementById('today-list').innerHTML;
-  ok(todayHtml.indexOf('AP·化学') === -1, '逾期提醒：最近活跃 6 天前（≤7 天）→ 不出现');
-  planStu.subjPlanSetAt[stagSubj] = offDay(-8);
+  ok(todayHtml.indexOf('AP·化学') === -1, '逾期提醒：最近活跃 14 天前（≤默认作业周期）→ 不出现');
+  planStu.subjPlanSetAt[stagSubj] = offDay(-15);
   wb.pool.records.push({id:'stag-rec', studentId:planStu.id, date:offDay(-2), total:10, correct:9, wrongs:[4], subject:stagSubj, images:[], ownerId:ta1.id});
   wb.refreshView(); wb.renderToday();
   todayHtml = documentStub.getElementById('today-list').innerHTML;
   ok(todayHtml.indexOf('AP·化学') === -1, '逾期提醒：有更近记录 → 最近活跃刷新，不出现');
-  // 格子录满不催：已完成 ≥ 应完成，即使超 7 天没动静也不算逾期
+  // 格子录满不催：已完成 ≥ 应完成，即使超过作业周期没动静也不算逾期
   wb.pool.records.find(r=>r.id==='stag-rec').date = offDay(-20);  // 把活跃推远，隔离「录满」单条件
   planStu.subjPlans[stagSubj] = 1;
   wb.refreshView(); wb.renderToday();
@@ -1856,8 +1872,13 @@ function ok(cond, name){
     ,{id:'ov-r4', studentId:'ov-s1', date:offDay(-18), total:10, correct:9, subject:'学科 / AP / 微积分BC'}
     ,{id:'ov-r5', studentId:'ov-s1', date:offDay(-17), total:10, correct:9, subject:'学科 / AP / 微积分BC'}
     ,{id:'ov-r6', studentId:'ov-s1', date:offDay(-16), total:10, correct:9, subject:'学科 / AP / 微积分BC'}], missed: [] };
+  ok(vm.runInContext('homeworkCycleDays', ctx) === 14, '逾期判定使用默认作业周期 14 天');
   ok(wb.subjectOverdue(mockStu, '学科 / AP / 微积分BC', emptySrc), '逾期口径：已开课 + 欠账 + 最近活跃（计划设定日）20 天前 → 逾期');
-  ok(!wb.subjectOverdue(mockStu, '学科 / AP / 微积分BC', activeSrc), '逾期口径：最近活跃 3 天前（≤7 天）→ 不逾期');
+  ok(!wb.subjectOverdue({...mockStu, subjPlanSetAt:{'学科 / AP / 微积分BC':offDay(-14)}}, '学科 / AP / 微积分BC', emptySrc),
+    '逾期口径：最近活跃恰好 14 天前（未超过默认作业周期）→ 不逾期');
+  ok(wb.subjectOverdue({...mockStu, subjPlanSetAt:{'学科 / AP / 微积分BC':offDay(-15)}}, '学科 / AP / 微积分BC', emptySrc),
+    '逾期口径：最近活跃 15 天前（超过默认作业周期）→ 逾期');
+  ok(!wb.subjectOverdue(mockStu, '学科 / AP / 微积分BC', activeSrc), '逾期口径：最近活跃 3 天前（≤14 天）→ 不逾期');
   ok(!wb.subjectOverdue(mockStu, '学科 / AP / 微积分BC', fullSrc), '逾期口径：格子录满（已完成 5 ≥ 应完成 5）→ 不催');
   ok(!wb.subjectOverdue({ id:'ov-s1', subjPlans:{'学科 / AP / 微积分BC':5}, subjPlanSetAt:{'学科 / AP / 微积分BC':offDay(-20)},
     subjFirstClass:{'学科 / AP / 微积分BC':offDay(7)} }, '学科 / AP / 微积分BC', emptySrc), '逾期口径：未开课（firstClass 未来）→ 不逾期');
