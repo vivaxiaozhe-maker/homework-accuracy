@@ -5,3 +5,9 @@
 server/node_modules/
 server/data/
 server/uploads/
+
+# UI 验收截图与视觉参考仅保留本地，不提交
+docs/ui-upgrade/evidence/*.png
+docs/ui-upgrade/evidence/*.jpg
+docs/ui-upgrade/evidence/*.jpeg
+test/fixtures/ui-upgrade/visual-reference/

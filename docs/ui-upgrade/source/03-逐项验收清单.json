@@ -1,0 +1,746 @@
+[
+  {
+    "id": "AC-G01",
+    "feature_id": "G01",
+    "scenario": "admin/ta/sales正确与错误角色各测一次；错误提示不泄露账号状态",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-G02",
+    "feature_id": "G02",
+    "scenario": "必须改密状态不能绕过进入业务；密码规则和会话处理与后端一致",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-G03",
+    "feature_id": "G03",
+    "scenario": "刷新可恢复合法会话；过期/停用/退出后写接口拒绝，不退回演示态",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-G04",
+    "feature_id": "G04",
+    "scenario": "health须校验app标识；断网/后端错误不出现可编辑mock数据",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-G05",
+    "feature_id": "G05",
+    "scenario": "销售仅现有/历史；助教无看板/账号；直接调用页面同样不能越权",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-G06",
+    "feature_id": "G06",
+    "scenario": "助教A不能读写B；销售不能通过隐藏按钮或直接接口写入",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-G07",
+    "feature_id": "G07",
+    "scenario": "断网/403/409/500不假成功；刷新后的服务端结果正确，失败草稿保留",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-G08",
+    "feature_id": "G08",
+    "scenario": "业务弹窗内再确认不遮挡；取消无写入；关闭焦点回到触发控件",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-G09",
+    "feature_id": "G09",
+    "scenario": "禁把原型固定日期/人名/助教列表带进生产；长姓名和恶意文本安全显示",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-G10",
+    "feature_id": "G10",
+    "scenario": "示例/生产标识正确；原版本三处同步；备份提示关闭规则保留",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-T01",
+    "feature_id": "T01",
+    "scenario": "四项分别与冻结基线核对，不能用累计完成替代今日录入",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-T02",
+    "feature_id": "T02",
+    "scenario": "审批后计划与待办红点同步；重复/过期申请给冲突反馈",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-T03",
+    "feature_id": "T03",
+    "scenario": "通过才解绑；驳回不改变绑定；无申请时隐藏且不吞入口",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-T04",
+    "feature_id": "T04",
+    "scenario": "分类数按未筛选全集计算；按原优先级默认选最紧急非空组",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-T05",
+    "feature_id": "T05",
+    "scenario": "11位以上助教可用下拉/搜索，无横向挤爆；筛选后页码重置",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-T06",
+    "feature_id": "T06",
+    "scenario": "176条以上仍逐条可达；不把多份未交合成一条后丢日期/科目/记录ID",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-T07",
+    "feature_id": "T07",
+    "scenario": "状态写alerts/action；清待办不删成绩/未交，刷新仍正确",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-T08",
+    "feature_id": "T08",
+    "scenario": "教务首页未交不新增助教专属补录/删除按钮；原有管理处理操作保留",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-T09",
+    "feature_id": "T09",
+    "scenario": "可查稍后/完成/搁置及审批结果；不因列表分页遗漏记录",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-T10",
+    "feature_id": "T10",
+    "scenario": "默认20条/页，20/50可选；首末/跨页/过滤/处理后不跳错对象；全量计数不取当前页",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-T11",
+    "feature_id": "T11",
+    "scenario": "主区域保留审批和分类任务；动态限定条数并能到审计记录",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-D01",
+    "feature_id": "D01",
+    "scenario": "时间和助教组合筛选；显示当前筛选；各模块使用各自明确作用范围",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-D02",
+    "feature_id": "D02",
+    "scenario": "逐项与同一数据集对比；点击有录入助教能开明细，不允许简单删掉4项",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-D03",
+    "feature_id": "D03",
+    "scenario": "明细人数与分母相符；零分母显示横线；不因停用自动删除其历史数据",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-D04",
+    "feature_id": "D04",
+    "scenario": "无作业/未交不算0分；同名跨owner不混；归档学生排除",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-D05",
+    "feature_id": "D05",
+    "scenario": "未开课/无计划/已完成/未超阈值不预警；周期1/14/30及边界均测",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-D06",
+    "feature_id": "D06",
+    "scenario": "长期无更新与从未录入分开；不把未开课学生列红色异常",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-D07",
+    "feature_id": "D07",
+    "scenario": "15/102/207条规模完整可达；完整名单用分页/抽屉；返回保留筛选和位置",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-D08",
+    "feature_id": "D08",
+    "scenario": "计数含无作业、颜色均分只含正常成绩；零数据灰色；日期/次数/均分可读且键盘可访问",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-D09",
+    "feature_id": "D09",
+    "scenario": "学生数/最近日期/学生覆盖/录入覆盖/人均/范围录入/均分/未交/逾期/状态全保留；跨助教对比不因选某助教让其他人归零",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-D10",
+    "feature_id": "D10",
+    "scenario": "四类及任意三级科目均可显示：记录数、简单平均、涉及学生；完整路径作key不靠短名",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-D11",
+    "feature_id": "D11",
+    "scenario": "时间影响录入/均分；逾期/沉睡是当前状态；趋势固定30天；助教对比保持横向全集",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-D12",
+    "feature_id": "D12",
+    "scenario": "允许保留为附加区并分页，不得据此替代D02至D10",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S01",
+    "feature_id": "S01",
+    "scenario": "中文/英文/同名/空白/下划线百分号都测；首字母入口可折叠但不能消失",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S02",
+    "feature_id": "S02",
+    "scenario": "从实际账号和权限数据生成；所有助教可达；无匹配可一键清除",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S03",
+    "feature_id": "S03",
+    "scenario": "教务全体、助教名下、销售不显示；无成绩横线不渲染0分",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S04",
+    "feature_id": "S04",
+    "scenario": "相同日期按稳定ID；翻页后学生身份不跳；同名跨助教不合并写入",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S05",
+    "feature_id": "S05",
+    "scenario": "毕业年份必填；新增归当前登录者；跨助教转移单走教务流程",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S06",
+    "feature_id": "S06",
+    "scenario": "仅教务；转移后新助教可见、旧助教失权；关联与审计保持完整",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S07",
+    "feature_id": "S07",
+    "scenario": "手动科目/仅计划/仅未交/仅无作业均有入口；不删除无分数科目",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S08",
+    "feature_id": "S08",
+    "scenario": "计划/开课/评语/建议/模考/记录/未交键同步且仅目标owner；重名冲突明确",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S09",
+    "feature_id": "S09",
+    "scenario": "首次无需审批；已设计划修改保持既有审批路径，不抄原型单一plan字段",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S10",
+    "feature_id": "S10",
+    "scenario": "待审批不提前改计划；撤回/重复提交/审批后新数据可见",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S11",
+    "feature_id": "S11",
+    "scenario": "未来开课不预警；日期校验不等同作业日期策略",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S12",
+    "feature_id": "S12",
+    "scenario": "格子序号只是显示；不能用记录表吞掉未录入空位及计划进度",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S13",
+    "feature_id": "S13",
+    "scenario": "沿用基线错题输入分隔符及非满分必填，不擅自新增必须逐题完整编号等限制",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S14",
+    "feature_id": "S14",
+    "scenario": "同日/补插/排序/他端删除后编辑仍绑定原记录ID；删除须确认并保留审计",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S15",
+    "feature_id": "S15",
+    "scenario": "四态互斥；日期可改；取消转换恢复输入；报告/看板/销售一致",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S16",
+    "feature_id": "S16",
+    "scenario": "未交不算0分；无作业状态不能同时登记未交；无科目未交可完成补录",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S17",
+    "feature_id": "S17",
+    "scenario": "取消不出清；成绩保存失败不得resolve；失败重试不生成重复成绩",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S18",
+    "feature_id": "S18",
+    "scenario": "跨页/刷新/清空/慢请求继续输入/失败重试；跨账号不串草稿",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S19",
+    "feature_id": "S19",
+    "scenario": "不同科目不能覆盖；空文本可保存；失败不假成功；报告显示正确内容",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S20",
+    "feature_id": "S20",
+    "scenario": "评语/建议独立写入，按键合并；保存后报告与历史只读正确",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S21",
+    "feature_id": "S21",
+    "scenario": "按科目存日期；未来日期允许；取消不清误其他字段；推送结果另行反馈",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S22",
+    "feature_id": "S22",
+    "scenario": "0分与空值区分；按科目保存，不丢其他科目及预约信息",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-S23",
+    "feature_id": "S23",
+    "scenario": "同owner同名组按现有口径归档；记录/计划/模考/评语等全部保留",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-H01",
+    "feature_id": "H01",
+    "scenario": "按真实archivedAt筛选；旧记录缺时间处理明确",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-H02",
+    "feature_id": "H02",
+    "scenario": "空字段不显示误值；长原因可展开且不撑爆表格",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-H03",
+    "feature_id": "H03",
+    "scenario": "所有写入/补录/评语编辑禁用并由服务端守卫；无作业不显示0%",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-H04",
+    "feature_id": "H04",
+    "scenario": "恢复后回现有列表；数据完整；按现行规则清归档元数据",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-H05",
+    "feature_id": "H05",
+    "scenario": "当前预警不含已归档；历史成绩不消失；R04口径问题另批确认修复",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-P01",
+    "feature_id": "P01",
+    "scenario": "长报告多页、无作业/未交/空格子正确；科目和学生不串",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-P02",
+    "feature_id": "P02",
+    "scenario": "长报告分页不裁切；CDN加载失败有兜底，不因新样式污染导出布局",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-P03",
+    "feature_id": "P03",
+    "scenario": "分享记录范围正确；过期/撤销不可看；token不写日志截图；H5不依赖后台登录",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-P04",
+    "feature_id": "P04",
+    "scenario": "未绑定/关闭/限流/失败/部分送达分别提示；保存成功不等同推送成功",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-P05",
+    "feature_id": "P05",
+    "scenario": "二维码绑定原学生；脱敏显示；满2个后拦截不因界面迁移放宽",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-P06",
+    "feature_id": "P06",
+    "scenario": "助教不能直接解绑；pending防重复；审批后列表/数量一致",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-F01",
+    "feature_id": "F01",
+    "scenario": "接口/已有文件能读，更新未传附件不清空；不宣称当前线上存在已验证上传入口",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-F02",
+    "feature_id": "F02",
+    "scenario": "保持图片2MB、PDF4MB、9文件与魔数校验；实际限制实施前重读当前代码；不可因新表单丢历史附件",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-A01",
+    "feature_id": "A01",
+    "scenario": "动态真实账号；账号表不得回传密码；无数据/长用户名可用",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-A02",
+    "feature_id": "A02",
+    "scenario": "生产仅现有可创建角色，不能抄原型新增教务选项；正确处理一次性密码",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-A03",
+    "feature_id": "A03",
+    "scenario": "重置成功才反馈；旧session拒绝；首登改密状态保留",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-A04",
+    "feature_id": "A04",
+    "scenario": "权限守卫和会话吊销保持；不会误停本人或最后可用教务",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-A05",
+    "feature_id": "A05",
+    "scenario": "显示在读/归档/records/missed/files/待批计划/解绑等阻断项，不用前端学生数替代",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-A06",
+    "feature_id": "A06",
+    "scenario": "仅停用ta/sales；事务内再查；409重渲染影响；保留数据与历史身份，禁止新增级联",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-C01",
+    "feature_id": "C01",
+    "scenario": "作业/模考预约/模考成绩分开；显示全站按类型共享；不擅改限流/超额丢弃策略",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-C02",
+    "feature_id": "C02",
+    "scenario": "保存成功后读回，计算函数共用；失败不改当前生效值",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-C03",
+    "feature_id": "C03",
+    "scenario": "删除仅移出菜单不删历史成绩；历史自定义科目仍可查看",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-C04",
+    "feature_id": "C04",
+    "scenario": "JSON原能力保留；CSV只能附加，不能替代备份导出和角色范围",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-C05",
+    "feature_id": "C05",
+    "scenario": "生产隐藏mock专用入口；危险操作独立确认；禁止把测试fixture导入线上",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-C06",
+    "feature_id": "C06",
+    "scenario": "保留现有范围及权限；只在隔离测试执行；线上不得用真实数据验证删除",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-O01",
+    "feature_id": "O01",
+    "scenario": "过滤条件独立组合；结果人数/空态正确；不使用演示日志覆盖真实审计",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-O02",
+    "feature_id": "O02",
+    "scenario": "50/5000/超万日志可浏览；取消过期请求，快切筛选无旧响应覆盖",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-O03",
+    "feature_id": "O03",
+    "scenario": "直接接口校验；删除账号历史身份仍有回退文案",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-O04",
+    "feature_id": "O04",
+    "scenario": "保存/审批/转移/归档/账号操作后审计完整；新UI不得吞detail字段",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-R01",
+    "feature_id": "R01",
+    "scenario": "空查询不拉全量；接口拒绝空关键字；不加载/api/state业务全集",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-R02",
+    "feature_id": "R02",
+    "scenario": "特殊字符既不丢失也不退化为全量查询；模糊查询响应不串结果",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-R03",
+    "feature_id": "R03",
+    "scenario": "仅无作业/仅未交/仅计划科目可进入；无成绩平均横线，不能写入",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-R04",
+    "feature_id": "R04",
+    "scenario": "销售切页和直接调用写API均拒绝，不仅隐藏按钮",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-U01",
+    "feature_id": "U01",
+    "scenario": "1512×716及1280×720使用真实窗口验证，不用整体zoom掩盖问题",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-U02",
+    "feature_id": "U02",
+    "scenario": "长科目、滚动、错误提示后仍知道编辑谁；按实际高度计算sticky偏移",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-U03",
+    "feature_id": "U03",
+    "scenario": "390×844及834宽逐页验收，核心动作不在屏外；不将桌面紧凑尺寸套手机",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  },
+  {
+    "id": "AC-U04",
+    "feature_id": "U04",
+    "scenario": "分类/图表/分页/下钻均键盘可达；错误信息可被读出；颜色之外有状态文字",
+    "role": "依矩阵及当前角色守卫",
+    "status": "NOT_RUN",
+    "evidence": ""
+  }
+]

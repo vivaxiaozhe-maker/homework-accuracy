@@ -88,15 +88,19 @@ async function pushTemplate(user, st, kind, subject, url, slotOverride, isManual
   if(!binds.length) return { err: '该学生未绑定家长微信', status: 400 };
   const data = buildTplData(kind, st, subject, slotOverride);
   if(!data) return { err: '缺少推送所需数据（如模考日期/分数）', status: 400 };
+  // 每个接收人的结果只返回备注名/序号与状态，不返回 openid；全站同类共享限流规则不变
+  const results = binds.map((b, i) => ({ name: b.remark || ('家长 ' + (i + 1)), status: 'pending', reason: '' }));
   // 限流在数据校验之后：无效调用不消耗额度（额度只在真正发送前占用）
   if(!rateAllow(kind)){
+    results.forEach(x => { x.status = 'rate_limited'; x.reason = '全站同类通知已达 10 分钟上限'; });
     logAudit(user, '限流丢弃', 'student', st.name + ' · ' + KIND_LABEL[kind], '10 分钟内推送超过上限', st.owner_id);
-    if(isManual) return { err: '推送频率已达上限，请 10 分钟后再试', status: 429 };
-    return { dropped: true };
+    if(isManual) return { err: '推送频率已达上限，请 10 分钟后再试', status: 429, results: results };
+    return { dropped: true, results: results };
   }
   let sent = 0, unboundCnt = 0;
   try{
-    for(const b of binds){
+    for(const [i, b] of binds.entries()){
+      const result = results[i];
       try{
         const d = await wx.callWithTokenRetry(accessToken => fetch(
           'https://api.weixin.qq.com/cgi-bin/message/template/send?access_token=' + accessToken, {
@@ -104,18 +108,21 @@ async function pushTemplate(user, st, kind, subject, url, slotOverride, isManual
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ touser: b.openid, template_id: templateId, url: url, data: data })
           }).then(r => r.json()));
-        if(d && (d.errcode === 0 || d.errcode === undefined)) sent++;
-        else if(d && d.errcode === 43004){  // 家长已取关：标记绑定失效
+        if(d && (d.errcode === 0 || d.errcode === undefined)){
+          sent++; result.status = 'sent'; result.reason = '';
+        } else if(d && d.errcode === 43004){  // 家长已取关：标记绑定失效
           db.prepare('UPDATE parent_binds SET unbound = 1 WHERE id = ?').run(b.id);
-          unboundCnt++;
+          unboundCnt++; result.status = 'unsubscribed'; result.reason = '家长已取关，绑定已失效';
+        } else {
+          result.status = 'error'; result.reason = d && d.errcode !== undefined ? '微信返回错误 ' + d.errcode : '微信返回异常';
         }
-      }catch(e){ /* 单个家长失败不阻塞其他人 */ }
+      }catch(e){ result.status = 'error'; result.reason = '网络或服务异常'; /* 单个家长失败不阻塞其他人 */ }
     }
-  }catch(e){ return { err: '微信接口调用失败：' + e.message, status: 502 }; }
+  }catch(e){ return { err: '微信接口调用失败：' + e.message, status: 502, results: results }; }
   logAudit(user, '推送' + KIND_LABEL[kind], 'student', st.name + ' · ' + shortSubject(subject),
     '成功 ' + sent + ' 人' + (unboundCnt ? '，' + unboundCnt + ' 人已取关标记失效' : ''), st.owner_id);
-  if(!sent) return { err: '推送失败（家长可能已取关，请重新绑定）', status: 400 };
-  return { sent: sent };
+  if(!sent) return { err: '推送失败（家长可能已取关，请重新绑定）', status: 400, results: results };
+  return { sent: sent, results: results };
 }
 
 /* 按模板结构组装字段；缺数据返回 null。slotOverride：自动推送时的新模考值（优先于库内旧值） */

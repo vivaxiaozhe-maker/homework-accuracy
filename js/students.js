@@ -1,93 +1,134 @@
 /* 学生侧业务：今日概览、科目树数据源、学生统计与图表、销售端只读视图、作业录入打卡、计划次数审批申请 */
-/* ================= 今日概览（v1.5.0 分组改版） =================
-   三组预警按优先级排列（v1.9.0 口径重定义）：未交 > 逾期 > 正确率偏低；
+/* ================= 今日概览任务中心 =================
+   三组预警按优先级排列：未交 > 逾期 > 正确率偏低；
    未交 = 登记了「未交」的作业（永久未交，不再随时间升级）；逾期 = 科目级欠账（已开课 + 欠 N 次 + 超过作业周期没动静，原「计划停滞」合并进来）；
-   默认只展开最紧急的非空组，其余折叠显示组头+数量；顶部计数条点击展开对应分组并滚动定位。
+   全量聚合后按各组独立条件筛选、稳定排序，仅渲染当前页；分段固定显示全量计数。
    行操作：查看记录（跳该生该科目打卡面板）/ 稍后处理（snooze 当天有效，明天再出现）/ 完成（done，进已处理事项）。
    未交行的完成路径 = 去补录（现有补录流），删除未交保留；归档学生不进任何分组。
    教务视角：未交只读（无补录/删除），但允许稍后处理/完成（管理职责）。 */
-let todayExpandKey = null;  // 当前展开的分组 key（null = 自动选最紧急非空组）
-let todayTaFilter = {};  // 组 key → 助教 ownerId / 'all'（教务视角的组内筛选，重渲染保持）
-function todayTaSet(key, oid){ todayTaFilter[key] = oid; renderToday(); }
+let todayExpandKey = null;
+let todayTaFilter = {};
+let todayQuery = {}, todayPage = {}, todayPageSize = {};
+let todayActionPending = {}, todayShelveDraft = {};
+function pagedRows(rows, page, pageSize){
+  const size = pageSize===50 ? 50 : 20;
+  const pages = Math.max(1, Math.ceil(rows.length / size));
+  const current = Math.min(pages, Math.max(1, parseInt(page,10) || 1));
+  const startIndex = (current-1) * size;
+  return { rows:rows.slice(startIndex,startIndex+size), page:current, pageSize:size, pages:pages,
+    total:rows.length, start:rows.length ? startIndex+1 : 0, end:Math.min(rows.length,startIndex+size) };
+}
+function restoreInputFocus(id){
+  const el = document.getElementById(id);
+  if(!el || !el.focus) return;
+  el.focus();
+  if(el.setSelectionRange){ const end = String(el.value || '').length; el.setSelectionRange(end,end); }
+}
+function todayTaSet(key, oid){ todayTaFilter[key] = oid; todayPage[key] = 1; renderToday(); }
+function todaySearchSet(key, value){
+  todayQuery[key] = value; todayPage[key] = 1; renderToday(); restoreInputFocus('today-search-' + key);
+}
+function todayPageGo(key, delta){ todayPage[key] = (todayPage[key] || 1) + delta; renderToday(); }
+function todayPageSizeSet(key, value){ todayPageSize[key] = parseInt(value,10)===50 ? 50 : 20; todayPage[key] = 1; renderToday(); }
+function todayClearFilters(key){
+  delete todayTaFilter[key]; delete todayQuery[key]; todayPage[key] = 1; renderToday();
+}
 // 同一 ref_key 取最新一条预警动作
 function alertActionMap(){
   const map = {};
   (state.alertActions || []).forEach(a=>{ map[a.kind + '|' + a.refKey] = a; });
   return map;
 }
-// done（已完成）与 shelve（搁置：家长侧等暂不可控，长期退出待办）都让预警关闭
 function isDoneAlert(amap, kind, refKey){ const a = amap[kind + '|' + refKey]; return !!(a && (a.action==='done' || a.action==='shelve')); }
-// snooze 当天有效（snoozeUntil >= 今天 → 今天不显示，明天再出现）
 function snoozedToday(amap, kind, refKey){
   const a = amap[kind + '|' + refKey];
   return !!(a && a.action==='snooze' && a.snoozeUntil && a.snoozeUntil >= todayStr());
 }
-// 行内处理状态徽章：稍后处理**生效期内**（snoozeUntil >= 今天）才显示「稍后至 X」；
-// 过期后该行恢复为普通待办，不再挂旧日期徽章（避免"看着像还在稍后"的误导）
 function snoozeBadgeHtml(amap, kind, refKey){
   const a = amap[kind + '|' + refKey];
   return (a && a.action==='snooze' && a.snoozeUntil && a.snoozeUntil >= todayStr())
     ? '<span class="tag amber">稍后至 ' + esc(a.snoozeUntil) + '</span>' : '';
 }
-/* 稍后处理：snooze 1 天（不弹二次确认，直接 toast）；mock 写 pool.alertActions，API 走 /api/alerts/action 后 resync */
-function alertSnooze(kind, refKey){
+async function submitAlertAction(kind, refKey, action, note){
+  const pendingKey = action + '|' + kind + '|' + refKey;
+  if(todayActionPending[pendingKey]){ toast('正在提交，请稍候'); return false; }
+  todayActionPending[pendingKey] = true;
+  try{
+    const body = { kind:kind, refKey:refKey, action:action };
+    if(action==='snooze') body.snoozeUntil = todayStr();
+    if(action==='shelve') body.note = note || '';
+    const res = await HttpApi._req('POST', '/api/alerts/action', body);
+    if(!res.ok){ toast(res.msg || '操作失败，请重试'); return false; }
+    await resyncState();
+    return true;
+  }catch(e){
+    toast('操作失败，请检查网络后重试');
+    return false;
+  }finally{
+    delete todayActionPending[pendingKey];
+    renderAll();
+  }
+}
+async function alertSnooze(kind, refKey){
+  if(USE_API){
+    if(await submitAlertAction(kind,refKey,'snooze','')) toast('已稍后处理，明天再提醒您');
+    return;
+  }
   const a = { id: uid(), kind: kind, refKey: refKey, action: 'snooze',
     actorId: currentUser ? currentUser.id : null, actorName: currentUser ? currentUser.name : '',
     note: '', createdAt: new Date().toISOString(), snoozeUntil: todayStr() };
-  if(USE_API){
-    apiPersist(HttpApi._req('POST', '/api/alerts/action', { kind: kind, refKey: refKey, action: 'snooze', snoozeUntil: todayStr() }),
-      ()=>resyncState());
-  } else {
-    pool.alertActions = pool.alertActions || [];
-    pool.alertActions.push(a);
-    save(); refreshView();
-  }
+  pool.alertActions = pool.alertActions || [];
+  pool.alertActions.push(a);
+  save(); refreshView();
   toast('已稍后处理，明天再提醒您');
   renderAll();
 }
-/* 完成：写 done（永久消失并进已处理事项） */
 function alertDone(kind, refKey){
-  askConfirm('完成该预警', '完成后该预警不再出现在待办，可在下方「已处理事项」中回溯。确定已完成处理吗？', ()=>{
+  askConfirm('完成该预警', '完成后该预警不再出现在待办，可在下方「已处理事项」中回溯。确定已完成处理吗？', async ()=>{
+    if(USE_API){
+      if(await submitAlertAction(kind,refKey,'done','')) toast('已完成处理');
+      return;
+    }
     const a = { id: uid(), kind: kind, refKey: refKey, action: 'done',
       actorId: currentUser ? currentUser.id : null, actorName: currentUser ? currentUser.name : '',
       note: '', createdAt: new Date().toISOString(), snoozeUntil: null };
-    if(USE_API){
-      apiPersist(HttpApi._req('POST', '/api/alerts/action', { kind: kind, refKey: refKey, action: 'done' }),
-        ()=>resyncState());
-    } else {
-      pool.alertActions = pool.alertActions || [];
-      pool.alertActions.push(a);
-      save(); refreshView();
-    }
+    pool.alertActions = pool.alertActions || [];
+    pool.alertActions.push(a);
+    save(); refreshView();
     toast('已完成处理');
     renderAll();
   });
 }
-/* 搁置（v1.8.6；v1.9.0 起挂未交行）：家长侧等暂不可控的未交——长期退出待办（不像 snooze 只当天），进已处理事项可查；
-   未交记录本身保留，补录成绩后自然关闭。可选填原因 */
 function alertShelve(missId){
-  askConfirm('搁置该未交项', '用于家长侧等暂不可控的情况。搁置后不再出现在待办，可在「已处理事项」查看；未交记录本身保留，补录成绩后自然关闭。确定搁置吗？', (note)=>{
+  askConfirm('搁置该未交项', '用于家长侧等暂不可控的情况。搁置后不再出现在待办，可在「已处理事项」查看；未交记录本身保留，补录成绩后自然关闭。确定搁置吗？', async (note)=>{
+    const reason = (note || '').trim();
+    todayShelveDraft[missId] = reason;
+    if(USE_API){
+      if(await submitAlertAction('miss',missId,'shelve',reason)){
+        delete todayShelveDraft[missId];
+        toast('已搁置，可在已处理事项查看');
+      } else {
+        alertShelve(missId);
+      }
+      return;
+    }
     const a = { id: uid(), kind: 'miss', refKey: missId, action: 'shelve',
       actorId: currentUser ? currentUser.id : null, actorName: currentUser ? currentUser.name : '',
-      note: (note || '').trim(), createdAt: new Date().toISOString(), snoozeUntil: null };
-    if(USE_API){
-      apiPersist(HttpApi._req('POST', '/api/alerts/action', { kind: 'miss', refKey: missId, action: 'shelve', note: a.note }),
-        ()=>resyncState());
-    } else {
-      pool.alertActions = pool.alertActions || [];
-      pool.alertActions.push(a);
-      save(); refreshView();
-    }
+      note: reason, createdAt: new Date().toISOString(), snoozeUntil: null };
+    pool.alertActions = pool.alertActions || [];
+    pool.alertActions.push(a);
+    delete todayShelveDraft[missId];
+    save(); refreshView();
     toast('已搁置，可在已处理事项查看');
     renderAll();
   }, { input: '搁置原因（选填，如：家长暂停课程）' });
+  if(todayShelveDraft[missId] !== undefined) document.getElementById('cf-input').value = todayShelveDraft[missId];
 }
-/* 计数条/组头点击：展开对应分组并滚动定位 */
 function todayCatGo(key){
   todayExpandKey = key;
   renderToday();
   const el = document.getElementById('today-grp-' + key);
-  if(el && el.scrollIntoView) el.scrollIntoView({ block:'start', behavior:'smooth' });  // 桩无此方法则静默
+  if(el && el.scrollIntoView) el.scrollIntoView({ block:'start', behavior:'smooth' });
 }
 function renderToday(){
   const list = document.getElementById('today-list');
@@ -96,19 +137,16 @@ function renderToday(){
   const amap = alertActionMap();
   const admin = isAdminView();
 
-  // ---- 未交（v1.9.0：只有登记了「未交」的才算；永久未交，不再随时间升级；归档学生与未开课不进）----
   const missRows = [];
   state.missed.filter(m=>!m.resolved).forEach(m=>{
     const st = state.students.find(x=>x.id===m.studentId);
-    if(st && st.archived) return;  // 已归档 = 学习已结束：不进待办（数据保留在历史学生卡）
+    if(st && st.archived) return;
     const fc = m.subject && st && st.subjFirstClass && st.subjFirstClass[m.subject];
-    if(fc && fc > t) return;  // 未开课：不进入今天要处理
+    if(fc && fc > t) return;
     if(isDoneAlert(amap, 'miss', m.id) || snoozedToday(amap, 'miss', m.id)) return;
     missRows.push(m);
   });
-  missRows.sort((a,b)=>a.date<b.date?-1:1);  // 最久未交在前
 
-  // ---- 正确率偏低：近 7 天 <60% 有成绩记录，按学生+科目聚合为一条（取该科目最低分记录）----
   const weekAgo = offsetDay(-7);
   const lowMap = {};
   gradedRecs(state.records.filter(r=>r.date>=weekAgo)).forEach(r=>{
@@ -120,9 +158,8 @@ function renderToday(){
   });
   const lowRows = Object.values(lowMap)
     .filter(x=>!isDoneAlert(amap, 'lowAcc', x.refKey) && !snoozedToday(amap, 'lowAcc', x.refKey));
+  lowRows.forEach((x,i)=>{ x.order = i; });
 
-  // ---- 逾期（v1.9.0 科目级，原「计划停滞」合并进来）：已开课 + 欠账（已完成<应完成）+ 最近活跃超过作业周期。
-  //      refKey/kind 沿用 planStall（存量 done/snooze/搁置动作不失效，已处理预警不重现）----
   const overdueRows = [];
   state.students.filter(s=>!s.archived && s.subjPlans).forEach(st=>{
     Object.keys(st.subjPlans).forEach(sub=>{
@@ -133,7 +170,6 @@ function renderToday(){
       overdueRows.push({ st: st, sub: sub, days: info.days, owed: info.owed, refKey: refKey });
     });
   });
-  overdueRows.sort((a,b)=>b.days-a.days);  // 最久没动静在前
 
   // ---- 行渲染 ----
   // 未交行（v1.9.0）：徽章「未交 · 已 N 天」（当天登记显示「今天登记」）；出清路径 = 补录 / 删除 / 搁置
@@ -185,47 +221,68 @@ function renderToday(){
     '<button class="btn ghost sm" onclick="alertDone(\'planStall\',\'' + esc(jsStr(x.refKey)) + '\')">完成</button>' +
     '</div>';
 
-  // ---- 分组 + 计数条（v1.9.0：三组，优先级 未交 > 逾期 > 正确率偏低）----
   const groups = [
-    { key:'miss', label:'未交', sub:'登记了「未交」的作业，补录或删除后出清；家长侧暂不可控可搁置', rows: missRows, render: renderMissRow, ownerOf: m=>m.ownerId },
-    { key:'overdue', label:'逾期', sub:'科目已开课且有欠账，超过 ' + homeworkCycleDays + ' 天没动静', rows: overdueRows, render: renderOverdueRow, ownerOf: x=>x.st.ownerId },
-    { key:'lowAcc', label:'正确率偏低', sub:'近 7 天有成绩记录平均正确率低于 60%', rows: lowRows, render: renderLowRow, ownerOf: x=>x.rec.ownerId }
+    { key:'miss', label:'未交', sub:'登记了「未交」的作业，补录或删除后出清；家长侧暂不可控可搁置', rows:missRows, render:renderMissRow,
+      ownerOf:m=>m.ownerId, searchOf:m=>stuName(m.studentId)+' '+(m.subject||'')+' '+shortSubject(m.subject||'未指定科目') },
+    { key:'overdue', label:'逾期', sub:'科目已开课且有欠账，超过 ' + homeworkCycleDays + ' 天没动静', rows:overdueRows, render:renderOverdueRow,
+      ownerOf:x=>x.st.ownerId, searchOf:x=>x.st.name+' '+x.sub+' '+shortSubject(x.sub) },
+    { key:'lowAcc', label:'正确率偏低', sub:'近7天有低于60%的正常成绩，按学生×科目聚合', rows:lowRows, render:renderLowRow,
+      ownerOf:x=>x.rec.ownerId, searchOf:x=>stuName(x.rec.studentId)+' '+(x.rec.subject||'')+' '+shortSubject(x.rec.subject||'未指定科目') }
   ];
   const nonEmpty = groups.filter(g=>g.rows.length);
   if(todayExpandKey===null || !nonEmpty.some(g=>g.key===todayExpandKey)) todayExpandKey = nonEmpty.length ? nonEmpty[0].key : null;
   if(catsEl){
-    catsEl.innerHTML = nonEmpty.length > 1 ? nonEmpty.map(g=>
-      '<span class="sub-chip' + (g.key===todayExpandKey?' active':'') + '" tabindex="0" onclick="todayCatGo(\'' + g.key + '\')">' +
-      g.label + ' ' + g.rows.length + '</span>').join('') : '';
+    catsEl.className = 'today-segments';
+    catsEl.innerHTML = groups.map(g=>'<button type="button" role="tab" id="today-cat-' + g.key + '" class="today-seg' +
+      (g.key===todayExpandKey?' active':'') + '" aria-selected="' + (g.key===todayExpandKey?'true':'false') + '" onclick="todayCatGo(\'' + g.key + '\')">' +
+      g.label + ' ' + g.rows.length + '</button>').join('');
   }
-  let html = nonEmpty.map(g=>{
-    const open = g.key===todayExpandKey;
-    // 教务视角：组内按助教筛选 chips（全部 + 各助教带条数，按条数降序；助教视角只看自己名下无需筛选）
-    let chipsHtml = '', rows = g.rows;
-    if(admin && g.rows.length){
-      const cntMap = {};
-      g.rows.forEach(r=>{ const o = g.ownerOf(r) || ''; cntMap[o] = (cntMap[o]||0)+1; });
-      const sel = todayTaFilter[g.key] || 'all';
-      chipsHtml = '<div class="ta-chips today-ta-chips">' +
-        '<span class="sub-chip' + (sel==='all'?' active':'') + '" tabindex="0" onclick="todayTaSet(\'' + g.key + '\',\'all\')">全部 ' + g.rows.length + '</span>' +
-        Object.keys(cntMap).sort((a,b)=>cntMap[b]-cntMap[a]).map(oid=>
-          '<span class="sub-chip' + (sel===oid?' active':'') + '" tabindex="0" onclick="todayTaSet(\'' + g.key + '\',\'' + esc(jsStr(oid)) + '\')">' +
-          esc(ownerName(oid)) + ' ' + cntMap[oid] + '</span>').join('') +
-        '</div>';
-      if(sel !== 'all') rows = rows.filter(r=>(g.ownerOf(r)||'')===sel);
+
+  let html = '';
+  const active = groups.find(g=>g.key===todayExpandKey);
+  if(active){
+    const owner = todayTaFilter[active.key] || 'all';
+    const query = (todayQuery[active.key] || '').trim().toLowerCase();
+    let rows = active.rows.slice();
+    if(admin && owner!=='all') rows = rows.filter(r=>(active.ownerOf(r)||'')===owner);
+    if(query) rows = rows.filter(r=>active.searchOf(r).toLowerCase().indexOf(query)!==-1);
+    if(active.key==='miss') rows.sort((a,b)=>a.date===b.date ? String(a.id).localeCompare(String(b.id)) : (a.date<b.date?-1:1));
+    else if(active.key==='overdue') rows.sort((a,b)=>(b.days-a.days) || String(a.refKey).localeCompare(String(b.refKey)));
+    else rows.sort((a,b)=>(a.order-b.order) || String(a.refKey).localeCompare(String(b.refKey)));
+
+    let ownerHtml = '';
+    if(admin){
+      const counts = {};
+      active.rows.forEach(r=>{ const oid = active.ownerOf(r) || ''; counts[oid] = (counts[oid]||0)+1; });
+      const ownerIds = new Set(Object.keys(counts));
+      getUsersCache().filter(u=>u.role==='ta').forEach(u=>ownerIds.add(u.id));
+      const options = Array.from(ownerIds).sort((a,b)=>(counts[b]||0)-(counts[a]||0) || ownerName(a).localeCompare(ownerName(b)));
+      ownerHtml = '<select id="today-owner-' + active.key + '" class="today-owner" aria-label="按助教筛选" onchange="todayTaSet(\'' + active.key + '\',this.value)">' +
+        '<option value="all">全部助教 ' + active.rows.length + '</option>' + options.map(oid=>
+          '<option value="' + esc(oid) + '"' + (owner===oid?' selected':'') + '>' + esc(ownerName(oid)) + ' ' + (counts[oid]||0) + '</option>').join('') + '</select>';
     }
-    return '<div class="today-grp" id="today-grp-' + g.key + '">' +
-      '<div class="today-grp-head" tabindex="0" onclick="todayCatGo(\'' + g.key + '\')">' +
-      '<span class="chev">' + (open?'▾':'▸') + '</span><b>' + g.label + '</b>' +
-      '<span class="grp-sub">' + g.sub + '</span>' +
-      '<span class="cnt">' + g.rows.length + (g.key==='miss' ? ' 次未交' : ' 条') + '</span></div>' +
-      // 折叠组仍渲染行（CSS 隐藏），保证内容可检索/可测试
-      '<div class="today-grp-body"' + (open?'':' style="display:none"') + '>' + chipsHtml + rows.map(g.render).join('') + '</div></div>';
-  }).join('');
+    const filtered = pagedRows(rows,todayPage[active.key],todayPageSize[active.key]);
+    todayPage[active.key] = filtered.page;
+    todayPageSize[active.key] = filtered.pageSize;
+    const hasConditions = owner!=='all' || !!query;
+    const filterHtml = '<div class="today-filter">' + ownerHtml +
+      '<input id="today-search-' + active.key + '" class="today-search" value="' + esc(todayQuery[active.key] || '') + '" placeholder="搜索学生或科目" aria-label="搜索学生或科目" oninput="todaySearchSet(\'' + active.key + '\',this.value)">' +
+      (hasConditions ? '<button type="button" class="btn ghost sm" onclick="todayClearFilters(\'' + active.key + '\')">清除条件</button>' : '') + '</div>';
+    const pagerHtml = '<div class="today-pager"><span class="pager-meta" id="today-page-meta-' + active.key + '">第 ' + filtered.start + '–' + filtered.end + ' 条 / 共 ' + filtered.total + ' 条</span>' +
+      '<label>每页 <select id="today-size-' + active.key + '" onchange="todayPageSizeSet(\'' + active.key + '\',this.value)">' +
+      '<option value="20"' + (filtered.pageSize===20?' selected':'') + '>20</option><option value="50"' + (filtered.pageSize===50?' selected':'') + '>50</option></select> 条</label>' +
+      '<button type="button" class="btn ghost sm" id="today-prev-' + active.key + '" onclick="todayPageGo(\'' + active.key + '\',-1)"' + (filtered.page<=1?' disabled':'') + '>上一页</button>' +
+      '<span class="pager-page">第 ' + filtered.page + ' / ' + filtered.pages + ' 页</span>' +
+      '<button type="button" class="btn ghost sm" id="today-next-' + active.key + '" onclick="todayPageGo(\'' + active.key + '\',1)"' + (filtered.page>=filtered.pages?' disabled':'') + '>下一页</button></div>';
+    html = '<div class="today-grp" id="today-grp-' + active.key + '">' +
+      '<div class="today-grp-head" tabindex="0"><b>' + active.label + '</b><span class="grp-sub">' + active.sub + '</span>' +
+      '<span class="cnt">全部 ' + active.rows.length + (active.key==='miss' ? ' 次未交' : ' 条') + '</span></div>' +
+      '<div class="today-grp-body">' + filterHtml +
+      (filtered.rows.length ? filtered.rows.map(active.render).join('') : '<div class="today-empty">没有符合当前筛选条件的事项，请调整条件或清除筛选。</div>') +
+      pagerHtml + '</div></div>';
+  }
 
   if(!html){
-    // 角色化空态（v1.8.4 UI-04）：助教零学生给首录引导（不显示「全部完成」）；
-    // 零待办但有学生且全无记录 → 待首录引导；否则维持「全部完成」
     if(!isAdminView() && !activeStudents().length){
       html = '<div class="empty-ok">暂无名下学生：到「现有学生」页点「新增学生」录入第一名学生，或等教务分配。</div>';
     } else {
@@ -372,10 +429,17 @@ async function refreshSubjectTree(){
 }
 /* ================= 学生统计 ================= */
 let stuQuery = '';
-let stuTaFilter = 'all';  // 学生明细助教维度筛选（仅教务可见）：'all' 或助教 id
-let stuTaExpanded = {};  // 「全部学生」分组展开状态：ownerId → true 表示已展开（默认折叠）
+let stuTaFilter = 'all';
+let stuTaExpanded = {};
+let stuSelectedId = null;
 function setStuTaFilter(v){ stuTaFilter = v; renderStats(); }
 function toggleTaGroup(oid){ stuTaExpanded[oid] = !stuTaExpanded[oid]; renderStats(); }
+function selectStudentWorkspace(gid){
+  stuSelectedId = gid;
+  quickEntry = null; slotEdit = null; addSubjGid = null;
+  if(typeof mockEdit !== 'undefined') mockEdit = null;
+  renderAll();
+}
 /* 「各科目平均正确率」图表卡片默认折叠（html 里 stats-chart-card 带 collapsed 类），点击标题手动展开 */
 function toggleBarChart(){
   document.getElementById('stats-chart-card').classList.toggle('collapsed');
@@ -460,18 +524,16 @@ function renderStats(){
   // 姓名搜索 + 首字母筛选叠加过滤（取交集；图表与明细同口径联动）
   const filtered = groups.filter(g=>(!stuQuery || g.name.indexOf(stuQuery) !== -1) && matchLetters(g.name, stuLetters));
 
-  // 助教维度筛选 chips（仅教务可见；助教端不渲染该行）。只作用于学生明细列表，不影响上方图表
+  // 教务助教筛选常显于学生搜索下方，选项来自真实账号
   const chipBox = document.getElementById('stu-ta-filter');
   if(chipBox){
     if(!isAdminView()){
       chipBox.innerHTML = '';
     } else {
       const chipTas = getUsersCache().filter(u=>u.role==='ta');
-      chipBox.innerHTML = '<div class="ta-chips">' +
-        '<span class="sub-chip' + (stuTaFilter==='all'?' active':'') + '" onclick="setStuTaFilter(\'all\')">全部学生</span>' +
-        chipTas.map(u=>'<span class="sub-chip' + (stuTaFilter===u.id?' active':'') + '" tabindex="0" onclick="setStuTaFilter(\'' + esc(jsStr(u.id)) + '\')">' +
-          esc(u.name) + (u.disabled ? ' <span class="chip-cnt">已停用</span>' : '') + '</span>').join('') +
-        '</div>';
+      chipBox.innerHTML = '<label class="stu-ta-select-label">负责助教 <select id="stu-ta-select" onchange="setStuTaFilter(this.value)">' +
+        '<option value="all">全部助教</option>' + chipTas.map(u=>'<option value="' + esc(u.id) + '"' + (stuTaFilter===u.id?' selected':'') + '>' +
+          esc(u.name) + (u.disabled?'（已停用）':'') + '</option>').join('') + '</select></label>';
     }
   }
 
@@ -525,24 +587,25 @@ function renderStats(){
     wrap.innerHTML = html;
   }
 
-  // 学生明细
+  // 左侧真实学生行 + 右侧唯一工作区；不复制或隐藏第二份完整卡片
   const list = document.getElementById('stu-list');
+  const workspaceBlank = '<div class="stu-workspace-empty"><b>选择一名学生</b><p>从左侧列表选择学生，查看完整档案与全部科目；选择科目后再进入录入。</p></div>';
+  const splitHtml = (rowsHtml,workspaceHtml)=>'<div class="stu-split"><div id="stu-rows">' + rowsHtml + '</div><div id="stu-workspace">' + (workspaceHtml || workspaceBlank) + '</div></div>';
   if(!activeStudents().length){
-    list.innerHTML = '<p class="hint empty-tip"><svg viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="5" y="7" width="38" height="34" rx="6" fill="#F0F8F4"/><path d="M24 15v21M24 15c-2.5-2.8-6-3.8-10-3.8v21c4 0 7.5 1 10 3.8 2.5-2.8 6-3.8 10-3.8v-21c-4 0-7.5 1-10 3.8z" stroke="#5FB89A" stroke-width="2.2" stroke-linejoin="round"/></svg>暂无在服务学生，点右上角「新增学生」录入。</p>';
+    list.innerHTML = splitHtml('<p class="hint empty-tip">暂无在服务学生，点右上角「新增学生」录入。</p>','');
     return;
   }
-  // 教务的助教维度筛选与姓名搜索叠加生效
   const detail = (isAdminView() && stuTaFilter!=='all') ? filtered.filter(g=>g.ownerId===stuTaFilter) : filtered;
   const metaEl = document.getElementById('stu-filter-meta');
-  if(metaEl) metaEl.innerHTML = stuFilterMetaHtml(detail.length);  // 命中数量 + 筛选中提示（v1.8.4 UI-03）
+  if(metaEl) metaEl.innerHTML = stuFilterMetaHtml(detail.length);
   if(!filtered.length){
-    list.innerHTML = stuQuery
+    list.innerHTML = splitHtml(stuQuery
       ? '<p class="hint">没有匹配「' + esc(stuQuery) + '」的学生，换个关键词试试。</p>'
-      : '<p class="hint">没有匹配该首字母的学生，换个字母试试。</p>';
+      : '<p class="hint">没有匹配该首字母的学生，换个字母试试。</p>','');
     return;
   }
   if(!detail.length){
-    list.innerHTML = '<p class="hint">该助教名下暂无匹配的学生。</p>';
+    list.innerHTML = splitHtml('<p class="hint">该助教名下暂无匹配的学生。</p>','');
     return;
   }
   const renderStuCard = g=>{
@@ -626,8 +689,8 @@ function renderStats(){
     const repStuBind = state.students.find(x=>x.id===s.id);
     const bindCnt = repStuBind ? (repStuBind.bindCnt || 0) : 0;
     const bindTag = bindCnt > 0
-      ? ' <span class="tag mint owner-tag" onclick="openBindsModal(\'' + esc(jsStr(s.id)) + '\')" title="点击查看已绑定家长，可手动解绑">已绑定家长（' + bindCnt + ' 人）<span class="tag-go">›</span></span>'
-      : ' <span class="tag amber owner-tag" onclick="openBindModal(\'' + esc(jsStr(s.id)) + '\')" title="生成家长绑定二维码，转发给家长微信扫码即绑定">未绑定微信<span class="tag-go">›</span></span>';
+      ? ' <span class="tag mint owner-tag" tabindex="0" onclick="openBindsModal(\'' + esc(jsStr(s.id)) + '\')" title="点击查看已绑定家长，可手动解绑">已绑定家长（' + bindCnt + ' 人）<span class="tag-go">›</span></span>'
+      : ' <span class="tag amber owner-tag" tabindex="0" onclick="openBindModal(\'' + esc(jsStr(s.id)) + '\')" title="生成家长绑定二维码，转发给家长微信扫码即绑定">未绑定微信<span class="tag-go">›</span></span>';
 
     return '<div class="stu-card">' +
       '<div class="stu-head"><div class="avatar">' + esc(g.name.slice(0,1)) + '</div>' +
@@ -636,7 +699,7 @@ function renderStats(){
       (g.gradYear ? ' <span class="tag mint">' + g.gradYear + ' 届</span>' : '') +
       (g.ids.length>1 ? ' <span class="tag mint">同名合并 ×' + g.ids.length + '</span>' : '') +
       (g.sample?' <span class="tag sample">示例</span>':'') +
-      (isAdminView() ? ' <span class="tag mint owner-tag" onclick="openTransfer([\'' + g.ids.map(id=>esc(jsStr(id))).join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '<span class="tag-go">›</span></span>' : '') +
+      (isAdminView() ? ' <span class="tag mint owner-tag" tabindex="0" onclick="openTransfer([\'' + g.ids.map(id=>esc(jsStr(id))).join('\',\'') + '\'])" title="归属助教，点击可转移归属">归属：' + esc(ownerName(g.ownerId)) + '<span class="tag-go">›</span></span>' : '') +
       bindTag + '</div>' +
       trend +
       '<button class="btn ghost sm" onclick="toggleAddSubject(\'' + esc(jsStr(s.id)) + '\')" title="为该学生添加学习科目">' +
@@ -655,30 +718,40 @@ function renderStats(){
       missHtml +
       '</div>';
   };
-  // 教务且选中「全部学生」：按助教分组展示（分组顺序沿用 getUsersCache() 中助教顺序），
-  // 默认折叠只显示组头，点击组头展开/收起；有搜索词时自动展开含匹配结果的组；
-  // 选中某位助教：只显示该助教的学生卡（无分组标题，直接展开）
+  const recCounts = {}, missCounts = {};
+  state.records.forEach(r=>{ recCounts[r.studentId] = (recCounts[r.studentId]||0)+1; });
+  state.missed.filter(m=>!m.resolved).forEach(m=>{ missCounts[m.studentId] = (missCounts[m.studentId]||0)+1; });
+  const selectedId = quickEntry ? quickEntry.gid : stuSelectedId;
+  const selectedGroup = detail.find(g=>g.ids.includes(selectedId));
+  const renderStuRow = g=>{
+    const recCnt = g.ids.reduce((n,id)=>n+(recCounts[id]||0),0);
+    const missCnt = g.ids.reduce((n,id)=>n+(missCounts[id]||0),0);
+    return '<button type="button" class="stu-row' + (g.ids.includes(selectedId)?' active':'') + '" onclick="selectStudentWorkspace(\'' + esc(jsStr(g.ids[0])) + '\')">' +
+      '<span class="stu-row-avatar">' + esc(g.name.slice(0,1)) + '</span><span class="stu-row-main"><b>' + esc(g.name) + '</b>' +
+      '<span class="stu-row-meta">' + (g.school?esc(g.school)+' · ':'') + (g.gradYear?esc(g.gradYear)+' 届':'') + (isAdminView()?' · '+esc(ownerName(g.ownerId)):'') + '</span>' +
+      '<span class="stu-row-meta">作业 ' + recCnt + ' 次' + (missCnt?' · 未交 '+missCnt+' 次':'') + '</span></span><span class="stu-row-go">›</span></button>';
+  };
+  let rowsHtml = '';
   if(isAdminView() && stuTaFilter==='all'){
     const tas = getUsersCache().filter(u=>u.role==='ta');
-    const renderGroup = (key, label, gs)=>{
+    const renderGroup = (key,label,gs)=>{
       const open = !!stuQuery || !!stuTaExpanded[key];
       return '<div class="ta-group-head" style="cursor:pointer" tabindex="0" onclick="toggleTaGroup(\'' + esc(jsStr(key)) + '\')" title="点击展开/收起">' +
-        '<span class="chev">' + (open ? '▾' : '▸') + '</span>' + label +
-        '<span class="cnt">' + gs.length + ' 个学生</span></div>' +
-        (open ? gs.map(renderStuCard).join('') : '');
+        '<span class="chev">' + (open?'▾':'▸') + '</span>' + label + '<span class="cnt">' + gs.length + ' 个学生</span></div>' +
+        (open ? gs.map(renderStuRow).join('') : '');
     };
-    let html = '';
     tas.forEach(u=>{
       const gs = detail.filter(g=>g.ownerId===u.id);
-      if(!gs.length) return;
-      html += renderGroup(u.id, esc(u.name) + (u.disabled?'（已停用）':''), gs);
+      if(gs.length) rowsHtml += renderGroup(u.id,esc(u.name)+(u.disabled?'（已停用）':''),gs);
     });
     const others = detail.filter(g=>!tas.some(u=>u.id===g.ownerId));
-    if(others.length) html += renderGroup('__other__', '其他（教务直接录入）', others);
-    list.innerHTML = html;
+    if(others.length) rowsHtml += renderGroup('__other__','其他（教务直接录入）',others);
   } else {
-    list.innerHTML = detail.map(renderStuCard).join('');
+    rowsHtml = detail.map(renderStuRow).join('');
   }
+  list.innerHTML = splitHtml(rowsHtml,selectedGroup ? renderStuCard(selectedGroup) : '');
+  const filterCard = document.getElementById('stu-filter-card');
+  if(filterCard && filterCard.offsetHeight) document.documentElement.style.setProperty('--stu-filter-height',Math.round(filterCard.offsetHeight)+'px');
 }
 /* 销售视角只读学生卡：姓名/学校/届/归属助教/科目徽章/作业与未交次数/最近趋势；无任何操作入口（无 onclick） */
 function salesStuCard(g, isAlumni){
@@ -939,6 +1012,7 @@ function salesApiPanel(st, subject){
 /* ================= 卡内科目 Tab 快速录入 ================= */
 let quickEntry = null;  // {gid: 学生代表id, subject: 科目路径}
 function toggleQuickEntry(gid, subject){
+  stuSelectedId = gid;
   // 评语/建议有未保存修改时提醒（不阻塞切换）
   if(quickEntry && (quickEntry.gid!==gid || quickEntry.subject!==subject) && typeof qeDirtyToast==='function') qeDirtyToast();
   if(quickEntry && quickEntry.gid===gid && quickEntry.subject===subject){
@@ -1329,7 +1403,7 @@ function checkinGridHtml(){
         '</div>';
     }
     // 未录入空格子：「待录入」（非未交、非零分）
-    return '<div class="ci-slot miss" onclick="openSlot(' + idx + ')" title="第 ' + idx + ' 次作业待录入' + (st&&st.archived?'':'，点击补录') + '">' +
+    return '<div class="ci-slot todo" onclick="openSlot(' + idx + ')" title="第 ' + idx + ' 次作业待录入' + (st&&st.archived?'':'，点击补录') + '">' +
       '<div class="ci-top"><span class="ci-idx">第' + idx + '次</span></div>' +
       '<div class="ci-date">待录入</div>' +
       '<div class="ci-acc" style="color:var(--red)">—</div>' +
@@ -1484,9 +1558,9 @@ function slotEditHtml(){
       '<label class="se-field"><span>日期</span><input id="sl-date" type="date" value="' + (draftVals ? esc(draftVals.date) : miss.date) + '" oninput="slotDraftSave()"></label>' +
       '<label class="se-field"><span>总题数</span><input id="sl-total" type="number" min="1" inputmode="numeric" placeholder="如 20" value="' + (draftVals ? esc(draftVals.total) : '') + '" oninput="slCalc();slotDraftSave()"></label>' +
       '<label class="se-field"><span>正确题目数</span><input id="sl-correct" type="number" min="0" inputmode="numeric" placeholder="如 18" value="' + (draftVals ? esc(draftVals.correct) : '') + '" oninput="slCalc();slotDraftSave()"></label>' +
-      '<div class="se-calc" id="sl-calc">错误数 <b>—</b>　正确率 <b>—</b></div>' +
-      '<label class="se-field se-full"><span>错题号</span><input id="sl-wrongs" placeholder="用逗号分隔，可空" value="' + (draftVals ? esc(draftVals.wrongs) : '') + '" oninput="slotDraftSave()"></label>' +
+      '<label class="se-field"><span>错题号</span><input id="sl-wrongs" placeholder="用逗号分隔，可空" value="' + (draftVals ? esc(draftVals.wrongs) : '') + '" oninput="slotDraftSave()"></label>' +
       '</div>' +
+      '<div class="se-calc" id="sl-calc">错误数 <b>—</b>　正确率 <b>—</b></div>' +
       '<div class="se-err" id="sl-err" style="display:none"></div>' +
       '<div class="se-actions">' +
       '<button class="btn mint sm" onclick="saveSlot()">保存并补交</button>' +
@@ -1499,9 +1573,9 @@ function slotEditHtml(){
     '<label class="se-field"><span>日期</span><input id="sl-date" type="date" value="' + (draftVals ? esc(draftVals.date) : (r ? r.date : todayStr())) + '" oninput="slotDraftSave()"></label>' +
     '<label class="se-field"><span>总题数</span><input id="sl-total" type="number" min="1" inputmode="numeric" placeholder="如 20" value="' + (slNoHw ? '' : (draftVals ? esc(draftVals.total) : (r ? r.total : (slTmpVals ? slTmpVals.total : '')))) + '" oninput="slCalc();slotDraftSave()"' + (slNoHw ? ' disabled' : '') + '></label>' +
     '<label class="se-field"><span>正确题目数</span><input id="sl-correct" type="number" min="0" inputmode="numeric" placeholder="如 18" value="' + (slNoHw ? '' : (draftVals ? esc(draftVals.correct) : (r ? r.correct : (slTmpVals ? slTmpVals.correct : '')))) + '" oninput="slCalc();slotDraftSave()"' + (slNoHw ? ' disabled' : '') + '></label>' +
-    '<div class="se-calc" id="sl-calc">' + (slNoHw ? '本次无作业，仅需选择日期' : (r ? '已保存：错误数 <b>' + (r.total-r.correct) + '</b>　正确率 <b>' + acc(r) + '%</b>' : '错误数 <b>—</b>　正确率 <b>—</b>')) + '</div>' +
-    '<label class="se-field se-full"><span>错题号</span><input id="sl-wrongs" placeholder="用逗号分隔，可空" value="' + (slNoHw ? '' : (draftVals ? esc(draftVals.wrongs) : (r && r.wrongs ? esc(r.wrongs.join(',')) : (slTmpVals ? esc(slTmpVals.wrongs) : '')))) + '" oninput="slotDraftSave()"' + (slNoHw ? ' disabled' : '') + '></label>' +
+    '<label class="se-field"><span>错题号</span><input id="sl-wrongs" placeholder="用逗号分隔，可空" value="' + (slNoHw ? '' : (draftVals ? esc(draftVals.wrongs) : (r && r.wrongs ? esc(r.wrongs.join(',')) : (slTmpVals ? esc(slTmpVals.wrongs) : '')))) + '" oninput="slotDraftSave()"' + (slNoHw ? ' disabled' : '') + '></label>' +
     '</div>' +
+    '<div class="se-calc" id="sl-calc">' + (slNoHw ? '本次无作业，仅需选择日期' : (r ? '已保存：错误数 <b>' + (r.total-r.correct) + '</b>　正确率 <b>' + acc(r) + '%</b>' : '错误数 <b>—</b>　正确率 <b>—</b>')) + '</div>' +
     '<div class="se-err" id="sl-err" style="display:none"></div>' +
     '<div class="se-actions">' +
     '<button class="btn mint sm" onclick="saveSlot()">' + (r ? '保存修改' : '完成打卡') + '</button>' +
@@ -1544,7 +1618,19 @@ function slCalc(){
 }
 /* 保存当次打卡：有记录则更新，无记录则新增；无作业态（slNoHw）走第四次态分支（只校验日期，成绩清零） */
 let slotSaving = false;  // 提交中防重复点击（v1.8.2 UI-01）
-function saveSlot(){
+// API 补交：成绩与未交处理由服务端单事务完成；失败不提前改本地，成功才清草稿/关闭并重取权威状态
+async function saveMakeupApi(miss, newRec, gid0, sub0){
+  const res = await HttpApi.makeupMissed(miss.id, newRec);
+  if(!res.ok){ slotSaving = false; toast(res.msg || '补交保存失败，请重试'); return false; }
+  slotEdit = null; slTmpVals = null;
+  draftSave(gid0, sub0, 'slot', null);
+  slotSaving = false;
+  await resyncState();
+  save(); renderAll();
+  if(res.pushed) toast('作业成绩已推送给家长');
+  return true;
+}
+async function saveSlot(){
   if(!slotEdit) return;
   if(slotSaving){ toast('正在保存，请稍候'); return; }
   const st0 = pool.students.find(x=>x.id===slotEdit.gid);
@@ -1574,6 +1660,12 @@ function saveSlot(){
     } else {
       const newRec = {id:uid(), studentId:slotEdit.gid, date:date, total:0, correct:0,
         wrongs:[], subject:slotEdit.subject, images:[], pdfs:[], ownerId:st0.ownerId, noHomework:true};
+      // 未交格子正常 UI 不提供转无作业；防御分支也走同一补交事务，禁止双请求部分成功
+      if(miss && USE_API){
+        const saved = await saveMakeupApi(miss, newRec, gid0, sub0);
+        if(saved){ slNoHw = false; slTmpVals = null; }
+        return;
+      }
       pool.records.push(newRec);
       logAction('录入作业（无作业）', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject), '日期 ' + date, {ownerId: st0.ownerId});
       apiPersist(HttpApi.addRecord({id: newRec.id, studentId: newRec.studentId, date: date, total: 0, correct: 0,
@@ -1612,6 +1704,7 @@ function saveSlot(){
   } else {
     const newRec = {id:uid(), studentId:slotEdit.gid, date:date, total:total, correct:correct,
       wrongs:wrongs, subject:slotEdit.subject, images:[], pdfs:[], ownerId:st0.ownerId};
+    if(miss && USE_API){ await saveMakeupApi(miss, newRec, gid0, sub0); return; }
     pool.records.push(newRec);
     logAction(miss ? '补录作业' : '录入作业', 'record', auditStuDesc(slotEdit.gid, slotEdit.subject),
       '日期 ' + date + '，总 ' + total + ' 对 ' + correct + '（正确率 ' + Math.round(correct/total*100) + '%）', {ownerId: st0.ownerId});

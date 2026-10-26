@@ -44,7 +44,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.9.3</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.15.0</div>
   </aside>
 
   <main>
@@ -111,6 +111,8 @@
             <button type="button" class="role-opt" data-range="0">全部</button>
           </div>
           <select id="dash-owner"></select>
+          <span class="dash-current" id="dash-current">当前：全部助教</span>
+          <button type="button" class="btn ghost sm" id="dash-owner-reset" style="display:none" onclick="dashResetOwner()">返回全部助教</button>
         </div>
       </div>
       <div class="card">
@@ -143,7 +145,7 @@
       <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0116 0v1"/></svg>助教维度对比</h2>
         <div id="dash-tas"></div>
-        <p class="hint">点击某位助教可下钻，全页只看该助教的数据；再点筛选条「全部助教」返回。</p>
+        <p class="hint">点击某位助教可下钻概览、预警、趋势与学科；助教对比保留横向全集，点「返回全部助教」一步复位。</p>
       </div>
       <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20V4H6.5A2.5 2.5 0 004 6.5v13z"/></svg>学科维度</h2>
@@ -153,7 +155,9 @@
     </section>
 
     <!-- 学生统计 -->
-    <section id="pane-stats" class="tab-pane">      <div class="card collapsed" id="stats-chart-card">
+    <section id="pane-stats" class="tab-pane">
+      <button type="button" class="btn ghost sm dash-return-btn" id="dash-return-btn" style="display:none" onclick="dashReturnDashboard()">← 返回数据看板</button>
+      <div class="card collapsed" id="stats-chart-card">
         <h2 onclick="toggleBarChart()" title="点击展开/收起"><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round"><path d="M3 21h18"/><path d="M6 21V10M11 21V4M16 21v-8M21 21v-4"/></svg>各科目平均正确率<span id="chart-scope">（全体学生）</span><span style="flex:1"></span><span class="chev">▾</span></h2>
         <div class="chart-wrap" id="bar-chart"></div>
       </div>
@@ -163,6 +167,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input id="stu-search" placeholder="按学生姓名搜索，支持部分匹配，如：林">
         </div>
+        <div id="stu-ta-filter"></div>
         <div id="stu-letter-bar"></div>
         <!-- 筛选区 meta（v1.9.2 UI-03）：命中数量 + 已选条件提示 + 一键清除（无激活条件时为空） -->
         <div id="stu-filter-meta" style="margin-top:8px;font-size:12px;color:var(--ink2)"></div>
@@ -174,7 +179,6 @@
             新增学生
           </button>
         </h2>
-        <div id="stu-ta-filter"></div>
         <div id="stu-list"></div>
       </div>
     </section>
@@ -186,6 +190,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input id="alumni-search" placeholder="按学生姓名或学校搜索，支持部分匹配">
         </div>
+        <div id="alumni-ta-filter"></div>
         <!-- 归档时间范围筛选（近 30 天 / 全部） -->
         <div style="margin-top:10px;display:flex;gap:8px">
           <span class="sub-chip" id="alumni-range-30d" onclick="setAlumniRange('30d')">近 30 天归档</span>
@@ -205,7 +210,7 @@
       <!-- 通知设置（仅教务可见可改；默认全关；mock 演示环境隐藏） -->
       <div class="card" id="push-config-card" style="display:none">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>通知设置</h2>
-        <p class="hint" style="margin-top:0">开启后，对应内容保存成功时自动推送给已绑定家长的微信；未绑定家长的学生不推送。每 10 分钟最多推送设定次数（按类型分别计数，超额自动推送将丢弃）。开关与频率即时生效。</p>
+        <p class="hint" style="margin-top:0">开启后，对应内容保存成功时自动推送给已绑定家长的微信；未绑定家长的学生不推送。每 10 分钟最多推送设定次数（<b>全站同类通知共享额度</b>，按类型分别计数，超额自动推送将丢弃）。开关与频率即时生效；业务保存结果与微信发送结果分别反馈。</p>
         <div class="push-cfg-row"><span>作业成绩通知<small>（打卡录入/批改保存时）</small></span>
           <span class="push-max"><button class="push-max-btn" onclick="pushMaxStep('homework',-1)" aria-label="减少">−</button><span class="push-max-num" id="push-max-homework">3</span><span class="push-max-unit">次/10分钟</span><button class="push-max-btn" onclick="pushMaxStep('homework',1)" aria-label="增加">＋</button></span>
           <button class="switch" id="push-cfg-homework" onclick="togglePushConfig('homework')" aria-label="作业成绩通知开关"></button></div>
@@ -537,7 +542,7 @@
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.9.3</div>
+    <div class="login-ver" id="login-ver">v1.15.0</div>
   </div>
 </div>
 

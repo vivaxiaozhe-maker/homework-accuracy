@@ -1,0 +1,21 @@
+{
+  "reportResourceReferences": "PASS",
+  "featureRows": 93,
+  "uniqueFeatureIDs": true,
+  "missingSourceAnchors": 0,
+  "routeRows": 56,
+  "staticDOMIDs": 190,
+  "namedFunctions": 241,
+  "targetAcceptancePassed": 0,
+  "targetAcceptancePending": 93,
+  "targetProductionMigration": "NOT_IMPLEMENTED",
+  "browserCapacityTests": "NOT_RUN",
+  "scope": "本结果仅验证交接包结构/引用/清单，不代表目标UI或生产上线验收通过。",
+  "reportBrowser": {
+    "allRows": 93,
+    "dashboardFilterRows": 12,
+    "mockExamSearchRows": 9,
+    "consoleErrorsOrWarnings": 0,
+    "result": "PASS（仅报告页面）"
+  }
+}

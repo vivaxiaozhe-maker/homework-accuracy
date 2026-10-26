@@ -32,11 +32,114 @@ router.post('/', (req, res) => {
   res.json({ ok: true, student: stuToJson(db.prepare('SELECT * FROM students WHERE id = ?').get(id)) });
 });
 
+// POST /api/students/subject-operation：同 owner 同名组科目重命名/删除，一次事务完成
+router.post('/subject-operation', (req, res) => {
+  const fs = require('fs');
+  const body = req.body || {};
+  const filesToDelete = [];
+  const fail = (status, msg) => { const e = new Error(msg); e.status = status; throw e; };
+  const tx = db.transaction(() => {
+    const anchor = db.prepare('SELECT * FROM students WHERE id = ?').get(body.studentId);
+    if(!anchor) fail(404, '学生不存在');
+    if(!canWrite(req.user, anchor.owner_id)) fail(403, '没有权限');
+    if(anchor.archived) fail(400, '历史学生不可修改科目');
+    if(body.operation !== 'rename' && body.operation !== 'delete') fail(400, '科目操作类型不合法');
+    if(typeof body.oldSubject !== 'string' || !body.oldSubject.trim()) fail(400, '缺少原科目');
+    const oldSubject = body.oldSubject.trim();
+    const newSubject = body.operation === 'rename' && typeof body.newSubject === 'string' ? body.newSubject.trim() : '';
+    if(body.operation === 'rename' && (!newSubject || newSubject === oldSubject)) fail(400, '新科目名无效');
+
+    const group = db.prepare(`SELECT * FROM students WHERE owner_id = ? AND archived = ?
+                              AND LOWER(TRIM(name)) = LOWER(TRIM(?)) ORDER BY id`)
+      .all(anchor.owner_id, anchor.archived, anchor.name);
+    const ids = group.map(s => s.id);
+    if(!Array.isArray(body.studentIds) || body.studentIds.some(id => typeof id !== 'string')) fail(400, '学生组格式不正确');
+    const submitted = body.studentIds.slice().sort();
+    if(submitted.length !== ids.length || submitted.some((id, i) => id !== ids[i])) fail(409, '学生组已变化，请刷新后重试');
+    const inSql = ids.map(() => '?').join(',');
+
+    const columns = ['subj_plans', 'subj_plan_set_at', 'subj_first_class', 'subj_comments', 'subj_advice', 'mock'];
+    const readMap = value => {
+      const parsed = parseJson(value, {});
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    };
+    if(body.operation === 'rename'){
+      if(db.prepare(`SELECT 1 FROM records WHERE subject = ? AND student_id IN (${inSql}) LIMIT 1`).get(newSubject, ...ids) ||
+         db.prepare(`SELECT 1 FROM missed WHERE subject = ? AND student_id IN (${inSql}) LIMIT 1`).get(newSubject, ...ids)){
+        fail(409, '该学生已有科目「' + newSubject + '」，不能重复命名');
+      }
+      for(const st of group){
+        const subjects = parseJson(st.subjects, []);
+        if(Array.isArray(subjects) && subjects.includes(newSubject)) fail(409, '该学生已有科目「' + newSubject + '」，不能重复命名');
+        for(const col of columns){
+          if(Object.prototype.hasOwnProperty.call(readMap(st[col]), newSubject)) fail(409, '该学生已有科目「' + newSubject + '」，不能重复命名');
+        }
+      }
+    }
+
+    let recordCount = 0, missedCount = 0;
+    if(body.operation === 'rename'){
+      recordCount = db.prepare(`UPDATE records SET subject = ? WHERE subject = ? AND student_id IN (${inSql})`)
+        .run(newSubject, oldSubject, ...ids).changes;
+      missedCount = db.prepare(`UPDATE missed SET subject = ? WHERE subject = ? AND student_id IN (${inSql})`)
+        .run(newSubject, oldSubject, ...ids).changes;
+    } else {
+      const recordIds = db.prepare(`SELECT id FROM records WHERE subject = ? AND student_id IN (${inSql})`)
+        .all(oldSubject, ...ids).map(r => r.id);
+      recordCount = recordIds.length;
+      if(recordIds.length){
+        const recordInSql = recordIds.map(() => '?').join(',');
+        filesToDelete.push(...db.prepare(`SELECT path FROM files WHERE record_id IN (${recordInSql})`).all(...recordIds));
+        db.prepare(`DELETE FROM files WHERE record_id IN (${recordInSql})`).run(...recordIds);
+        db.prepare(`DELETE FROM records WHERE id IN (${recordInSql})`).run(...recordIds);
+      }
+      const now = new Date();
+      const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+      missedCount = db.prepare(`UPDATE missed SET resolved = 1, resolution = 'deleted', resolved_at = ?
+                                WHERE subject = ? AND student_id IN (${inSql})`)
+        .run(today, oldSubject, ...ids).changes;
+    }
+
+    for(const st of group){
+      let subjects = parseJson(st.subjects, []);
+      if(!Array.isArray(subjects)) subjects = [];
+      const maps = columns.map(col => readMap(st[col]));
+      if(body.operation === 'rename'){
+        subjects = subjects.map(subject => subject === oldSubject ? newSubject : subject);
+        maps.forEach(map => {
+          if(Object.prototype.hasOwnProperty.call(map, oldSubject)){
+            map[newSubject] = map[oldSubject];
+            delete map[oldSubject];
+          }
+        });
+      } else {
+        subjects = subjects.filter(subject => subject !== oldSubject);
+        maps.forEach(map => { delete map[oldSubject]; });
+      }
+      db.prepare(`UPDATE students SET subjects = ?, subj_plans = ?, subj_plan_set_at = ?, subj_first_class = ?,
+                  subj_comments = ?, subj_advice = ?, mock = ? WHERE id = ?`)
+        .run(JSON.stringify(subjects), ...maps.map(map => JSON.stringify(map)), st.id);
+    }
+    logAudit(req.user, body.operation === 'rename' ? '重命名科目' : '删除科目', 'student', anchor.name,
+      body.operation === 'rename' ? oldSubject + ' → ' + newSubject : oldSubject + '（含 ' + recordCount + ' 条作业记录）', anchor.owner_id);
+    return { ok: true, updated: ids.length, records: recordCount, missed: missedCount };
+  });
+
+  try{
+    const result = tx();
+    filesToDelete.forEach(f => { try{ fs.unlinkSync(f.path); }catch(e){} });
+    res.json(result);
+  }catch(e){
+    res.status(e.status || 500).json({ ok: false, msg: e.status ? e.message : '科目操作失败' });
+  }
+});
+
 // PUT /api/students/:id {name, school, gradYear}：修改信息，同名组（同 owner 同原名且在服务）全部档案同步
 router.put('/:id', (req, res) => {
   const st = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.id);
   if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
   if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
+  if(st.archived) return res.status(400).json({ ok: false, msg: '历史学生为只读档案，请先恢复为现有学生' });
   const { name, school, gradYear } = req.body || {};
   if(!name || !name.trim()) return res.status(400).json({ ok: false, msg: '请输入学生姓名' });
   if(!gradYear) return res.status(400).json({ ok: false, msg: '请选择毕业年份' });
@@ -107,6 +210,7 @@ router.put('/:id/subj-fields', async (req, res) => {
   const st = db.prepare('SELECT * FROM students WHERE id = ?').get(req.params.id);
   if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
   if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限' });
+  if(st.archived) return res.status(400).json({ ok: false, msg: '历史学生为只读档案，请先恢复为现有学生' });
   const body = req.body || {};
   const keys = Object.keys(body);
   if(!keys.length || keys.some(k => SUBJ_FIELD_WHITELIST.indexOf(k) === -1)){

@@ -7,135 +7,138 @@ let dashOwner = 'all';
 function dashRangeStart(){ return dashRange === 0 ? null : offsetDay(-(dashRange - 1)); }
 
 /* 看板聚合数据（渲染与测试共用，避免 NaN/除零：所有均值在空数组时给 null） */
+function dashAvg(recs){
+  const graded = gradedRecs(recs);
+  return graded.length ? Math.round(graded.reduce((s,r)=>s+acc(r),0)/graded.length) : null;
+}
+function buildDashIndex(){
+  const index = { studentsById:new Map(), studentsByOwner:new Map(), recordsByOwner:new Map(), recordsByStudent:new Map(), recordsByDate:new Map(), missedByOwner:new Map(), missedByStudent:new Map() };
+  const push = (map,key,value)=>{ if(!map.has(key)) map.set(key,[]); map.get(key).push(value); };
+  pool.students.forEach(s=>{ index.studentsById.set(s.id,s); push(index.studentsByOwner,s.ownerId,s); });
+  pool.records.forEach(r=>{ push(index.recordsByOwner,r.ownerId,r); push(index.recordsByStudent,r.studentId,r); push(index.recordsByDate,r.date,r); });
+  pool.missed.forEach(m=>{ push(index.missedByOwner,m.ownerId,m); push(index.missedByStudent,m.studentId,m); });
+  return index;
+}
 function computeDash(){
   const t = todayStr();
   const tas = getUsersCache().filter(u=>u.role==='ta');
-  const recsOwner = pool.records.filter(r=>dashOwner==='all' || r.ownerId===dashOwner);
+  const index = buildDashIndex();
+  const allOwnerRecords = dashOwner==='all' ? pool.records : (index.recordsByOwner.get(dashOwner) || []);
+  const recsOwner = allOwnerRecords.filter(r=>r.date <= t);
   const start = dashRangeStart();
   const recs = start ? recsOwner.filter(r=>r.date >= start) : recsOwner;
-  const missed = pool.missed.filter(m=>dashOwner==='all' || m.ownerId===dashOwner);
-  const students = pool.students.filter(s=>dashOwner==='all' || s.ownerId===dashOwner);
-  const avgAcc = gradedRecs(recs).length ? Math.round(gradedRecs(recs).reduce((s,r)=>s+acc(r),0)/gradedRecs(recs).length) : null;  // 无作业不参与正确率
-  // 已归档学生的未交不算逾期（学习已结束，不再催办）
-  const isActiveMissed = m => { const st = pool.students.find(x=>x.id===m.studentId); return !(st && st.archived); };
+  const missed = dashOwner==='all' ? pool.missed : (index.missedByOwner.get(dashOwner) || []);
+  const students = dashOwner==='all' ? pool.students : (index.studentsByOwner.get(dashOwner) || []);
+  const avgAcc = dashAvg(recs);
+  const isActiveMissed = m => { const st = index.studentsById.get(m.studentId); return !(st && st.archived); };
   const openMiss = missed.filter(m=>!m.resolved && isActiveMissed(m));
-  // 逾期（v1.9.0 科目级口径，与首页同函数 subjectOverdueInfo）：已开课 + 欠账 + 超过作业周期没动静；
-  // 基于 pool 计算（看板与 topbar 数据范围独立，不受 state 视图过滤影响）
-  const overdueSubs = [];
-  students.filter(s=>!s.archived && s.subjPlans).forEach(st=>{
+  // 逾期只计算一次；助教横向对比复用同一结果，避免逐助教重复扫描
+  const allOverdueSubs = [];
+  pool.students.filter(s=>!s.archived && s.subjPlans).forEach(st=>{
+    const studentData = { records:index.recordsByStudent.get(st.id) || [], missed:index.missedByStudent.get(st.id) || [] };
     Object.keys(st.subjPlans).forEach(sub=>{
-      const info = subjectOverdueInfo(st, sub, pool);
-      if(info) overdueSubs.push({ refKey: st.id + '|' + sub, name: st.name, ownerId: st.ownerId, subject: sub,
-        days: info.days, owed: info.owed });
+      const info = subjectOverdueInfo(st, sub, studentData);
+      if(info) allOverdueSubs.push({ refKey:st.id+'|'+sub, studentId:st.id, name:st.name, ownerId:st.ownerId, subject:sub,
+        days:info.days, owed:info.owed });
     });
   });
-  overdueSubs.sort((a,b)=>b.days-a.days);  // 最久没动静在前
+  allOverdueSubs.sort((a,b)=>(b.days-a.days) || String(a.refKey).localeCompare(String(b.refKey)));
+  const overdueSubs = allOverdueSubs.filter(x=>dashOwner==='all' || x.ownerId===dashOwner);
+  const overdueCountByOwner = new Map();
+  allOverdueSubs.forEach(x=>overdueCountByOwner.set(x.ownerId,(overdueCountByOwner.get(x.ownerId)||0)+1));
 
-  // 近 30 天录入趋势：始终画 30 天，受助教筛选影响
+  // 固定近 30 天；日期索引避免每天重新扫描全量记录
   const trend = [];
   for(let i=29; i>=0; i--){
-    const d = offsetDay(-i);
-    const dr = recsOwner.filter(r=>r.date===d);
-    const drG = gradedRecs(dr);  // 柱高含无作业（录入次数），柱色只算有成绩的
-    trend.push({ date:d, cnt:dr.length,
-      avg: drG.length ? Math.round(drG.reduce((s,r)=>s+acc(r),0)/drG.length) : null });
+    const date = offsetDay(-i);
+    const dr = (index.recordsByDate.get(date) || []).filter(r=>dashOwner==='all' || r.ownerId===dashOwner);
+    trend.push({ date:date, cnt:dr.length, avg:dashAvg(dr) });
   }
 
   // 助教维度对比（按范围内录入次数降序；≥7 天未录入标「沉默」）
   // 口径：跨助教对比不受「助教筛选」下拉影响（否则选中某助教后其他人归零、被选中者跳到第一条——已踩过），时间范围过滤保留
-  const recsRange = start ? pool.records.filter(r=>r.date >= start) : pool.records;
   const taRows = tas.map(u=>{
-    const rs = recsRange.filter(r=>r.ownerId===u.id);
-    const ms = pool.missed.filter(m=>m.ownerId===u.id);
-    const allRs = pool.records.filter(r=>r.ownerId===u.id);
+    const ownerRecords = index.recordsByOwner.get(u.id) || [];
+    const rs = ownerRecords.filter(r=>r.date <= t && (!start || r.date >= start));
+    const ms = index.missedByOwner.get(u.id) || [];
+    const allRs = ownerRecords.filter(r=>r.date <= t);
     const lastDate = allRs.length ? allRs.reduce((a,b)=>a.date>b.date?a:b).date : null;
-    // 全量覆盖指标（v1.9.2，不随时间范围筛选）：实际录入 = 成绩记录 + 未交登记（不含已删除的未交）
-    const stuActive = pool.students.filter(s=>s.ownerId===u.id && !s.archived);
-    const hasEntry = st => pool.records.some(r=>r.studentId===st.id) || pool.missed.some(m=>m.studentId===st.id && m.resolution!=='deleted');
-    const stuWithEntry = stuActive.filter(hasEntry);
-    const entryCnt = allRs.length + pool.missed.filter(m=>m.ownerId===u.id && m.resolution!=='deleted').length;
+    const stuActive = (index.studentsByOwner.get(u.id) || []).filter(s=>!s.archived);
+    const activeIds = new Set(stuActive.map(s=>s.id));
+    const activeRecs = allRs.filter(r=>activeIds.has(r.studentId));
+    const activeMissed = ms.filter(m=>activeIds.has(m.studentId) && m.resolution!=='deleted' && m.date <= t);
+    const entryStudentIds = new Set(activeRecs.concat(activeMissed).map(x=>x.studentId));
+    const stuWithEntry = stuActive.filter(st=>entryStudentIds.has(st.id));
+    const entryCnt = activeRecs.length + activeMissed.length;
     const planTotal = stuActive.reduce((n,st)=> n + Object.values(st.subjPlans||{}).reduce((x,y)=>x+(Number(y)||0),0), 0);
-    return { user:u, stuCnt: stuActive.length,
-      stuCover: stuActive.length ? Math.round(stuWithEntry.length/stuActive.length*100) : null,  // 学生覆盖率
-      entryCover: planTotal>0 ? Math.round(entryCnt/planTotal*100) : null,  // 作业录入覆盖率（实际/应完成计划次数）
-      perStu: stuWithEntry.length ? (entryCnt/stuWithEntry.length).toFixed(1) : null,  // 人均录入次数（实际录入/有录入学生）
-      recCnt: rs.length,
-      avg: gradedRecs(rs).length ? Math.round(gradedRecs(rs).reduce((s,r)=>s+acc(r),0)/gradedRecs(rs).length) : null,
-      missCnt: ms.filter(m=>!m.resolved).length,
-      // 逾期科目数（v1.9.0 科目级口径：该助教名下已开课有欠账且超过作业周期没动静的科目数）
-      overdueCnt: pool.students.filter(s=>s.ownerId===u.id && !s.archived && s.subjPlans).reduce((n, st)=>
-        n + Object.keys(st.subjPlans).filter(sub=>subjectOverdue(st, sub, pool)).length, 0),
-      lastDate: lastDate,
-      silent: !lastDate || lastDate <= offsetDay(-7) };
+    return { user:u, stuCnt:stuActive.length,
+      stuCover:stuActive.length ? Math.round(stuWithEntry.length/stuActive.length*100) : null,
+      entryCover:planTotal>0 ? Math.round(entryCnt/planTotal*100) : null,
+      perStu:stuWithEntry.length ? (entryCnt/stuWithEntry.length).toFixed(1) : null,
+      recCnt:rs.length, avg:dashAvg(rs), missCnt:ms.filter(m=>!m.resolved).length,
+      overdueCnt:overdueCountByOwner.get(u.id) || 0, lastDate:lastDate,
+      silent:!lastDate || lastDate <= offsetDay(-7) };
   }).sort((a,b)=>b.recCnt-a.recCnt);
 
-  // 学科维度：一级类目 + 具体科目（均按记录数降序；次数含无作业——计入已完成，正确率只算有成绩的）
-  const catMap = {}, subMapD = {};
+  const catMap = new Map(), subMapD = new Map();
+  const pushGroup = (map,key,r)=>{ if(!map.has(key)) map.set(key,[]); map.get(key).push(r); };
   recs.forEach(r=>{
     const sub = r.subject || '未指定';
     const head = sub.split(' / ')[0];
     const cat = subjectTree()[head] ? head : '其他';
-    (catMap[cat] = catMap[cat] || []).push(r);
-    (subMapD[sub] = subMapD[sub] || []).push(r);
+    pushGroup(catMap,cat,r); pushGroup(subMapD,sub,r);
   });
-  const cats = Object.keys(catMap).map(k=>({ name:k, cnt:catMap[k].length,
-    avg: gradedRecs(catMap[k]).length ? Math.round(gradedRecs(catMap[k]).reduce((s,r)=>s+acc(r),0)/gradedRecs(catMap[k]).length) : null,
-    stuCnt: new Set(catMap[k].map(r=>r.studentId)).size })).sort((a,b)=>b.cnt-a.cnt);
-  const subs = Object.keys(subMapD).map(k=>({ key:k, name:shortSubject(k), cnt:subMapD[k].length,
-    avg: gradedRecs(subMapD[k]).length ? Math.round(gradedRecs(subMapD[k]).reduce((s,r)=>s+acc(r),0)/gradedRecs(subMapD[k]).length) : null,
-    stuCnt: new Set(subMapD[k].map(r=>r.studentId)).size })).sort((a,b)=>b.cnt-a.cnt);
+  const cats = Array.from(catMap, ([name,rows])=>({ name:name, cnt:rows.length, avg:dashAvg(rows),
+    stuCnt:new Set(rows.map(r=>r.studentId)).size })).sort((a,b)=>b.cnt-a.cnt);
+  const subs = Array.from(subMapD, ([key,rows])=>({ key:key, name:shortSubject(key), cnt:rows.length, avg:dashAvg(rows),
+    stuCnt:new Set(rows.map(r=>r.studentId)).size })).sort((a,b)=>b.cnt-a.cnt);
 
-  // 预警一：低分学生（范围内平均正确率 <60%，按 ownerId+姓名 组合同名合并）
+  // 低分按 owner+同名合并，view model 同时保留稳定代表 ID 和完整科目路径
   const lowMap = {};
   recs.forEach(r=>{
-    const st = pool.students.find(x=>x.id===r.studentId);
-    if(st && st.archived) return;  // 已归档学生不进预警（学习已结束）
+    const st = index.studentsById.get(r.studentId);
+    if(st && st.archived) return;
     const key = (r.ownerId||'') + '|' + (st ? st.name.trim() : r.studentId);
-    (lowMap[key] = lowMap[key] || {name: st ? st.name : '（已删除学生）', ownerId: r.ownerId, recs: []}).recs.push(r);
+    (lowMap[key] = lowMap[key] || {name:st?st.name:'（已删除学生）', ownerId:r.ownerId, recs:[]}).recs.push(r);
   });
   const lowStus = Object.values(lowMap).map(g=>{
-    const subA = {};
-    const gRecs = gradedRecs(g.recs);  // 低分预警只看有成绩的记录（无作业不算低分）
-    gRecs.forEach(r=>{ const k = r.subject || '未指定'; (subA[k] = subA[k] || []).push(r); });
-    return { name: g.name, ownerId: g.ownerId,
-      avg: gRecs.length ? Math.round(gRecs.reduce((s,r)=>s+acc(r),0)/gRecs.length) : null,
-      lowSubs: Object.keys(subA)
-        .map(k=>({ name: shortSubject(k), avg: Math.round(subA[k].reduce((s,r)=>s+acc(r),0)/subA[k].length) }))
-        .filter(x=>x.avg<60).sort((a,b)=>a.avg-b.avg) };
-  }).filter(g=>g.avg !== null && g.avg<60).sort((a,b)=>a.avg-b.avg);
+    const subA = new Map();
+    const gRecs = gradedRecs(g.recs);
+    gRecs.forEach(r=>pushGroup(subA,r.subject||'未指定',r));
+    const rep = pool.students.find(s=>!s.archived && (s.ownerId||'')===(g.ownerId||'') && s.name.trim()===g.name.trim()) || index.studentsById.get(g.recs[0].studentId);
+    return { name:g.name, ownerId:g.ownerId, studentId:rep ? rep.id : g.recs[0].studentId, avg:dashAvg(gRecs),
+      lowSubs:Array.from(subA, ([key,rows])=>({ key:key, name:shortSubject(key), avg:dashAvg(rows) }))
+        .filter(x=>x.avg<60).sort((a,b)=>a.avg-b.avg || String(a.key).localeCompare(String(b.key))) };
+  }).filter(g=>g.avg !== null && g.avg<60).sort((a,b)=>a.avg-b.avg || String(a.studentId).localeCompare(String(b.studentId)));
 
-  // 预警二：逾期科目（v1.9.0 科目级口径；当前状态指标，不受时间范围影响）——overdueSubs 已在上方按没动静天数降序
-
-  // 预警三：沉睡学生拆三类（v1.7.1 降噪）——
-  //   未开课（所有科目 firstClass 都在未来）：不进预警主列表
-  //   待首录（从未有任何记录）：单列灰色汇总「待首录 N 人」，不占红色预警条目
-  //   长期未更新（有记录但 ≥7 天无新记录）：保留为正式预警
   const firstTimers = [];
   const sleepers = students.filter(s=>!s.archived).map(s=>{
-    const rs = pool.records.filter(r=>r.studentId===s.id);
+    const rs = (index.recordsByStudent.get(s.id) || []).filter(r=>r.date <= t);
     const last = rs.length ? rs.reduce((a,b)=>a.date>b.date?a:b).date : null;
-    return { name: s.name, ownerId: s.ownerId, last: last,
-      days: last ? Math.round((new Date(t) - new Date(last)) / 86400000) : null,
-      _fc: s.subjFirstClass || {} };
+    return { studentId:s.id, name:s.name, ownerId:s.ownerId, last:last,
+      days:last ? Math.round((new Date(t)-new Date(last))/86400000) : null, _fc:s.subjFirstClass || {} };
   }).filter(x=>{
-    if(x.days !== null) return x.days >= 7;  // 长期未更新 → 正式预警
-    // 从未有记录：所有科目开课时间都在未来 → 未开课不进；否则进待首录
+    if(x.days !== null) return x.days >= 7;
     const fcs = Object.values(x._fc).filter(Boolean);
-    if(fcs.length && fcs.every(d=>d > t)) return false;  // 未开课
+    if(fcs.length && fcs.every(date=>date > t)) return false;
     firstTimers.push(x);
     return false;
-  }).sort((a,b)=>b.days-a.days);
+  }).sort((a,b)=>(b.days-a.days) || String(a.studentId).localeCompare(String(b.studentId)));
 
-  return { recCnt: recs.length, avgAcc: avgAcc,
-    todayRecs: recsOwner.filter(r=>r.date===t).length,
-    activeStu: students.filter(s=>!s.archived).length,
-    archivedStu: students.filter(s=>s.archived).length,
-    missCnt: openMiss.length, overdueCnt: overdueSubs.length,  // overdueCnt = 逾期科目数（v1.9.0 科目级口径）
-    taWithRecs: tas.filter(u=>recs.some(r=>r.ownerId===u.id)).length, taTotal: tas.length,
-    trend: trend, taRows: taRows, cats: cats, subs: subs,
-    lowStus: lowStus, overdueList: overdueSubs, sleepers: sleepers, firstTimers: firstTimers };
+  const ownersWithRecs = new Set(recs.map(r=>r.ownerId));
+  return { recCnt:recs.length, avgAcc:avgAcc,
+    todayRecs:recsOwner.filter(r=>r.date===t).length,
+    activeStu:students.filter(s=>!s.archived).length,
+    archivedStu:students.filter(s=>s.archived).length,
+    missCnt:openMiss.length, overdueCnt:overdueSubs.length,
+    taWithRecs:tas.filter(u=>ownersWithRecs.has(u.id)).length, taTotal:tas.length,
+    trend:trend, taRows:taRows, cats:cats, subs:subs,
+    lowStus:lowStus, overdueList:overdueSubs, sleepers:sleepers, firstTimers:firstTimers };
 }
 
+let dashAlertPage = {}, dashAlertPageSize = {}, dashTrendTable = false;
+let dashSubjectQuery = '', dashSubjectSort = 'cnt', dashSubjectPage = 1, dashSubjectPageSize = 20;
+let dashReturnContext = null;
 function renderDashboard(){
   const boxes = ['dash-overview','dash-trend','dash-tas','dash-cats','dash-subs','dash-alert-low','dash-alert-miss','dash-alert-sleep'];
   // 助教守卫：入口不渲染，直接切到 pane-dashboard 也不产出内容
@@ -151,6 +154,10 @@ function renderDashboard(){
     tas.map(u=>'<option value="' + esc(u.id) + '">' + esc(u.name) + (u.disabled ? '（已停用）' : '') + '</option>').join('');
   sel.value = dashOwner;
   document.querySelectorAll('#dash-range .role-opt').forEach(b=>b.classList.toggle('active', parseInt(b.dataset.range,10)===dashRange));
+  const current = document.getElementById('dash-current');
+  if(current) current.textContent = '当前：' + (dashOwner==='all' ? '全部助教' : ownerName(dashOwner)) + ' · ' + (dashRange===0 ? '截至今天的全部历史' : '近 ' + dashRange + ' 天');
+  const reset = document.getElementById('dash-owner-reset');
+  if(reset) reset.style.display = dashOwner==='all' ? 'none' : '';
 
   // 1. 全局概览卡（学生拆两张：在服务 / 已归档）
   document.getElementById('dash-overview').innerHTML =
@@ -164,19 +171,23 @@ function renderDashboard(){
     '<div class="quick"><div class="num">' + d.todayRecs + '</div><div class="lbl">今日已录入</div></div>';
   animateNums(document.getElementById('dash-overview'));  // 数字滚动动画（桩环境/减动效直接终值）
 
-  // 2. 近 30 天录入趋势柱（纯 div；柱高=次数，柱色=当天平均正确率）
+  // 固定近 30 天；柱子与数据表同时提供日期、次数和均分，不依赖颜色或 hover
   const maxCnt = d.trend.reduce((m,x)=>Math.max(m,x.cnt),0);
-  document.getElementById('dash-trend').innerHTML = maxCnt === 0
-    ? '<p class="hint">近 30 天暂无录入。</p>'
-    : d.trend.map(x=>{
-        const color = x.cnt===0 ? '#EAE3D2' : (x.avg>=85?'#5FB89A':(x.avg>=60?'#E8A94C':'#DE6B6B'));
-        const h = Math.max(2, Math.round(x.cnt/maxCnt*80));
-        const isFirst = x.date.slice(8)==='01', isToday = x.date===todayStr();
-        return '<div class="dash-bar-col" title="' + x.date + ' · ' + x.cnt + ' 次' + (x.avg===null?'':' · 平均 ' + x.avg + '%') + '">' +
-          '<div class="dash-bar" style="height:' + h + 'px;background:' + color + '"></div>' +
-          ((isFirst||isToday) ? '<div class="dash-bar-lbl">' + (isToday?'今天':x.date.slice(5)) + '</div>' : '') +
-          '</div>';
-      }).join('');
+  const chartHtml = maxCnt === 0 ? '<p class="hint">近 30 天暂无录入。</p>' : '<div class="dash-trend-bars">' + d.trend.map(x=>{
+    const color = x.avg===null ? '#D5DDE5' : (x.avg>=85?'#4FA88B':(x.avg>=60?'#C7A75E':'#C95353'));
+    const h = Math.max(2,Math.round(x.cnt/maxCnt*80));
+    const isFirst = x.date.slice(8)==='01', isToday = x.date===todayStr();
+    const label = x.date + '，录入 ' + x.cnt + ' 次，平均正确率 ' + (x.avg===null?'无评分':x.avg+'%');
+    return '<div class="dash-bar-col" tabindex="0" role="img" aria-label="' + esc(label) + '" title="' + esc(label) + '">' +
+      '<div class="dash-bar" style="height:' + h + 'px;background:' + color + '"></div>' +
+      ((isFirst||isToday) ? '<div class="dash-bar-lbl">' + (isToday?'今天':x.date.slice(5)) + '</div>' : '') + '</div>';
+  }).join('') + '</div>';
+  const trendTable = dashTrendTable ? '<div class="dash-table-wrap"><table class="dash-table"><thead><tr><th>日期</th><th>录入次数</th><th>平均正确率</th></tr></thead><tbody>' +
+    d.trend.map(x=>'<tr><td>' + x.date + '</td><td>' + x.cnt + '</td><td>' + (x.avg===null?'—':x.avg+'%') + '</td></tr>').join('') +
+    '</tbody></table></div>' : '';
+  document.getElementById('dash-trend').innerHTML = chartHtml +
+    '<button type="button" class="btn ghost sm dash-trend-toggle" aria-expanded="' + dashTrendTable + '" onclick="dashToggleTrendTable()">' +
+    (dashTrendTable?'收起':'查看') + '30 天数据表</button>' + trendTable;
 
   // 3. 助教维度对比（点击行下钻）
   const maxTa = d.taRows.reduce((m,x)=>Math.max(m,x.recCnt),0);
@@ -186,10 +197,10 @@ function renderDashboard(){
     (x.user.disabled ? ' <span class="tag red">已停用</span>' : '') +
     (x.silent ? ' <span class="tag amber">沉默</span>' : '') +
     '<div class="hint" style="margin-top:2px">学生 ' + x.stuCnt + ' 人 · 最近录入 ' + (x.lastDate || '从未') + '</div>' +
-    // 全量覆盖指标（v1.9.2）：学生覆盖率 / 作业录入覆盖率 / 人均录入次数（实际录入含未交登记）
+    // 当前在服务覆盖指标：学生覆盖率 / 作业录入覆盖率 / 人均录入次数（实际录入含未交+补交两次行为）
     '<div class="hint" style="margin-top:2px;font-size:12px">学生覆盖 ' + (x.stuCover===null?'—':x.stuCover+'%') +
     ' · 录入覆盖 ' + (x.entryCover===null?'—':x.entryCover+'%') +
-    ' · 人均 ' + (x.perStu===null?'—':x.perStu) + ' 次<span style="opacity:.7">（全量）</span></div></div>' +
+    ' · 人均 ' + (x.perStu===null?'—':x.perStu) + ' 次<span style="opacity:.7">（当前在服务 · 截至今天）</span></div></div>' +
     '<div class="dash-ta-bar"><div class="dash-ta-fill" style="width:' + (maxTa ? Math.round(x.recCnt/maxTa*100) : 0) + '%"></div></div>' +
     '<span class="dash-ta-num">录入 ' + x.recCnt + ' 次</span>' +
     (x.avg===null
@@ -205,61 +216,125 @@ function renderDashboard(){
     '<span>平均正确率 <b style="color:' + (c.avg===null?'var(--ink2)':(c.avg>=85?'var(--mint-d)':(c.avg>=60?'#B9802A':'var(--red)'))) + '">' + (c.avg===null?'—（均无作业）':c.avg + '%') + '</b></span>' +
     '<span>涉及学生 <b>' + c.stuCnt + '</b> 人</span></div>').join('')
     : '<p class="hint">范围内暂无作业记录。</p>';
-  document.getElementById('dash-subs').innerHTML = d.subs.map(x=>{
-    const color = x.avg===null ? '#C9C2B0' : (x.avg>=85 ? '#5FB89A' : (x.avg>=60 ? '#E8A94C' : '#DE6B6B'));
-    return '<div class="subj-row">' +
+  const subjectQuery = dashSubjectQuery.trim().toLowerCase();
+  let subjectRows = d.subs.filter(x=>!subjectQuery || (x.key+' '+x.name).toLowerCase().indexOf(subjectQuery)!==-1);
+  subjectRows = subjectRows.slice().sort((a,b)=>{
+    if(dashSubjectSort==='name') return a.key.localeCompare(b.key);
+    const field = dashSubjectSort==='avg' ? 'avg' : (dashSubjectSort==='stuCnt' ? 'stuCnt' : 'cnt');
+    const av = a[field]===null ? -1 : a[field], bv = b[field]===null ? -1 : b[field];
+    return bv-av || a.key.localeCompare(b.key);
+  });
+  const subjectPage = pagedRows(subjectRows,dashSubjectPage,dashSubjectPageSize);
+  dashSubjectPage = subjectPage.page; dashSubjectPageSize = subjectPage.pageSize;
+  const subjectControls = '<div class="today-filter dash-sub-filter"><input id="dash-subject-search" class="today-search" value="' + esc(dashSubjectQuery) + '" placeholder="搜索完整科目路径或短名" aria-label="搜索科目" oninput="dashSubjectSearchSet(this.value)">' +
+    '<select id="dash-subject-sort" aria-label="科目排序" onchange="dashSubjectSortSet(this.value)">' +
+    '<option value="cnt"' + (dashSubjectSort==='cnt'?' selected':'') + '>按记录数降序</option>' +
+    '<option value="avg"' + (dashSubjectSort==='avg'?' selected':'') + '>按平均正确率降序</option>' +
+    '<option value="stuCnt"' + (dashSubjectSort==='stuCnt'?' selected':'') + '>按学生数降序</option>' +
+    '<option value="name"' + (dashSubjectSort==='name'?' selected':'') + '>按完整路径升序</option></select>' +
+    ((subjectQuery || dashSubjectSort!=='cnt') ? '<button type="button" class="btn ghost sm" onclick="dashSubjectClear()">清除条件</button>' : '') + '</div>';
+  const subjectRowsHtml = subjectPage.rows.map(x=>{
+    const color = x.avg===null ? '#C9C2B0' : (x.avg>=85?'#4FA88B':(x.avg>=60?'#C7A75E':'#C95353'));
+    return '<div class="subj-row" data-subject-key="' + esc(x.key) + '">' +
       '<div class="subj-name' + (x.avg!==null && x.avg<60?' low':'') + '" title="' + esc(x.key) + '">' + esc(x.name) + '</div>' +
       '<div class="subj-bar"><div class="subj-fill" style="width:' + (x.avg===null?0:x.avg) + '%;background:' + color + '"></div>' +
-      '<span class="subj-pct">' + (x.avg===null?'—':x.avg + '%') + '</span></div>' +
-      '<div class="subj-cnt" style="flex-basis:96px">' + x.cnt + ' 次 · ' + x.stuCnt + ' 人</div>' +
-      '</div>';
+      '<span class="subj-pct">' + (x.avg===null?'—':x.avg+'%') + '</span></div>' +
+      '<div class="subj-cnt" style="flex-basis:96px">' + x.cnt + ' 次 · ' + x.stuCnt + ' 人</div></div>';
   }).join('');
+  const subjectPager = '<div class="today-pager dash-sub-pager"><span class="pager-meta">第 ' + subjectPage.start + '–' + subjectPage.end + ' 科 / 共 ' + subjectPage.total + ' 科</span>' +
+    '<label>每页 <select id="dash-subject-size" onchange="dashSubjectPageSizeSet(this.value)"><option value="20"' + (subjectPage.pageSize===20?' selected':'') + '>20</option>' +
+    '<option value="50"' + (subjectPage.pageSize===50?' selected':'') + '>50</option></select> 科</label>' +
+    '<button type="button" class="btn ghost sm" onclick="dashSubjectPageGo(-1)"' + (subjectPage.page<=1?' disabled':'') + '>上一页</button>' +
+    '<span class="pager-page">第 ' + subjectPage.page + ' / ' + subjectPage.pages + ' 页</span>' +
+    '<button type="button" class="btn ghost sm" onclick="dashSubjectPageGo(1)"' + (subjectPage.page>=subjectPage.pages?' disabled':'') + '>下一页</button></div>';
+  document.getElementById('dash-subs').innerHTML = subjectControls +
+    (subjectPage.rows.length ? subjectRowsHtml : '<p class="hint">没有符合条件的科目。</p>') + subjectPager;
 
-  // 5. 预警名单（低分/沉睡跳「现有学生」并填搜索框；逾期跳「今日概览」）；各默认显示前 5 条，超出折叠
-  const renderAlertList = (items, key, emptyText, renderItem)=>{
+  // 摘要前 5 条；展开后只渲染完整名单的当前页，待首录同样分页
+  const alertPager = (key,items)=>{
+    const page = pagedRows(items,dashAlertPage[key],dashAlertPageSize[key]);
+    dashAlertPage[key] = page.page; dashAlertPageSize[key] = page.pageSize;
+    const html = '<div class="today-pager dash-alert-pager"><span class="pager-meta">第 ' + page.start + '–' + page.end + ' 条 / 共 ' + page.total + ' 条</span>' +
+      '<label>每页 <select id="dash-alert-size-' + key + '" onchange="dashAlertPageSizeSet(\'' + key + '\',this.value)">' +
+      '<option value="20"' + (page.pageSize===20?' selected':'') + '>20</option><option value="50"' + (page.pageSize===50?' selected':'') + '>50</option></select> 条</label>' +
+      '<button type="button" class="btn ghost sm" onclick="dashAlertPageGo(\'' + key + '\',-1)"' + (page.page<=1?' disabled':'') + '>上一页</button>' +
+      '<span class="pager-page">第 ' + page.page + ' / ' + page.pages + ' 页</span>' +
+      '<button type="button" class="btn ghost sm" onclick="dashAlertPageGo(\'' + key + '\',1)"' + (page.page>=page.pages?' disabled':'') + '>下一页</button></div>';
+    return { rows:page.rows, html:html };
+  };
+  const renderAlertList = (items,key,emptyText,renderItem)=>{
     if(!items.length) return '<p class="hint">' + emptyText + '</p>';
     const expanded = !!dashAlertExpand[key];
-    let h = (expanded ? items : items.slice(0,5)).map(renderItem).join('');
-    if(items.length > 5){
-      h += '<button class="btn ghost sm" style="width:100%" onclick="dashToggleAlert(\'' + key + '\')">' +
-        (expanded ? '收起' : '展开全部 ' + items.length + ' 条') + '</button>';
+    let h = '<div class="dash-alert-total">共 ' + items.length + ' 条</div>';
+    if(expanded){
+      const page = alertPager(key,items);
+      h += page.rows.map(renderItem).join('') + page.html;
+    } else {
+      h += items.slice(0,5).map(renderItem).join('');
     }
+    if(items.length>5) h += '<button type="button" class="btn ghost sm dash-alert-toggle" onclick="dashToggleAlert(\'' + key + '\')">' + (expanded?'收起':'展开全部 ' + items.length + ' 条') + '</button>';
     return h;
   };
-  document.getElementById('dash-alert-low').innerHTML = renderAlertList(d.lowStus, 'low', '范围内没有低分学生。', g=>
-    '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(jsStr(g.name)) + '\')">' +
-    '<b>' + esc(g.name) + '</b> <span class="tag red">' + g.avg + '%</span>' +
-    '<div class="meta">归属 ' + esc(ownerName(g.ownerId)) +
-    (g.lowSubs.length ? ' · 低分科目：' + g.lowSubs.map(s=>esc(s.name) + ' ' + s.avg + '%').join('、') : '') + '</div>' +
-    '</button>');
-  document.getElementById('dash-alert-miss').innerHTML = renderAlertList(d.overdueList, 'miss', '没有逾期科目。', x=>
-    '<button class="dash-alert-item" onclick="switchTab(\'today\')">' +
+  document.getElementById('dash-alert-low').innerHTML = renderAlertList(d.lowStus,'low','范围内没有低分学生。',g=>{
+    const subject = g.lowSubs.length ? g.lowSubs[0].key : '';
+    return '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(jsStr(g.studentId)) + '\',\'' + esc(jsStr(subject)) + '\')">' +
+      '<b>' + esc(g.name) + '</b> <span class="tag red">' + g.avg + '%</span>' +
+      '<div class="meta">归属 ' + esc(ownerName(g.ownerId)) +
+      (g.lowSubs.length ? ' · 低分科目：' + g.lowSubs.map(s=>esc(s.name)+' '+s.avg+'%').join('、') : '') + '</div></button>';
+  });
+  document.getElementById('dash-alert-miss').innerHTML = renderAlertList(d.overdueList,'miss','没有逾期科目。',x=>
+    '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(jsStr(x.studentId)) + '\',\'' + esc(jsStr(x.subject)) + '\')">' +
     '<b>' + esc(x.name) + '</b> <span class="tag red">欠 ' + x.owed + ' 次 · ' + x.days + ' 天没动静</span>' +
-    '<div class="meta">归属 ' + esc(ownerName(x.ownerId)) + ' · ' + esc(shortSubject(x.subject)) + '</div>' +
-    '</button>');
-  document.getElementById('dash-alert-sleep').innerHTML = renderAlertList(d.sleepers, 'sleep', '没有沉睡学生。', x=>
-    '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(jsStr(x.name)) + '\')">' +
+    '<div class="meta">归属 ' + esc(ownerName(x.ownerId)) + ' · ' + esc(shortSubject(x.subject)) + '</div></button>');
+  let firstHtml = '';
+  if(d.firstTimers.length){
+    firstHtml = '<button type="button" class="btn ghost sm dash-first-toggle" onclick="dashToggleAlert(\'first\')">待首录 ' + d.firstTimers.length + ' 人（从未有作业记录）' + (dashAlertExpand.first?' ▾':' ▸') + '</button>';
+    if(dashAlertExpand.first){
+      const page = alertPager('first',d.firstTimers);
+      firstHtml += page.rows.map(x=>'<button class="dash-alert-item dash-first-item" onclick="dashGotoStudent(\'' + esc(jsStr(x.studentId)) + '\')">' +
+        '<b>' + esc(x.name) + '</b><div class="meta">归属 ' + esc(ownerName(x.ownerId)) + '</div></button>').join('') + page.html;
+    }
+  }
+  document.getElementById('dash-alert-sleep').innerHTML = renderAlertList(d.sleepers,'sleep','没有沉睡学生。',x=>
+    '<button class="dash-alert-item" onclick="dashGotoStudent(\'' + esc(jsStr(x.studentId)) + '\')">' +
     '<b>' + esc(x.name) + '</b> <span class="tag amber">' + x.days + ' 天无记录</span>' +
-    '<div class="meta">归属 ' + esc(ownerName(x.ownerId)) + '</div>' +
-    '</button>') +
-    // 待首录（从未有记录）：灰字汇总一行，点击展开名单；不占红色预警条目
-    (d.firstTimers.length
-      ? '<div class="hint" style="margin-top:8px;cursor:pointer" onclick="dashToggleAlert(\'first\')">待首录 ' + d.firstTimers.length + ' 人（从未有作业记录）' + (dashAlertExpand.first ? ' ▾' : ' ▸') + '</div>' +
-        (dashAlertExpand.first
-          ? d.firstTimers.map(x=>'<div class="hint" style="padding:2px 0 2px 12px">' + esc(x.name) + ' · 归属 ' + esc(ownerName(x.ownerId)) + '</div>').join('')
-          : '')
-      : '');
+    '<div class="meta">归属 ' + esc(ownerName(x.ownerId)) + '</div></button>') + firstHtml;
 }
-/* 预警名单折叠/展开（默认前 5 条；first = 待首录名单展开态） */
-let dashAlertExpand = { low: false, miss: false, sleep: false, first: false };
+let dashAlertExpand = { low:false, miss:false, sleep:false, first:false };
 function dashToggleAlert(key){ dashAlertExpand[key] = !dashAlertExpand[key]; renderDashboard(); }
-/* 预警跳转：跳到「现有学生」并把姓名填入搜索框（复用现有搜索机制定位学生卡） */
-function dashGotoStudent(name){
-  switchTab('stats');  // 先切页（切页会清空筛选），再填搜索词
+function dashAlertPageGo(key,delta){ dashAlertPage[key] = (dashAlertPage[key]||1)+delta; renderDashboard(); }
+function dashAlertPageSizeSet(key,value){ dashAlertPageSize[key] = parseInt(value,10)===50?50:20; dashAlertPage[key]=1; renderDashboard(); }
+function dashToggleTrendTable(){ dashTrendTable = !dashTrendTable; renderDashboard(); }
+function dashSubjectSearchSet(value){ dashSubjectQuery=value; dashSubjectPage=1; renderDashboard(); restoreInputFocus('dash-subject-search'); }
+function dashSubjectSortSet(value){ dashSubjectSort=value; dashSubjectPage=1; renderDashboard(); }
+function dashSubjectPageGo(delta){ dashSubjectPage+=delta; renderDashboard(); }
+function dashSubjectPageSizeSet(value){ dashSubjectPageSize=parseInt(value,10)===50?50:20; dashSubjectPage=1; renderDashboard(); }
+function dashSubjectClear(){ dashSubjectQuery=''; dashSubjectSort='cnt'; dashSubjectPage=1; renderDashboard(); }
+function dashResetOwner(){ dashOwner='all'; renderDashboard(); }
+function dashGotoStudent(studentId, subject){
+  const st = pool.students.find(s=>s.id===studentId);
+  const name = st ? st.name : studentId;
+  dashReturnContext = { scrollY:typeof window.scrollY==='number' ? window.scrollY : 0 };
+  switchTab('stats');
   stuQuery = name;
+  stuTaFilter = st ? st.ownerId : 'all';
   const inp = document.getElementById('stu-search');
   if(inp) inp.value = name;
+  const rep = st ? pool.students.find(s=>!s.archived && (s.ownerId||'')===(st.ownerId||'') && s.name.trim()===st.name.trim()) || st : null;
+  quickEntry = rep && subject ? {gid:rep.id,subject:subject} : null;
   renderStats();
+  const btn = document.getElementById('dash-return-btn');
+  if(btn) btn.style.display = '';
+}
+function dashReturnDashboard(){
+  switchTab('dashboard');
+  const btn = document.getElementById('dash-return-btn');
+  if(btn) btn.style.display = 'none';
+  renderDashboard();
+  const top = dashReturnContext ? dashReturnContext.scrollY : 0;
+  dashReturnContext = null;
+  const restore = ()=>window.scrollTo({top:top,behavior:'auto'});
+  if(typeof requestAnimationFrame==='function') requestAnimationFrame(restore); else restore();
 }
 /* 助教行下钻：再点同一行返回全部助教 */
 function dashDrillTa(id){

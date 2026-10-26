@@ -179,7 +179,7 @@ function ok(cond, name){
     && accGrp.indexOf('助教<span class="cnt">') < accGrp.indexOf('销售<span class="cnt">'), '组序：教务管理员 → 助教 → 销售');
   ok(/教务管理员<span class="cnt">1 个账号/.test(accGrp) && /助教<span class="cnt">3 个账号/.test(accGrp)
     && /销售<span class="cnt">1 个账号/.test(accGrp), '分组数量正确（教务 1 / 助教 3 / 销售 1）');
-  ok(html.indexOf('id="login-ver">v1.9.3') !== -1, '登录页版本号升至 v1.9.3');
+  ok(html.indexOf('id="login-ver">v1.15.0') !== -1, '登录页版本号升至 v1.15.0');
 
   /* ---- 账号删除（v1.9.2 NEW-01，mock 与 API 同规则）：tombstone + 阻断式 + 用户名锁定 ---- */
   {
@@ -500,6 +500,8 @@ function ok(cond, name){
   wb.setQuickEntry(null);
 
   /* ---- UI-06（v1.9.2）：键盘可达 tabindex + Esc 关闭弹窗 + 初始焦点 ---- */
+  wb.setQuickEntry({gid:ui2Stu.id, subject:(ui2Stu.subjects && ui2Stu.subjects[0]) || Object.keys(ui2Stu.subjPlans||{})[0]});
+  wb.renderStats();
   ok(documentStub.getElementById('stu-list').innerHTML.indexOf('tabindex="0" onclick="toggleQuickEntry') !== -1,
     'UI-06：科目徽章可键盘聚焦（tabindex=0）');
   wb.renderToday();
@@ -780,22 +782,20 @@ function ok(cond, name){
   const catsHtml = documentStub.getElementById('today-cats').innerHTML;
   ok(/>未交 3</.test(catsHtml) && />逾期 1</.test(catsHtml), '分类计数条渲染分组（v1.9.2：未交 3（含种子 1 条）/逾期 1 科）');
   const todayHtmlA = documentStub.getElementById('today-list').innerHTML;
-  ok(todayHtmlA.indexOf('id="today-grp-miss"') !== -1 && todayHtmlA.indexOf('id="today-grp-overdue"') !== -1
-    && todayHtmlA.indexOf('today-grp-planStall') === -1 && todayHtmlA.indexOf('today-grp-overdueMiss') === -1,
-    '分组结构渲染（三组：未交 + 逾期；旧 planStall/overdueMiss 组不复存在）');
-  ok(todayHtmlA.indexOf('id="today-grp-miss"') < todayHtmlA.indexOf('id="today-grp-overdue"'), '分组按优先级排列（未交在逾期前）');
+  ok(todayHtmlA.indexOf('id="today-grp-miss"') !== -1 && todayHtmlA.indexOf('id="today-grp-overdue"') === -1
+    && catsHtml.indexOf('id="today-cat-overdue"') !== -1 && todayHtmlA.indexOf('today-grp-planStall') === -1,
+    '任务中心固定三类分段，默认仅渲染未交组，不隐藏渲染逾期全集');
   ok(/id="today-grp-miss"[\s\S]*?today-grp-body">/.test(todayHtmlA), '默认展开最紧急非空组（未交）');
-  ok(/id="today-grp-overdue"[\s\S]*?today-grp-body" style="display:none">/.test(todayHtmlA), '其余组默认折叠');
   // 未交永不升级：登记超作业周期的 al-m1 仍在未交组，徽章「未交 · 已 N 天」，无宽限/升级文案残留
-  const missGrpA = todayHtmlA.split('id="today-grp-miss"')[1].split('id="today-grp-overdue"')[0] || '';
+  const missGrpA = todayHtmlA.split('id="today-grp-miss"')[1] || '';
   ok(missGrpA.indexOf('未交 · 已 20 天') !== -1 && missGrpA.indexOf('未交 · 已 1 天') !== -1, '未交行徽章「未交 · 已 N 天」（-20/-1 天两条，跨科目同组）');
   ok(missGrpA.indexOf('宽限') === -1 && todayHtmlA.indexOf('宽限') === -1, '新口径无「宽限」旧文案残留');
-  // 逾期组科目级行：欠 N 次 · M 天没动静
-  const odGrpA = todayHtmlA.split('id="today-grp-overdue"')[1] || '';
-  ok(odGrpA.indexOf('欠 4 次 · 20 天没动静') !== -1 && odGrpA.indexOf('>逾期<') !== -1, '逾期行显示「欠 N 次 · M 天没动静」');
-  // 计数条点击切换展开组
+  // 点击分段后仅渲染逾期组，原优先级与欠账文案保持
   vm.runInContext("todayCatGo('overdue')", ctx);
-  ok(/id="today-grp-overdue"[\s\S]*?today-grp-body">/.test(documentStub.getElementById('today-list').innerHTML), '点击计数条展开「逾期」组');
+  const odGrpA = documentStub.getElementById('today-list').innerHTML;
+  ok(odGrpA.indexOf('id="today-grp-overdue"') !== -1 && odGrpA.indexOf('id="today-grp-miss"') === -1
+    && odGrpA.indexOf('欠 4 次 · 20 天没动静') !== -1 && odGrpA.indexOf('>逾期<') !== -1,
+    '切换后仅渲染逾期组，显示「欠 N 次 · M 天没动静」');
   // 稍后处理：行消失 + toast + 写 pool.alertActions + 已处理区出现「稍后处理」
   vm.runInContext("alertSnooze('miss','al-m2')", ctx);
   ok(alerts[alerts.length-1].indexOf('已稍后处理') !== -1, '稍后处理 toast 反馈');
@@ -811,7 +811,7 @@ function ok(cond, name){
   ok(documentStub.getElementById('done-list').innerHTML.indexOf('预警完成') !== -1, '完成记录进「已处理事项」区');
   // 稍后徽章时效（v1.9.2）：snooze 过期后行恢复显示、不再挂旧「稍后至」徽章
   vm.runInContext("(function(){ var a = pool.alertActions.find(x=>x.refKey==='al-m2'); a.snoozeUntil = '" + dAgo(-1) + "'; })()", ctx);
-  wb.renderToday();
+  vm.runInContext("todayCatGo('miss')", ctx);
   const snzExp = documentStub.getElementById('today-list').innerHTML;
   ok(snzExp.indexOf(dAgo(-1)) !== -1, 'snooze 过期后该未交恢复显示');
   ok(snzExp.indexOf('稍后至') === -1, '过期 snooze 不再显示「稍后至」徽章（恢复普通待办）');
@@ -829,8 +829,8 @@ function ok(cond, name){
   vm.runInContext("todayExpandKey = null; todayTaFilter = {}", ctx);
   wb.renderToday();
   let tfHtml = documentStub.getElementById('today-list').innerHTML;
-  ok(tfHtml.indexOf('today-ta-chips') !== -1 && tfHtml.indexOf('全部 ') !== -1, '教务视角组内渲染助教筛选 chips');
-  ok(tfHtml.indexOf(ta1.name + ' ') !== -1 && tfHtml.indexOf(ta2.name + ' ') !== -1, 'chips 含未交条目归属的两位助教（带各自条数）');
+  ok(tfHtml.indexOf('id="today-owner-miss"') !== -1 && tfHtml.indexOf('全部助教 ') !== -1, '教务视角组内渲染完整助教筛选下拉');
+  ok(tfHtml.indexOf(ta1.name + ' ') !== -1 && tfHtml.indexOf(ta2.name + ' ') !== -1, '助教下拉含两位归属助教及各自条数');
   vm.runInContext("todayTaSet('miss','" + ta2.id + "')", ctx);
   tfHtml = documentStub.getElementById('today-list').innerHTML;
   const missOnly = tfHtml.split('id="today-grp-miss"')[1].split('id="today-grp-lowAcc"')[0] || '';
@@ -851,11 +851,11 @@ function ok(cond, name){
     && documentStub.getElementById('done-list').innerHTML.indexOf('家长暂停课程') !== -1, '已处理区显示「已搁置 · 原因」');
   ok((wb.pool.alertActions || []).some(a=>a.refKey==='tf-m2' && a.action==='shelve' && a.note==='家长暂停课程'),
     '搁置写入 alertActions（含原因）');
-  // 助教视角无筛选 chips
+  // 助教视角无助教筛选下拉
   wb.doLogout();
   await wb.doLogin('ta1', 'ta123456', 'ta');
   wb.renderToday();
-  ok(documentStub.getElementById('today-list').innerHTML.indexOf('today-ta-chips') === -1, '助教视角不渲染组内助教筛选');
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf('today-owner-') === -1, '助教视角不渲染组内助教筛选');
   // 清理
   wb.doLogout();
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -865,7 +865,7 @@ function ok(cond, name){
   // 正确率偏低按学生+科目聚合：同科目两条低分只显示一条（取最低分那条）
   wb.pool.records.push({id:'al-r1', studentId:'al-s1', date:dAgo(-2), total:20, correct:5, wrongs:[1], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
   wb.pool.records.push({id:'al-r2', studentId:'al-s1', date:dAgo(-1), total:20, correct:8, wrongs:[2], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
-  wb.refreshView(); wb.renderToday();
+  wb.refreshView(); vm.runInContext("todayCatGo('lowAcc')", ctx);
   const lowGrpHtml = documentStub.getElementById('today-list').innerHTML;
   ok((lowGrpHtml.match(/建议安排订正/g) || []).length === 1 && lowGrpHtml.indexOf('正确率偏低 25%') !== -1,
     '低分预警按学生+科目聚合成一条（显示最低分 25%）');
@@ -877,6 +877,40 @@ function ok(cond, name){
   wb.refreshView();
   wb.doLogout();
   await wb.doLogin('admin', 'admin456', 'admin');
+
+  /* ---- v1.12.0 今日任务中心分页：0/1/20/21、筛选、页大小、末页处理后回退 ---- */
+  const { makeBoundaryRows } = require('./ui-upgrade-fixtures');
+  ok(vm.runInContext('pagedRows([],1,20).total',ctx)===0 && vm.runInContext('pagedRows([{id:1}],1,20).rows.length',ctx)===1,
+    '分页边界：0 条与 1 条均返回有效空/单页');
+  const pgPool = {students:wb.pool.students,records:wb.pool.records,missed:wb.pool.missed};
+  wb.pool.students = [{id:'pg-stu',name:'分页学生',ownerId:ta1.id,archived:false}];
+  wb.pool.records = [];
+  wb.pool.missed = makeBoundaryRows(21,'pg').map(m=>({...m,studentId:'pg-stu',ownerId:ta1.id}));
+  wb.pool.alertActions = [];
+  wb.refreshView();
+  vm.runInContext("todayExpandKey=null;todayTaFilter={};todayQuery={};todayPage={};todayPageSize={};renderToday()",ctx);
+  const pgCount = ()=>((documentStub.getElementById('today-list').innerHTML.match(/todo-item/g)||[]).length);
+  const pgMeta = ()=>{ const m = documentStub.getElementById('today-list').innerHTML.match(/第 \d+–\d+ 条 \/ 共 \d+ 条/); return m ? m[0] : ''; };
+  ok(pgCount()===20 && pgMeta()==='第 1–20 条 / 共 21 条', '21 条任务默认仅渲染首页 20 条并显示全量计数');
+  vm.runInContext("todayPageGo('miss',1)",ctx);
+  ok(pgCount()===1 && pgMeta()==='第 21–21 条 / 共 21 条'
+    && documentStub.getElementById('today-list').innerHTML.indexOf('pg-0021')!==-1, '第二页仅显示最后 1 条且记录身份正确');
+  vm.runInContext("todayPageSizeSet('miss',50)",ctx);
+  ok(pgCount()===21 && pgMeta()==='第 1–21 条 / 共 21 条', '每页 50 时完整 21 条可达');
+  vm.runInContext("todaySearchSet('miss','不存在的学生')",ctx);
+  ok(pgCount()===0 && pgMeta()==='第 0–0 条 / 共 0 条'
+    && documentStub.getElementById('today-list').innerHTML.indexOf('没有符合当前筛选条件')!==-1, '搜索过滤空态与 0 条计数正确');
+  vm.runInContext("todayClearFilters('miss');todayTaSet('miss','" + ta2.id + "')",ctx);
+  ok(pgCount()===0 && pgMeta()==='第 0–0 条 / 共 0 条', '助教过滤无匹配时显示空态');
+  vm.runInContext("todayClearFilters('miss');todayPageSizeSet('miss',20);todayPageGo('miss',1)",ctx);
+  ok(pgCount()===1 && pgMeta()==='第 21–21 条 / 共 21 条', '清除筛选保留页大小并恢复全量第二页');
+  vm.runInContext("alertDone('miss','pg-0021')",ctx);
+  documentStub.getElementById('cf-ok').onclick();
+  ok(pgCount()===20 && pgMeta()==='第 1–20 条 / 共 20 条', '末页最后一条处理后自动回退有效页');
+  wb.pool.students = pgPool.students; wb.pool.records = pgPool.records; wb.pool.missed = pgPool.missed;
+  wb.pool.alertActions = [];
+  wb.refreshView();
+  vm.runInContext("todayExpandKey=null;todayTaFilter={};todayQuery={};todayPage={};todayPageSize={}",ctx);
 
   /* ---- 家长绑定与推送（微信服务号）：静态结构 + 绑定状态区 + mock 提示 ---- */
   ok(html.indexOf('id="rp-push"') !== -1 && html.indexOf('推送给家长') !== -1, '报告预览弹窗含「推送给家长」按钮');
@@ -908,6 +942,7 @@ function ok(cond, name){
   // 跨年记录保留完整日期避免歧义（用未来的排课记录测：最新日期跨年 → 显示完整 YYYY-MM-DD）
   const nextYear = (new Date().getFullYear() + 1) + '-01-05';
   wb.pool.records.push({id:'lr-future', studentId:bindStu.id, date:nextYear, total:10, correct:9, wrongs:[], subject:'学科 / AP / 微积分BC', images:[], ownerId:ta1.id});
+  wb.setQuickEntry({gid:bindStu.id,subject:'学科 / AP / 微积分BC'});
   wb.renderStats();
   ok(documentStub.getElementById('stu-list').innerHTML.indexOf('录入 ' + nextYear) !== -1, '跨年日期显示完整 YYYY-MM-DD');
   wb.pool.records = wb.pool.records.filter(r=>r.id!=='lr-future');  // 清理
@@ -992,6 +1027,7 @@ function ok(cond, name){
   wb.pool.students.push({id:'inj-s1', name:"张'三", ownerId:ta1.id, subjects:["学科 / AP / 微积分'BC"]});
   wb.pool.records.push({id:'inj-r1', studentId:'inj-s1', date:'2026-10-16', total:10, correct:9, wrongs:[], subject:"学科 / AP / 微积分'BC", images:[], ownerId:ta1.id});
   wb.refreshView();
+  wb.setQuickEntry({gid:'inj-s1',subject:"学科 / AP / 微积分'BC"});
   wb.renderStats();
   const injHtml = documentStub.getElementById('stu-list').innerHTML;
   ok(injHtml.indexOf('微积分\\&#39;BC') !== -1, '科目名带单引号：onclick 串双层转义（jsStr+esc）不逃逸');
@@ -1169,8 +1205,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.9.3') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.9.3」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.15.0') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.15.0」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -1217,7 +1253,7 @@ function ok(cond, name){
   wb.setDashRange(30);
   // 沉默助教徽章：ta3 创建后从未录入
   ok(wb.computeDash().taRows.some(r=>r.user.username==='ta3' && r.silent), '≥7 天未录入的助教显示「沉默」标记');
-  /* ---- 助教三维覆盖指标（v1.9.2）：学生覆盖率 / 录入覆盖率 / 人均录入次数（全量口径，实际录入含未交登记） ---- */
+  /* ---- 助教三维覆盖指标（v1.10.0）：当前在服务同一学生集合，实际录入含未交登记且截至今天 ---- */
   const cvStuA = {id:'cov-s1', name:'覆盖测试A', ownerId:ta1.id, subjPlans:{'学科 / AP / 微积分BC': 4}};  // 有计划有录入
   const cvStuB = {id:'cov-s2', name:'覆盖测试B', ownerId:ta1.id};  // 无录入
   wb.pool.students.push(cvStuA, cvStuB);
@@ -1227,14 +1263,18 @@ function ok(cond, name){
   const covRow = wb.computeDash().taRows.find(r=>r.user.id===ta1.id);
   // ta1 名下在服务学生 = 原示例学生数 + 2；有录入的 = 原示例有录学生 + cov-s1；实际录入 = 原录入数 + 2（1 成绩 + 1 未交）；应录入 = 原计划总和 + 4
   ok(covRow.stuCover !== null && covRow.entryCover !== null && covRow.perStu !== null, '三维指标均产出（覆盖率/录入覆盖率/人均次数）');
-  const ta1StuCnt = wb.pool.students.filter(s=>s.ownerId===ta1.id && !s.archived).length;
-  const ta1WithEntry = wb.pool.students.filter(s=>s.ownerId===ta1.id && !s.archived &&
-    (wb.pool.records.some(r=>r.studentId===s.id) || wb.pool.missed.some(m=>m.studentId===s.id && m.resolution!=='deleted'))).length;
+  const ta1ActiveStudents = wb.pool.students.filter(s=>s.ownerId===ta1.id && !s.archived);
+  const ta1ActiveIds = new Set(ta1ActiveStudents.map(s=>s.id));
+  const ta1StuCnt = ta1ActiveStudents.length;
+  const ta1WithEntry = ta1ActiveStudents.filter(s=>
+    wb.pool.records.some(r=>r.studentId===s.id && r.date<=offDay(0)) ||
+    wb.pool.missed.some(m=>m.studentId===s.id && m.resolution!=='deleted' && m.date<=offDay(0))).length;
   ok(covRow.stuCover === Math.round(ta1WithEntry/ta1StuCnt*100), '学生覆盖率 = 有录入学生/名下在服务学生');
-  const ta1EntryCnt = wb.pool.records.filter(r=>r.ownerId===ta1.id).length + wb.pool.missed.filter(m=>m.ownerId===ta1.id && m.resolution!=='deleted').length;
-  const ta1Plan = wb.pool.students.filter(s=>s.ownerId===ta1.id && !s.archived).reduce((n,s)=>n+Object.values(s.subjPlans||{}).reduce((x,y)=>x+(Number(y)||0),0),0);
-  ok(covRow.entryCover === Math.round(ta1EntryCnt/ta1Plan*100), '录入覆盖率 = 实际录入（成绩+未交登记）/ 应录入计划次数');
-  ok(covRow.perStu === (ta1EntryCnt/ta1WithEntry).toFixed(1), '人均录入次数 = 实际录入 / 有录入学生数');
+  const ta1EntryCnt = wb.pool.records.filter(r=>ta1ActiveIds.has(r.studentId) && r.date<=offDay(0)).length
+    + wb.pool.missed.filter(m=>ta1ActiveIds.has(m.studentId) && m.resolution!=='deleted' && m.date<=offDay(0)).length;
+  const ta1Plan = ta1ActiveStudents.reduce((n,s)=>n+Object.values(s.subjPlans||{}).reduce((x,y)=>x+(Number(y)||0),0),0);
+  ok(covRow.entryCover === Math.round(ta1EntryCnt/ta1Plan*100), '录入覆盖率 = 当前在服务实际录入（成绩+未交登记）/ 应录入计划次数');
+  ok(covRow.perStu === (ta1EntryCnt/ta1WithEntry).toFixed(1), '人均录入次数 = 当前在服务实际录入 / 有录入学生数');
   wb.renderDashboard();
   ok(documentStub.getElementById('dash-tas').innerHTML.indexOf('学生覆盖') !== -1
     && documentStub.getElementById('dash-tas').innerHTML.indexOf('录入覆盖') !== -1
@@ -1417,36 +1457,37 @@ function ok(cond, name){
   ok(documentStub.getElementById('badge-today').style.display==='none'
     && documentStub.getElementById('badge-today-tab').style.display==='none', '助教端不显示审批徽章');
 
-  /* ---- 学生明细助教维度筛选（教务） ---- */
+  /* ---- 学生明细助教维度筛选（教务，双栏学生行） ---- */
   const grpCnt = list => new Set(list.map(s=>(s.ownerId||'')+'|'+s.name.trim())).size;
-  const cardCnt = html => (html.match(/stu-card/g)||[]).length;
+  const cardCnt = html => (html.match(/class="stu-row[ "]/g)||[]).length;
   wb.doLogout();
   await wb.doLogin('admin', 'admin456', 'admin');
+  wb.setQuickEntry(null);
   const chipHtml = documentStub.getElementById('stu-ta-filter').innerHTML;
-  ok(chipHtml.indexOf('全部学生')!==-1 && chipHtml.indexOf('王助教')!==-1 && chipHtml.indexOf('李助教')!==-1
-    && chipHtml.indexOf('已停用')!==-1, '教务端学生明细含助教筛选 chips（全部学生 + 各助教，停用标注）');
+  ok(chipHtml.indexOf('全部助教')!==-1 && chipHtml.indexOf('王助教')!==-1 && chipHtml.indexOf('李助教')!==-1
+    && chipHtml.indexOf('已停用')!==-1, '教务端学生明细含真实助教筛选下拉（全部助教 + 停用标注）');
   // 「全部学生」：按助教分组，默认折叠（只有组头），点击展开，搜索时自动展开
   const listAll = documentStub.getElementById('stu-list').innerHTML;
   const allActive = wb.pool.students.filter(s=>!s.archived);
   ok(listAll.indexOf('ta-group-head')!==-1 && listAll.indexOf('王助教')!==-1 && listAll.indexOf('李助教')!==-1,
     '「全部学生」视图按助教分组展示（含分组标题）');
-  ok(cardCnt(listAll) === 0, '「全部学生」视图分组默认折叠（只有组头，无学生卡）');
+  ok(cardCnt(listAll) === 0, '「全部学生」视图分组默认折叠（只有组头，无学生行）');
   wb.toggleTaGroup(ta1.id);
   const listExp = documentStub.getElementById('stu-list').innerHTML;
-  ok(cardCnt(listExp) === grpCnt(allActive.filter(s=>s.ownerId===ta1.id)), '点击组头展开该助教的学生卡');
+  ok(cardCnt(listExp) === grpCnt(allActive.filter(s=>s.ownerId===ta1.id)), '点击组头展开该助教的学生行');
   wb.toggleTaGroup(ta1.id);  // 收起还原
   ok(cardCnt(documentStub.getElementById('stu-list').innerHTML) === 0, '再次点击收起该组');
   wb.setStuQuery('林');
   const listAutoExp = documentStub.getElementById('stu-list').innerHTML;
   ok(cardCnt(listAutoExp) > 0 && listAutoExp.indexOf('林小满') !== -1, '搜索时自动展开含匹配学生的组');
   wb.setStuQuery('');
-  // 选中 ta1：只含 ta1 学生卡，无分组标题，不含 ta2 学生（单助教视图维持直接展开）
+  // 选中 ta1：只含 ta1 学生行，无分组标题，不含 ta2 学生（单助教视图维持直接展开）
   wb.setStuTaFilter(ta1.id);
   const listTa1 = documentStub.getElementById('stu-list').innerHTML;
   const ta1Active = wb.pool.students.filter(s=>s.ownerId===ta1.id && !s.archived);
   ok(listTa1.indexOf('ta-group-head')===-1 && cardCnt(listTa1)===grpCnt(ta1Active)
     && listTa1.indexOf('看板低分测试')!==-1 && listTa1.indexOf('看板沉睡测试')===-1,
-    '选中某助教后明细只含该助教的学生卡（无分组标题，直接展开）');
+    '选中某助教后明细只含该助教的学生行（无分组标题，直接展开）');
   // 姓名搜索与助教筛选叠加
   wb.setStuQuery('林');
   const listSearch = documentStub.getElementById('stu-list').innerHTML;
@@ -1520,7 +1561,7 @@ function ok(cond, name){
   planStu.subjPlanSetAt[stagSubj] = offDay(-15);
   planStu.subjFirstClass = planStu.subjFirstClass || {};
   planStu.subjFirstClass[stagSubj] = offDay(-30);  // 新口径需已开课（firstClass ≤ 今天）
-  wb.refreshView(); wb.renderToday();
+  wb.refreshView(); vm.runInContext("todayCatGo('overdue')", ctx);
   let todayHtml = documentStub.getElementById('today-list').innerHTML;
   ok(todayHtml.indexOf('AP·化学') !== -1 && todayHtml.indexOf('欠 5 次 · 15 天没动静') !== -1 && todayHtml.indexOf('>逾期<') !== -1,
     '逾期提醒：已开课 + 欠 5 次 + 15 天没动静 → 出现（欠账与天数正确）');
@@ -1653,11 +1694,13 @@ function ok(cond, name){
     '教务今日概览显示审批区块（待审批列表含通过按钮）');
   ok(documentStub.getElementById('badge-today').textContent === '3'
     && documentStub.getElementById('badge-today').style.display !== 'none', '待审批红点徽章挂在「今日概览」（数量正确）');
+  vm.runInContext("todayCatGo('miss')",ctx);
   const todayAdmin = documentStub.getElementById('today-list').innerHTML;
   ok(todayAdmin.indexOf('次未交') !== -1 && todayAdmin.indexOf('resolveMissed(') === -1 && todayAdmin.indexOf('removeMissed(') === -1,
     '教务视角未交卡片只读（无去补录/删除按钮）');
   wb.doLogout();
   await wb.doLogin('ta1', 'ta123456', 'ta');
+  vm.runInContext("todayCatGo('miss')",ctx);
   ok(documentStub.getElementById('today-list').innerHTML.indexOf('去补录') !== -1, '助教视角未交卡片保留操作按钮');
   ok(documentStub.getElementById('planreq-zone').style.display === 'none', '助教视角不显示审批区块');
 
@@ -1774,22 +1817,22 @@ function ok(cond, name){
   wb.pool.missed.push({id:'mk-miss-old', studentId:ta1Stu2.id, date:offDay(-50), subject:'语培 / 托福', resolved:true, resolution:'deleted', resolvedAt:offDay(-40), ownerId:ta1.id});
   wb.refreshView(); wb.renderDoneZone();
   ok(documentStub.getElementById('done-list').innerHTML.indexOf(offDay(-40)) === -1, '近 30 天窗口过滤生效（40 天前已处理记录不出现）');
-  // 折叠：默认前 10 条 + 展开全部
+  // 已处理区：默认每页 20 条；20/50 页大小切换与全量总数
   for(let i=0;i<12;i++){
     wb.pool.missed.push({id:'mk-d-'+i, studentId:ta1Stu2.id, date:offDay(-3), subject:'语培 / 托福', resolved:true, resolution:'deleted', resolvedAt:offDay(-1), ownerId:ta1.id});
   }
   wb.refreshView(); wb.renderDoneZone();
   const expectedDone = documentStub.getElementById('done-zone-title').textContent;
   const dzList = documentStub.getElementById('done-list').innerHTML;
-  ok((dzList.match(/todo-item/g)||[]).length === 10 && dzList.indexOf('展开全部') !== -1,
-    '已处理区默认前 10 条并折叠（' + expectedDone + '）');
-  wb.doneZoneToggle();
-  const dzAll = documentStub.getElementById('done-list').innerHTML;
   const totalDone = wb.pool.missed.filter(x=>x.resolved && x.resolvedAt && x.resolvedAt >= offDay(-29)).length +
     wb.pool.planRequests.filter(r=>(r.status==='approved'||r.status==='rejected') && r.reviewedAt && r.reviewedAt >= offDay(-29)).length;
-  ok((dzAll.match(/todo-item/g)||[]).length === totalDone && dzAll.indexOf('收起') !== -1,
-    '展开全部后显示全部 ' + totalDone + ' 条');
-  ok(expectedDone.indexOf('· ' + totalDone + ' 条') !== -1, '折叠区标题含总条数');
+  ok((dzList.match(/todo-item/g)||[]).length === 20 && expectedDone.indexOf('· ' + totalDone + ' 条') !== -1
+    && dzList.indexOf('第 1–20 条 / 共 ' + totalDone + ' 条') !== -1,
+    '已处理区默认每页 20 条且标题/分页均保留全量总数');
+  vm.runInContext('donePageSizeSet(50)',ctx);
+  const dzAll = documentStub.getElementById('done-list').innerHTML;
+  ok((dzAll.match(/todo-item/g)||[]).length === totalDone && dzAll.indexOf('id="done-size"') !== -1,
+    '每页 50 时全部 ' + totalDone + ' 条可达');
 
   /* ---- 操作记录（审计日志） ---- */
   const logs0 = wb.pool.auditLogs || [];
@@ -1898,7 +1941,7 @@ function ok(cond, name){
   fcStu.subjFirstClass = {'竞赛 / AMC12': offDay(10), '语培 / 雅思': offDay(-30)};
   wb.pool.missed.push({id:'fc-miss-1', studentId:fcStu.id, date:offDay(-2), subject:'竞赛 / AMC12', resolved:false, ownerId:ta1.id});
   wb.pool.missed.push({id:'fc-miss-2', studentId:fcStu.id, date:offDay(-2), subject:'语培 / 雅思', resolved:false, ownerId:ta1.id});
-  wb.refreshView(); wb.renderToday();
+  wb.refreshView(); vm.runInContext("todayCatGo('miss')",ctx);
   const fcTodayHtml = documentStub.getElementById('today-list').innerHTML;
   ok(fcTodayHtml.indexOf('fc-miss-1') === -1 && fcTodayHtml.indexOf('AMC12') === -1, '未开课的未交不进入今天要处理');
   const fc2Pos = fcTodayHtml.indexOf("resolveMissed('fc-miss-2')");
@@ -1958,6 +2001,201 @@ function ok(cond, name){
   wb.refreshView(); wb.renderStats();
   const detHtml = documentStub.getElementById('stu-list').innerHTML;
   ok(detHtml.indexOf('最新学生') < detHtml.indexOf(repBase.name), '学生明细最新创建排在最前');
+
+  /* ---- v1.13.0 看板完整名单、趋势表、学科分页与稳定定位 ---- */
+  wb.doLogout(); await wb.doLogin('admin','admin456','admin');
+  const bdPool = {students:wb.pool.students,records:wb.pool.records,missed:wb.pool.missed};
+  wb.pool.students = []; wb.pool.records = []; wb.pool.missed = [];
+  const bdSub = '学科 / AP / 统计';
+  for(let i=0;i<25;i++){
+    const n=String(i).padStart(2,'0');
+    wb.pool.students.push({id:'bd-low-'+n,name:'看板低分'+n,ownerId:ta1.id,archived:false});
+    wb.pool.records.push({id:'bd-low-rec-'+n,studentId:'bd-low-'+n,date:offDay(-1),total:10,correct:3,wrongs:[],subject:bdSub,ownerId:ta1.id});
+    wb.pool.students.push({id:'bd-od-'+n,name:'看板逾期'+n,ownerId:ta1.id,archived:false,
+      subjPlans:{[bdSub]:5},subjPlanSetAt:{[bdSub]:offDay(-20)},subjFirstClass:{[bdSub]:offDay(-30)}});
+    wb.pool.records.push({id:'bd-od-rec-'+n,studentId:'bd-od-'+n,date:offDay(-20),total:10,correct:10,wrongs:[],subject:bdSub,ownerId:ta1.id});
+    wb.pool.students.push({id:'bd-sleep-'+n,name:'看板沉睡'+n,ownerId:ta1.id,archived:false});
+    wb.pool.records.push({id:'bd-sleep-rec-'+n,studentId:'bd-sleep-'+n,date:offDay(-30),total:10,correct:10,wrongs:[],subject:bdSub,ownerId:ta1.id});
+    wb.pool.students.push({id:'bd-first-'+n,name:'看板首录'+n,ownerId:ta1.id,archived:false});
+    wb.pool.students.push({id:'bd-sub-'+n,name:'看板学科'+n,ownerId:ta1.id,archived:false});
+    wb.pool.records.push({id:'bd-sub-rec-'+n,studentId:'bd-sub-'+n,date:offDay(-1),total:10,correct:9,wrongs:[],subject:'学科 / AP / 科目'+n,ownerId:ta1.id});
+  }
+  wb.refreshView();
+  vm.runInContext("dashOwner='all';dashRange=30;dashAlertExpand={low:false,miss:false,sleep:false,first:false};dashAlertPage={};dashAlertPageSize={};dashSubjectQuery='';dashSubjectSort='cnt';dashSubjectPage=1;dashSubjectPageSize=20;renderDashboard()",ctx);
+  const bdCount=(id,cls)=>((documentStub.getElementById(id).innerHTML.match(new RegExp(cls,'g'))||[]).length);
+  const bdFull = wb.computeDash();
+  ok(bdFull.lowStus.length===25 && bdFull.overdueList.length===25 && bdFull.firstTimers.length===25 && bdFull.subs.length===26,
+    '看板全量聚合：低分/逾期/待首录各 25，具体科目 26，不受展示分页影响');
+  ok(bdCount('dash-alert-low','dash-alert-item')===5 && documentStub.getElementById('dash-alert-low').innerHTML.indexOf('共 25 条')!==-1,
+    '低分预警摘要仅前 5 并显示全量总数');
+  vm.runInContext("dashToggleAlert('low')",ctx);
+  ok(bdCount('dash-alert-low','dash-alert-item')===20, '低分完整名单首页仅渲染 20 条');
+  vm.runInContext("dashAlertPageGo('low',1)",ctx);
+  ok(bdCount('dash-alert-low','dash-alert-item')===5, '低分完整名单第二页 5 条全部可达');
+  vm.runInContext("dashToggleAlert('miss')",ctx);
+  ok(bdCount('dash-alert-miss','dash-alert-item')===20, '逾期完整名单首页仅渲染 20 条');
+  vm.runInContext("dashToggleAlert('first')",ctx);
+  ok(bdCount('dash-alert-sleep','dash-first-item')===20, '待首录名单同样分页而非全量展开');
+  vm.runInContext('dashToggleTrendTable()',ctx);
+  const bdTrendBody = documentStub.getElementById('dash-trend').innerHTML.split('<tbody>')[1] || '';
+  ok((bdTrendBody.match(/<tr>/g)||[]).length===30 && documentStub.getElementById('dash-trend').innerHTML.indexOf('aria-label')!==-1,
+    '固定 30 天趋势提供完整数据表和可访问日期/次数/均分');
+  const bdSubHtml = documentStub.getElementById('dash-subs').innerHTML;
+  ok((bdSubHtml.match(/subj-row/g)||[]).length===20 && bdSubHtml.indexOf('共 26 科')!==-1,
+    '具体科目首页 20 并保留全量 26 科计数');
+  vm.runInContext('dashSubjectPageGo(1)',ctx);
+  ok((documentStub.getElementById('dash-subs').innerHTML.match(/subj-row/g)||[]).length===6, '具体科目第二页 6 条全部可达');
+  vm.runInContext("dashSubjectSearchSet('科目24')",ctx);
+  ok((documentStub.getElementById('dash-subs').innerHTML.match(/subj-row/g)||[]).length===1
+    && documentStub.getElementById('dash-subs').innerHTML.indexOf('学科 / AP / 科目24')!==-1,
+    '具体科目搜索保留完整路径 key');
+  vm.runInContext('dashSubjectClear()',ctx);
+  ok((documentStub.getElementById('dash-subs').innerHTML.match(/subj-row/g)||[]).length===20, '清除科目搜索恢复全量分页');
+  const bdLowModel = bdFull.lowStus[0];
+  ok(!!bdLowModel.studentId && bdLowModel.lowSubs[0].key===bdSub, '低分 view model 含稳定 studentId 与完整科目 key');
+  vm.runInContext("dashGotoStudent('bd-low-00','" + bdSub + "')",ctx);
+  ok(vm.runInContext("quickEntry.gid==='bd-low-00' && quickEntry.subject==='" + bdSub + "'",ctx)===true
+    && documentStub.getElementById('dash-return-btn').style.display!=='none', '预警定位具体学生/科目并显示返回入口');
+  vm.runInContext('dashReturnDashboard()',ctx);
+  ok(vm.runInContext("dashOwner==='all' && dashRange===30 && dashReturnContext===null",ctx)===true,
+    '返回看板保留筛选并恢复浏览上下文');
+  wb.pool.students=bdPool.students;wb.pool.records=bdPool.records;wb.pool.missed=bdPool.missed;
+  wb.refreshView();wb.setQuickEntry(null);
+
+  /* ---- v1.14.0 学生双栏选择、2×2 录入与历史助教筛选 ---- */
+  wb.setQuickEntry(null);
+  vm.runInContext("selectStudentWorkspace('" + repBase.id + "')",ctx);
+  const wsListHtml = documentStub.getElementById('stu-list').innerHTML;
+  ok(vm.runInContext('quickEntry===null',ctx)===true
+    && wsListHtml.indexOf('id="stu-workspace"')!==-1 && wsListHtml.indexOf('id="stu-rows"')!==-1
+    && wsListHtml.indexOf(repBase.name)!==-1,
+    '选择学生只打开完整档案，不自动打开录入表单，左右工作区不重复');
+  const wsSubject = (repBase.subjects && repBase.subjects[0]) || Object.keys(repBase.subjPlans||{})[0];
+  vm.runInContext("toggleQuickEntry('" + repBase.id + "','" + wsSubject + "');openSlot(0)",ctx);
+  const wsForm = vm.runInContext('slotEditHtml()',ctx);
+  ok((wsForm.match(/class="se-field/g)||[]).length===4 && wsForm.indexOf('se-grid')!==-1
+    && wsForm.indexOf('se-grid')<wsForm.indexOf('se-calc'), '日期/总题数/正确题数/错题号为 2×2 网格，正确率作辅助文本');
+  ok(allText.indexOf('--stu-filter-height')!==-1 && allText.indexOf('top:calc(var(--stu-filter-height,88px) + 8px)')!==-1,
+    '打卡标题按实际筛选高度吸顶，不与学生/科目上下文互挡');
+  ok(documentStub.getElementById('alumni-ta-filter').innerHTML.indexOf('id="alumni-ta-select"')!==-1,
+    '历史学生助教筛选默认常显且来自真实账号');
+  wb.doLogout(); await wb.doLogin('ta1','ta123456','ta');
+  ok(documentStub.getElementById('alumni-ta-filter').innerHTML==='', '助教视角不显示历史助教筛选');
+  wb.doLogout(); await wb.doLogin('admin','admin456','admin');
+
+  /* ---- v1.15.0 删除确认输入门槛与逐接收人反馈 ---- */
+  const qaDel = await Api.createUser('删除确认测试','qadel1','abcdef','ta');
+  await Api.toggleUser(qaDel.user.id);
+  await vm.runInContext('deleteUserAccount("' + qaDel.user.id + '")',ctx);
+  await new Promise(r=>setTimeout(r,30));
+  ok(documentStub.getElementById('cf-text').textContent.indexOf('姓名：删除确认测试')!==-1
+    && documentStub.getElementById('cf-text').textContent.indexOf('账号：qadel1')!==-1
+    && documentStub.getElementById('cf-text').textContent.indexOf('业务关联检查')!==-1,
+    '删除确认展示姓名/账号/角色与逐项影响摘要');
+  ok(documentStub.getElementById('cf-ok').disabled===true, '未输入完整账号时删除按钮禁用');
+  documentStub.getElementById('cf-input').value='qadel1';
+  vm.runInContext('cfUpdateOk()',ctx);
+  ok(documentStub.getElementById('cf-ok').disabled===false, '完整匹配账号后删除按钮启用');
+  documentStub.getElementById('cf-ok').onclick();
+  await new Promise(r=>setTimeout(r,30));
+  ok((await Api.listUsers()).every(u=>u.id!==qaDel.user.id), '匹配确认后原删除流程仍成功');
+  const pushText = vm.runInContext("pushFeedbackText({ok:true,sent:1,results:[{name:'家长 1',status:'sent'},{name:'家长 2',status:'error',reason:'网络异常'}]})",ctx);
+  ok(pushText.indexOf('1/2 人已送达')!==-1 && pushText.indexOf('家长 2')!==-1 && pushText.indexOf('重试')!==-1
+    && pushText.indexOf('openid')===-1, '通知反馈展示逐接收人结果与失败重试，不暴露 openid');
+
+  /* ---- UI 升级前置缺陷回归（任务包 R01/R03/R04/R05/R06；R02 真实 API 见 e2e） ---- */
+  // R01：教务操作助教 A 的同名学生，助教 B 的名下档案必须完全隔离
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  const r01Sub = '学科 / AP / 统计', r01New = '学科 / AP / 心理';
+  const r01Maps = st => ({subjects:[r01Sub], subjPlans:{[r01Sub]:3}, subjPlanSetAt:{[r01Sub]:offDay(-20)},
+    subjFirstClass:{[r01Sub]:offDay(-30)}, subjComments:{[r01Sub]:'评语'+st.id}, subjAdvice:{[r01Sub]:'建议'+st.id}, mock:{[r01Sub]:{date:offDay(5),score:88}}});
+  wb.pool.students.push({id:'r01-a',name:'跨助教同名',ownerId:ta1.id,archived:false,...r01Maps({id:'a'})},
+    {id:'r01-b',name:'跨助教同名',ownerId:ta2.id,archived:false,...r01Maps({id:'b'})});
+  ['a','b'].forEach(x=>{
+    wb.pool.records.push({id:'r01-rec-'+x,studentId:'r01-'+x,date:offDay(-2),total:10,correct:8,wrongs:[1,2],subject:r01Sub,images:['att-'+x],pdfs:[],ownerId:x==='a'?ta1.id:ta2.id});
+    wb.pool.missed.push({id:'r01-miss-'+x,studentId:'r01-'+x,date:offDay(-1),subject:r01Sub,resolved:false,ownerId:x==='a'?ta1.id:ta2.id});
+  });
+  wb.refreshView();
+  vm.runInContext("startRenameSubject('r01-a','" + r01Sub + "')", ctx);
+  setVal('ren-input', r01New);
+  vm.runInContext('saveRenameSubject()', ctx);
+  const r01B = wb.pool.students.find(s=>s.id==='r01-b');
+  ok(wb.pool.records.find(r=>r.id==='r01-rec-b').subject===r01Sub && wb.pool.missed.find(m=>m.id==='r01-miss-b').subject===r01Sub
+    && r01B.subjects[0]===r01Sub && r01B.subjPlans[r01Sub]===3 && r01B.subjComments[r01Sub]==='评语b'
+    && r01B.subjAdvice[r01Sub]==='建议b' && r01B.subjFirstClass[r01Sub]===offDay(-30) && r01B.mock[r01Sub].score===88,
+    'R01：重命名 A 科目不改变其他 owner 同名学生的任何字段');
+  const r01A = wb.pool.students.find(s=>s.id==='r01-a');
+  ok(r01A.subjPlanSetAt[r01New]===offDay(-20) && r01A.subjPlanSetAt[r01Sub]===undefined,
+    'R01：重命名同步平移计划设定日期 subjPlanSetAt');
+  // 删除独立夹具，避免依赖上一步结果
+  wb.pool.students.push({id:'r01-del-a',name:'删除隔离同名',ownerId:ta1.id,archived:false,subjects:[r01Sub]},
+    {id:'r01-del-b',name:'删除隔离同名',ownerId:ta2.id,archived:false,subjects:[r01Sub]});
+  wb.pool.records.push({id:'r01-del-rec-a',studentId:'r01-del-a',date:offDay(-2),total:10,correct:9,wrongs:[],subject:r01Sub,ownerId:ta1.id},
+    {id:'r01-del-rec-b',studentId:'r01-del-b',date:offDay(-2),total:10,correct:9,wrongs:[],subject:r01Sub,ownerId:ta2.id});
+  wb.refreshView();
+  vm.runInContext("startRenameSubject('r01-del-a','" + r01Sub + "'); deleteSubject()", ctx);
+  documentStub.getElementById('cf-ok').onclick();
+  ok(wb.pool.records.some(r=>r.id==='r01-del-rec-b') && wb.pool.students.find(s=>s.id==='r01-del-b').subjects[0]===r01Sub,
+    'R01：删除 A 科目不删除其他 owner 同名学生的记录与科目');
+  wb.pool.students = wb.pool.students.filter(s=>!/^r01-/.test(s.id));
+  wb.pool.records = wb.pool.records.filter(r=>!/^r01-/.test(r.id));
+  wb.pool.missed = wb.pool.missed.filter(m=>!/^r01-/.test(m.id));
+  wb.refreshView();
+
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  // R03：历史学生只有无作业时，最近正确率为 —，趋势不生成假零分折线
+  wb.pool.students.push({id:'r03-stu',name:'R03历史无作业',ownerId:ta1.id,archived:true,archivedAt:offDay(-1),subjects:[r01Sub]});
+  wb.pool.records.push({id:'r03-rec',studentId:'r03-stu',date:offDay(-1),total:0,correct:0,wrongs:[],subject:r01Sub,noHomework:true,ownerId:ta1.id});
+  wb.refreshView(); wb.setQuickEntry(null); wb.setAlumniQuery('R03历史');
+  const r03Html = documentStub.getElementById('alumni-list').innerHTML;
+  ok(r03Html.indexOf('最近正确率 <b>—</b>')!==-1 && r03Html.indexOf('最近正确率 <b>0%</b>')===-1,
+    'R03：历史学生仅无作业时最近正确率显示 — 而非 0%');
+  ok(r03Html.indexOf('<polyline')===-1, 'R03：无正常成绩记录时历史趋势不生成折线');
+  wb.setAlumniQuery('');
+  wb.pool.students = wb.pool.students.filter(s=>s.id!=='r03-stu');
+  wb.pool.records = wb.pool.records.filter(r=>r.id!=='r03-rec');
+  wb.refreshView();
+
+  // R04：同一在服务学生集合统一分子/分母；未交登记+补交成绩是两次行为，归档记录排除
+  const r04Save = {students:wb.pool.students,records:wb.pool.records,missed:wb.pool.missed};
+  wb.pool.students = [{id:'r04-active',name:'在服务覆盖',ownerId:ta1.id,archived:false,subjPlans:{[r01Sub]:2}},
+    {id:'r04-archived',name:'归档历史',ownerId:ta1.id,archived:true}];
+  wb.pool.records = [
+    {id:'r04-miss-entry',studentId:'r04-active',date:offDay(-3),total:0,correct:0,subject:r01Sub,noHomework:true,ownerId:ta1.id},
+    {id:'r04-makeup',studentId:'r04-active',date:offDay(-2),total:10,correct:9,subject:r01Sub,ownerId:ta1.id},
+    ...Array.from({length:10},(_,i)=>({id:'r04-old-'+i,studentId:'r04-archived',date:offDay(-20+i),total:10,correct:9,subject:r01Sub,ownerId:ta1.id}))];
+  wb.pool.missed = [{id:'r04-missed',studentId:'r04-active',date:offDay(-3),subject:r01Sub,resolved:true,resolution:'made-up',ownerId:ta1.id}];
+  wb.refreshView();
+  vm.runInContext("dashOwner='all'; dashRange=0", ctx);
+  let r04Row = wb.computeDash().taRows.find(x=>x.user.id===ta1.id);
+  ok(r04Row.entryCover===150 && r04Row.perStu==='3.0',
+    'R04：覆盖分子分母同属在服务学生；未交+补交计两次，归档 10 条不抬指标');
+  // R05：未来作业保留在明细，但近 7 天/全部历史工作量与最近录入均截至今天
+  wb.pool.students = [{id:'r05-stu',name:'未来记录',ownerId:ta1.id,archived:false}];
+  wb.pool.records = [{id:'r05-today',studentId:'r05-stu',date:offDay(0),total:10,correct:9,subject:r01Sub,ownerId:ta1.id},
+    {id:'r05-future',studentId:'r05-stu',date:offDay(10),total:10,correct:8,subject:r01Sub,ownerId:ta1.id}];
+  wb.pool.missed = [];
+  wb.refreshView();
+  vm.runInContext("dashOwner='all'; dashRange=7", ctx);
+  let r05Dash = wb.computeDash();
+  ok(r05Dash.recCnt===1 && r05Dash.taRows.find(x=>x.user.id===ta1.id).lastDate===offDay(0),
+    'R05：近 7 天排除未来记录且最近录入不取未来日期');
+  vm.runInContext('dashRange=0', ctx);
+  r05Dash = wb.computeDash();
+  ok(r05Dash.recCnt===1, 'R05：全部历史同样只统计截至今天的记录');
+  wb.pool.students = r04Save.students; wb.pool.records = r04Save.records; wb.pool.missed = r04Save.missed;
+  wb.refreshView();
+
+  // R06：空字符串与纯空白都是有效草稿，只有显式 null 才清除
+  vm.runInContext("draftSave('r06-stu','r06-sub','comment','')", ctx);
+  ok(vm.runInContext("localStorage.getItem(draftKey('r06-stu','r06-sub','comment'))", ctx)==='',
+    'R06：清空已有文本形成的空草稿可以恢复');
+  vm.runInContext("draftSave('r06-stu','r06-sub','comment','   ')", ctx);
+  ok(vm.runInContext("localStorage.getItem(draftKey('r06-stu','r06-sub','comment'))", ctx)==='   ',
+    'R06：纯空白草稿不与无草稿混淆');
+  vm.runInContext("draftSave('r06-stu','r06-sub','comment',null)", ctx);
 
   console.log('\n断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   process.exit(fail ? 1 : 0);

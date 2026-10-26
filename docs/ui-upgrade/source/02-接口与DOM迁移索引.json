@@ -1,0 +1,2599 @@
+{
+  "baseline_commit": "df79ea98888e01f8a89520f669e7b9baf16159bd",
+  "notes": [
+    "静态ID/函数/事件索引辅助迁移，不等于全部动态入口，也不证明已回归。",
+    "以当前实际API和可见角色动作核对，函数注释可能过时。",
+    "原型无真实后端和角色，不能覆盖线上接口契约。"
+  ],
+  "script_order": [
+    "js/data.js",
+    "js/misc.js",
+    "js/students.js",
+    "js/wechat.js",
+    "js/auth.js",
+    "js/dashboard.js"
+  ],
+  "static_dom_ids": [
+    {
+      "id": "app",
+      "line": 11
+    },
+    {
+      "id": "sidebar",
+      "line": 13
+    },
+    {
+      "id": "nav-today",
+      "line": 18
+    },
+    {
+      "id": "badge-today",
+      "line": 21
+    },
+    {
+      "id": "nav-dashboard",
+      "line": 23
+    },
+    {
+      "id": "nav-stats",
+      "line": 27
+    },
+    {
+      "id": "nav-alumni",
+      "line": 31
+    },
+    {
+      "id": "nav-accounts",
+      "line": 35
+    },
+    {
+      "id": "nav-data",
+      "line": 39
+    },
+    {
+      "id": "nav-audit",
+      "line": 43
+    },
+    {
+      "id": "side-foot",
+      "line": 47
+    },
+    {
+      "id": "page-title",
+      "line": 56
+    },
+    {
+      "id": "today-str",
+      "line": 57
+    },
+    {
+      "id": "user-name",
+      "line": 60
+    },
+    {
+      "id": "user-role",
+      "line": 60
+    },
+    {
+      "id": "btn-chpwd",
+      "line": 61
+    },
+    {
+      "id": "btn-logout",
+      "line": 62
+    },
+    {
+      "id": "motto",
+      "line": 64
+    },
+    {
+      "id": "sample-banner",
+      "line": 67
+    },
+    {
+      "id": "backup-tip",
+      "line": 68
+    },
+    {
+      "id": "pane-today",
+      "line": 71
+    },
+    {
+      "id": "quick-grid",
+      "line": 74
+    },
+    {
+      "id": "planreq-zone",
+      "line": 79
+    },
+    {
+      "id": "planreq-badge-card",
+      "line": 80
+    },
+    {
+      "id": "planreq-pending",
+      "line": 81
+    },
+    {
+      "id": "unbindreq-zone",
+      "line": 83
+    },
+    {
+      "id": "unbindreq-badge-card",
+      "line": 84
+    },
+    {
+      "id": "unbindreq-pending",
+      "line": 85
+    },
+    {
+      "id": "today-cats",
+      "line": 90
+    },
+    {
+      "id": "today-list",
+      "line": 91
+    },
+    {
+      "id": "done-zone",
+      "line": 93
+    },
+    {
+      "id": "done-zone-title",
+      "line": 96
+    },
+    {
+      "id": "done-list",
+      "line": 97
+    },
+    {
+      "id": "pane-dashboard",
+      "line": 104
+    },
+    {
+      "id": "dash-range",
+      "line": 107
+    },
+    {
+      "id": "dash-owner",
+      "line": 113
+    },
+    {
+      "id": "dash-overview",
+      "line": 118
+    },
+    {
+      "id": "dash-alert-low",
+      "line": 125
+    },
+    {
+      "id": "dash-overdue-title",
+      "line": 128
+    },
+    {
+      "id": "dash-alert-miss",
+      "line": 129
+    },
+    {
+      "id": "dash-alert-sleep",
+      "line": 133
+    },
+    {
+      "id": "dash-trend",
+      "line": 140
+    },
+    {
+      "id": "dash-tas",
+      "line": 145
+    },
+    {
+      "id": "dash-cats",
+      "line": 150
+    },
+    {
+      "id": "dash-subs",
+      "line": 151
+    },
+    {
+      "id": "pane-stats",
+      "line": 156
+    },
+    {
+      "id": "stats-chart-card",
+      "line": 156
+    },
+    {
+      "id": "chart-scope",
+      "line": 157
+    },
+    {
+      "id": "bar-chart",
+      "line": 158
+    },
+    {
+      "id": "stu-filter-card",
+      "line": 161
+    },
+    {
+      "id": "stu-search",
+      "line": 164
+    },
+    {
+      "id": "stu-letter-bar",
+      "line": 166
+    },
+    {
+      "id": "stu-filter-meta",
+      "line": 168
+    },
+    {
+      "id": "btn-open-add-stu",
+      "line": 172
+    },
+    {
+      "id": "stu-ta-filter",
+      "line": 177
+    },
+    {
+      "id": "stu-list",
+      "line": 178
+    },
+    {
+      "id": "pane-alumni",
+      "line": 183
+    },
+    {
+      "id": "alumni-search",
+      "line": 187
+    },
+    {
+      "id": "alumni-range-30d",
+      "line": 191
+    },
+    {
+      "id": "alumni-range-all",
+      "line": 192
+    },
+    {
+      "id": "alumni-letter-bar",
+      "line": 194
+    },
+    {
+      "id": "alumni-list",
+      "line": 199
+    },
+    {
+      "id": "pane-data",
+      "line": 204
+    },
+    {
+      "id": "push-config-card",
+      "line": 206
+    },
+    {
+      "id": "push-max-homework",
+      "line": 210
+    },
+    {
+      "id": "push-cfg-homework",
+      "line": 211
+    },
+    {
+      "id": "push-max-mockBook",
+      "line": 213
+    },
+    {
+      "id": "push-cfg-mockBook",
+      "line": 214
+    },
+    {
+      "id": "push-max-mockScore",
+      "line": 216
+    },
+    {
+      "id": "push-cfg-mockScore",
+      "line": 217
+    },
+    {
+      "id": "homework-cycle-card",
+      "line": 220
+    },
+    {
+      "id": "homework-cycle-days",
+      "line": 224
+    },
+    {
+      "id": "btn-save-homework-cycle",
+      "line": 226
+    },
+    {
+      "id": "subj-mgmt-card",
+      "line": 229
+    },
+    {
+      "id": "subj-tree-editor",
+      "line": 232
+    },
+    {
+      "id": "btn-subj-save",
+      "line": 234
+    },
+    {
+      "id": "btn-subj-reset",
+      "line": 235
+    },
+    {
+      "id": "backup-card-title",
+      "line": 239
+    },
+    {
+      "id": "btn-export",
+      "line": 241
+    },
+    {
+      "id": "btn-import",
+      "line": 245
+    },
+    {
+      "id": "f-import",
+      "line": 249
+    },
+    {
+      "id": "backup-hint",
+      "line": 251
+    },
+    {
+      "id": "import-api-tip",
+      "line": 252
+    },
+    {
+      "id": "data-clean-zone",
+      "line": 255
+    },
+    {
+      "id": "btn-clear-sample",
+      "line": 258
+    },
+    {
+      "id": "btn-load-sample",
+      "line": 262
+    },
+    {
+      "id": "btn-clear-all",
+      "line": 266
+    },
+    {
+      "id": "pane-accounts",
+      "line": 276
+    },
+    {
+      "id": "accounts-list",
+      "line": 279
+    },
+    {
+      "id": "ac-name",
+      "line": 284
+    },
+    {
+      "id": "ac-username",
+      "line": 285
+    },
+    {
+      "id": "ac-role",
+      "line": 287
+    },
+    {
+      "id": "ac-password",
+      "line": 292
+    },
+    {
+      "id": "btn-create-ta",
+      "line": 295
+    },
+    {
+      "id": "pane-audit",
+      "line": 300
+    },
+    {
+      "id": "audit-search",
+      "line": 304
+    },
+    {
+      "id": "audit-type",
+      "line": 307
+    },
+    {
+      "id": "audit-range",
+      "line": 317
+    },
+    {
+      "id": "audit-count",
+      "line": 326
+    },
+    {
+      "id": "audit-list",
+      "line": 327
+    },
+    {
+      "id": "audit-more",
+      "line": 328
+    },
+    {
+      "id": "bottombar",
+      "line": 334
+    },
+    {
+      "id": "tab-today",
+      "line": 336
+    },
+    {
+      "id": "badge-today-tab",
+      "line": 339
+    },
+    {
+      "id": "tab-dashboard",
+      "line": 341
+    },
+    {
+      "id": "tab-stats",
+      "line": 345
+    },
+    {
+      "id": "tab-alumni",
+      "line": 349
+    },
+    {
+      "id": "tab-data",
+      "line": 353
+    },
+    {
+      "id": "tab-accounts",
+      "line": 357
+    },
+    {
+      "id": "tab-audit",
+      "line": 361
+    },
+    {
+      "id": "stu-modal",
+      "line": 370
+    },
+    {
+      "id": "ns-title",
+      "line": 372
+    },
+    {
+      "id": "ns-desc",
+      "line": 373
+    },
+    {
+      "id": "ns-name",
+      "line": 376
+    },
+    {
+      "id": "ns-school",
+      "line": 380
+    },
+    {
+      "id": "ns-gradyear",
+      "line": 384
+    },
+    {
+      "id": "ns-cancel",
+      "line": 387
+    },
+    {
+      "id": "ns-ok",
+      "line": 388
+    },
+    {
+      "id": "confirm-modal",
+      "line": 394
+    },
+    {
+      "id": "cf-title",
+      "line": 396
+    },
+    {
+      "id": "cf-text",
+      "line": 397
+    },
+    {
+      "id": "cf-input-wrap",
+      "line": 399
+    },
+    {
+      "id": "cf-input",
+      "line": 400
+    },
+    {
+      "id": "cf-cancel",
+      "line": 403
+    },
+    {
+      "id": "cf-ok",
+      "line": 404
+    },
+    {
+      "id": "input-modal",
+      "line": 410
+    },
+    {
+      "id": "in-title",
+      "line": 412
+    },
+    {
+      "id": "in-value",
+      "line": 414
+    },
+    {
+      "id": "in-cancel",
+      "line": 417
+    },
+    {
+      "id": "in-ok",
+      "line": 418
+    },
+    {
+      "id": "toast-zone",
+      "line": 424
+    },
+    {
+      "id": "report-modal",
+      "line": 427
+    },
+    {
+      "id": "report-preview",
+      "line": 430
+    },
+    {
+      "id": "rp-share-row",
+      "line": 432
+    },
+    {
+      "id": "rp-share-link",
+      "line": 434
+    },
+    {
+      "id": "rp-copy",
+      "line": 435
+    },
+    {
+      "id": "rp-close",
+      "line": 440
+    },
+    {
+      "id": "rp-print",
+      "line": 441
+    },
+    {
+      "id": "rp-share",
+      "line": 442
+    },
+    {
+      "id": "rp-push",
+      "line": 443
+    },
+    {
+      "id": "rp-download",
+      "line": 444
+    },
+    {
+      "id": "bind-modal",
+      "line": 450
+    },
+    {
+      "id": "bind-qr-box",
+      "line": 454
+    },
+    {
+      "id": "bind-close",
+      "line": 456
+    },
+    {
+      "id": "binds-modal",
+      "line": 462
+    },
+    {
+      "id": "binds-list",
+      "line": 465
+    },
+    {
+      "id": "binds-foot",
+      "line": 466
+    },
+    {
+      "id": "binds-close",
+      "line": 468
+    },
+    {
+      "id": "ta-entry-modal",
+      "line": 474
+    },
+    {
+      "id": "ta-entry-list",
+      "line": 477
+    },
+    {
+      "id": "img-modal",
+      "line": 483
+    },
+    {
+      "id": "img-modal-src",
+      "line": 485
+    },
+    {
+      "id": "login-screen",
+      "line": 491
+    },
+    {
+      "id": "api-outage",
+      "line": 497
+    },
+    {
+      "id": "login-role-seg",
+      "line": 512
+    },
+    {
+      "id": "login-user",
+      "line": 520
+    },
+    {
+      "id": "login-pass",
+      "line": 525
+    },
+    {
+      "id": "login-pass-eye",
+      "line": 526
+    },
+    {
+      "id": "login-err",
+      "line": 532
+    },
+    {
+      "id": "btn-login",
+      "line": 533
+    },
+    {
+      "id": "login-demo",
+      "line": 534
+    },
+    {
+      "id": "login-ver",
+      "line": 540
+    },
+    {
+      "id": "pwd-modal",
+      "line": 545
+    },
+    {
+      "id": "pwd-title",
+      "line": 547
+    },
+    {
+      "id": "pwd-desc",
+      "line": 548
+    },
+    {
+      "id": "pwd-old",
+      "line": 551
+    },
+    {
+      "id": "pwd-new",
+      "line": 555
+    },
+    {
+      "id": "pwd-new2",
+      "line": 559
+    },
+    {
+      "id": "pwd-err",
+      "line": 561
+    },
+    {
+      "id": "pwd-cancel",
+      "line": 563
+    },
+    {
+      "id": "pwd-ok",
+      "line": 564
+    },
+    {
+      "id": "transfer-modal",
+      "line": 570
+    },
+    {
+      "id": "tf-desc",
+      "line": 573
+    },
+    {
+      "id": "tf-target",
+      "line": 576
+    },
+    {
+      "id": "tf-cancel",
+      "line": 579
+    },
+    {
+      "id": "tf-ok",
+      "line": 580
+    },
+    {
+      "id": "pr-modal",
+      "line": 586
+    },
+    {
+      "id": "pr-stu",
+      "line": 589
+    },
+    {
+      "id": "pr-subj",
+      "line": 589
+    },
+    {
+      "id": "pr-change",
+      "line": 589
+    },
+    {
+      "id": "pr-reason",
+      "line": 592
+    },
+    {
+      "id": "pr-cancel",
+      "line": 595
+    },
+    {
+      "id": "pr-ok",
+      "line": 596
+    },
+    {
+      "id": "miss-subj-modal",
+      "line": 602
+    },
+    {
+      "id": "as-ms-s1",
+      "line": 607
+    },
+    {
+      "id": "as-ms-s2",
+      "line": 608
+    },
+    {
+      "id": "as-ms-s3",
+      "line": 609
+    },
+    {
+      "id": "as-ms-custom",
+      "line": 610
+    },
+    {
+      "id": "ms-cancel",
+      "line": 613
+    },
+    {
+      "id": "ms-ok",
+      "line": 614
+    }
+  ],
+  "functions": [
+    {
+      "file": "js/misc.js",
+      "name": "stuName",
+      "line": 3
+    },
+    {
+      "file": "js/misc.js",
+      "name": "acc",
+      "line": 4
+    },
+    {
+      "file": "js/misc.js",
+      "name": "gradedRecs",
+      "line": 7
+    },
+    {
+      "file": "js/misc.js",
+      "name": "lastGradedRec",
+      "line": 9
+    },
+    {
+      "file": "js/misc.js",
+      "name": "accClass",
+      "line": 10
+    },
+    {
+      "file": "js/misc.js",
+      "name": "isMockExpired",
+      "line": 12
+    },
+    {
+      "file": "js/misc.js",
+      "name": "shortSubject",
+      "line": 14
+    },
+    {
+      "file": "js/misc.js",
+      "name": "esc",
+      "line": 21
+    },
+    {
+      "file": "js/misc.js",
+      "name": "jsStr",
+      "line": 25
+    },
+    {
+      "file": "js/misc.js",
+      "name": "draftKey",
+      "line": 31
+    },
+    {
+      "file": "js/misc.js",
+      "name": "draftSave",
+      "line": 35
+    },
+    {
+      "file": "js/misc.js",
+      "name": "draftLoad",
+      "line": 41
+    },
+    {
+      "file": "js/misc.js",
+      "name": "draftClearAll",
+      "line": 44
+    },
+    {
+      "file": "js/misc.js",
+      "name": "nameLetter",
+      "line": 105
+    },
+    {
+      "file": "js/misc.js",
+      "name": "matchLetters",
+      "line": 114
+    },
+    {
+      "file": "js/misc.js",
+      "name": "toggleLetter",
+      "line": 115
+    },
+    {
+      "file": "js/misc.js",
+      "name": "clearLetters",
+      "line": 121
+    },
+    {
+      "file": "js/misc.js",
+      "name": "toggleLetterBar",
+      "line": 126
+    },
+    {
+      "file": "js/misc.js",
+      "name": "letterBarHtml",
+      "line": 131
+    },
+    {
+      "file": "js/misc.js",
+      "name": "addDays",
+      "line": 169
+    },
+    {
+      "file": "js/misc.js",
+      "name": "subjectOverdueInfo",
+      "line": 170
+    },
+    {
+      "file": "js/misc.js",
+      "name": "subjectOverdue",
+      "line": 189
+    },
+    {
+      "file": "js/misc.js",
+      "name": "unresolvedMissCount",
+      "line": 191
+    },
+    {
+      "file": "js/misc.js",
+      "name": "hasSample",
+      "line": 194
+    },
+    {
+      "file": "js/misc.js",
+      "name": "activeStudents",
+      "line": 198
+    },
+    {
+      "file": "js/misc.js",
+      "name": "archivedStudents",
+      "line": 199
+    },
+    {
+      "file": "js/misc.js",
+      "name": "switchTab",
+      "line": 204
+    },
+    {
+      "file": "js/misc.js",
+      "name": "toast",
+      "line": 235
+    },
+    {
+      "file": "js/misc.js",
+      "name": "animateNums",
+      "line": 250
+    },
+    {
+      "file": "js/misc.js",
+      "name": "askConfirm",
+      "line": 271
+    },
+    {
+      "file": "js/misc.js",
+      "name": "askInput",
+      "line": 296
+    },
+    {
+      "file": "js/misc.js",
+      "name": "renderBanners",
+      "line": 316
+    },
+    {
+      "file": "js/misc.js",
+      "name": "dismissBackupTip",
+      "line": 341
+    },
+    {
+      "file": "js/auth.js",
+      "name": "renderSubjectMgmt",
+      "line": 7
+    },
+    {
+      "file": "js/auth.js",
+      "name": "subjRefCount",
+      "line": 41
+    },
+    {
+      "file": "js/auth.js",
+      "name": "subjAddL1",
+      "line": 45
+    },
+    {
+      "file": "js/auth.js",
+      "name": "subjAddL2",
+      "line": 52
+    },
+    {
+      "file": "js/auth.js",
+      "name": "subjAddL3",
+      "line": 60
+    },
+    {
+      "file": "js/auth.js",
+      "name": "subjUiAddSeries",
+      "line": 69
+    },
+    {
+      "file": "js/auth.js",
+      "name": "subjUiAddSubject",
+      "line": 72
+    },
+    {
+      "file": "js/auth.js",
+      "name": "subjUiAddCategory",
+      "line": 75
+    },
+    {
+      "file": "js/auth.js",
+      "name": "subjRenameL1",
+      "line": 79
+    },
+    {
+      "file": "js/auth.js",
+      "name": "subjRenameL2",
+      "line": 88
+    },
+    {
+      "file": "js/auth.js",
+      "name": "subjUiRenameSeries",
+      "line": 97
+    },
+    {
+      "file": "js/auth.js",
+      "name": "subjUiRenameL1",
+      "line": 100
+    },
+    {
+      "file": "js/auth.js",
+      "name": "subjDelete",
+      "line": 104
+    },
+    {
+      "file": "js/auth.js",
+      "name": "saveSubjectsDraft",
+      "line": 119
+    },
+    {
+      "file": "js/auth.js",
+      "name": "normalizePushCfg",
+      "line": 140
+    },
+    {
+      "file": "js/auth.js",
+      "name": "refreshPushConfig",
+      "line": 150
+    },
+    {
+      "file": "js/auth.js",
+      "name": "renderPushConfig",
+      "line": 159
+    },
+    {
+      "file": "js/auth.js",
+      "name": "savePushConfigPatch",
+      "line": 167
+    },
+    {
+      "file": "js/auth.js",
+      "name": "togglePushConfig",
+      "line": 174
+    },
+    {
+      "file": "js/auth.js",
+      "name": "pushMaxStep",
+      "line": 181
+    },
+    {
+      "file": "js/auth.js",
+      "name": "renderHomeworkCycle",
+      "line": 192
+    },
+    {
+      "file": "js/auth.js",
+      "name": "refreshHomeworkCycle",
+      "line": 200
+    },
+    {
+      "file": "js/auth.js",
+      "name": "saveHomeworkCycle",
+      "line": 207
+    },
+    {
+      "file": "js/auth.js",
+      "name": "startRenameSubject",
+      "line": 223
+    },
+    {
+      "file": "js/auth.js",
+      "name": "cancelRename",
+      "line": 230
+    },
+    {
+      "file": "js/auth.js",
+      "name": "saveRenameSubject",
+      "line": 234
+    },
+    {
+      "file": "js/auth.js",
+      "name": "apiRenameSubjectPersist",
+      "line": 312
+    },
+    {
+      "file": "js/auth.js",
+      "name": "apiDeleteSubjectPersist",
+      "line": 352
+    },
+    {
+      "file": "js/auth.js",
+      "name": "deleteSubject",
+      "line": 375
+    },
+    {
+      "file": "js/auth.js",
+      "name": "initGradYears",
+      "line": 417
+    },
+    {
+      "file": "js/auth.js",
+      "name": "openEditStudent",
+      "line": 436
+    },
+    {
+      "file": "js/auth.js",
+      "name": "archiveGroup",
+      "line": 483
+    },
+    {
+      "file": "js/auth.js",
+      "name": "restoreGroup",
+      "line": 496
+    },
+    {
+      "file": "js/auth.js",
+      "name": "setAlumniRange",
+      "line": 509
+    },
+    {
+      "file": "js/auth.js",
+      "name": "renderAlumni",
+      "line": 514
+    },
+    {
+      "file": "js/auth.js",
+      "name": "buildExport",
+      "line": 648
+    },
+    {
+      "file": "js/auth.js",
+      "name": "clearSamplesOfView",
+      "line": 692
+    },
+    {
+      "file": "js/auth.js",
+      "name": "clearSamples",
+      "line": 700
+    },
+    {
+      "file": "js/auth.js",
+      "name": "doLoadSampleData",
+      "line": 711
+    },
+    {
+      "file": "js/auth.js",
+      "name": "loadSampleData",
+      "line": 727
+    },
+    {
+      "file": "js/auth.js",
+      "name": "showLogin",
+      "line": 754
+    },
+    {
+      "file": "js/auth.js",
+      "name": "enterApp",
+      "line": 758
+    },
+    {
+      "file": "js/auth.js",
+      "name": "renderMotto",
+      "line": 836
+    },
+    {
+      "file": "js/auth.js",
+      "name": "doLogin",
+      "line": 852
+    },
+    {
+      "file": "js/auth.js",
+      "name": "forceLogout",
+      "line": 873
+    },
+    {
+      "file": "js/auth.js",
+      "name": "doLogout",
+      "line": 879
+    },
+    {
+      "file": "js/auth.js",
+      "name": "openPwdModal",
+      "line": 911
+    },
+    {
+      "file": "js/auth.js",
+      "name": "doChangePwd",
+      "line": 922
+    },
+    {
+      "file": "js/auth.js",
+      "name": "renderAccounts",
+      "line": 950
+    },
+    {
+      "file": "js/auth.js",
+      "name": "renderPlanRequests",
+      "line": 988
+    },
+    {
+      "file": "js/auth.js",
+      "name": "refreshUnbindRequests",
+      "line": 1011
+    },
+    {
+      "file": "js/auth.js",
+      "name": "renderUnbindRequests",
+      "line": 1018
+    },
+    {
+      "file": "js/auth.js",
+      "name": "reviewUnbindReq",
+      "line": 1036
+    },
+    {
+      "file": "js/auth.js",
+      "name": "renderDoneZone",
+      "line": 1058
+    },
+    {
+      "file": "js/auth.js",
+      "name": "doneZoneToggle",
+      "line": 1143
+    },
+    {
+      "file": "js/auth.js",
+      "name": "visibleAuditLogs",
+      "line": 1151
+    },
+    {
+      "file": "js/auth.js",
+      "name": "auditRowHtml",
+      "line": 1158
+    },
+    {
+      "file": "js/auth.js",
+      "name": "renderAudit",
+      "line": 1172
+    },
+    {
+      "file": "js/auth.js",
+      "name": "renderAuditApi",
+      "line": 1197
+    },
+    {
+      "file": "js/auth.js",
+      "name": "auditLoadMore",
+      "line": 1213
+    },
+    {
+      "file": "js/auth.js",
+      "name": "reviewPlanRequest",
+      "line": 1218
+    },
+    {
+      "file": "js/auth.js",
+      "name": "renderPendingBadges",
+      "line": 1234
+    },
+    {
+      "file": "js/auth.js",
+      "name": "resetUserPwd",
+      "line": 1244
+    },
+    {
+      "file": "js/auth.js",
+      "name": "deleteImpactText",
+      "line": 1258
+    },
+    {
+      "file": "js/auth.js",
+      "name": "deleteUserAccount",
+      "line": 1269
+    },
+    {
+      "file": "js/auth.js",
+      "name": "toggleUser",
+      "line": 1300
+    },
+    {
+      "file": "js/auth.js",
+      "name": "openTransfer",
+      "line": 1332
+    },
+    {
+      "file": "js/students.js",
+      "name": "todayTaSet",
+      "line": 11
+    },
+    {
+      "file": "js/students.js",
+      "name": "alertActionMap",
+      "line": 13
+    },
+    {
+      "file": "js/students.js",
+      "name": "isDoneAlert",
+      "line": 19
+    },
+    {
+      "file": "js/students.js",
+      "name": "snoozedToday",
+      "line": 21
+    },
+    {
+      "file": "js/students.js",
+      "name": "snoozeBadgeHtml",
+      "line": 27
+    },
+    {
+      "file": "js/students.js",
+      "name": "alertSnooze",
+      "line": 33
+    },
+    {
+      "file": "js/students.js",
+      "name": "alertDone",
+      "line": 49
+    },
+    {
+      "file": "js/students.js",
+      "name": "alertShelve",
+      "line": 68
+    },
+    {
+      "file": "js/students.js",
+      "name": "todayCatGo",
+      "line": 86
+    },
+    {
+      "file": "js/students.js",
+      "name": "renderToday",
+      "line": 92
+    },
+    {
+      "file": "js/students.js",
+      "name": "resolveMissed",
+      "line": 258
+    },
+    {
+      "file": "js/students.js",
+      "name": "openMissSubjectPicker",
+      "line": 287
+    },
+    {
+      "file": "js/students.js",
+      "name": "confirmMissSubject",
+      "line": 300
+    },
+    {
+      "file": "js/students.js",
+      "name": "removeMissed",
+      "line": 314
+    },
+    {
+      "file": "js/students.js",
+      "name": "gotoCorrect",
+      "line": 326
+    },
+    {
+      "file": "js/students.js",
+      "name": "gotoPlanEntry",
+      "line": 337
+    },
+    {
+      "file": "js/students.js",
+      "name": "subjectTree",
+      "line": 359
+    },
+    {
+      "file": "js/students.js",
+      "name": "refreshSubjectTree",
+      "line": 368
+    },
+    {
+      "file": "js/students.js",
+      "name": "setStuTaFilter",
+      "line": 377
+    },
+    {
+      "file": "js/students.js",
+      "name": "toggleTaGroup",
+      "line": 378
+    },
+    {
+      "file": "js/students.js",
+      "name": "toggleBarChart",
+      "line": 380
+    },
+    {
+      "file": "js/students.js",
+      "name": "stuFilterMetaHtml",
+      "line": 388
+    },
+    {
+      "file": "js/students.js",
+      "name": "clearStuFilters",
+      "line": 398
+    },
+    {
+      "file": "js/students.js",
+      "name": "renderStats",
+      "line": 403
+    },
+    {
+      "file": "js/students.js",
+      "name": "salesStuCard",
+      "line": 684
+    },
+    {
+      "file": "js/students.js",
+      "name": "toggleSalesSubject",
+      "line": 732
+    },
+    {
+      "file": "js/students.js",
+      "name": "salesCheckinGrid",
+      "line": 737
+    },
+    {
+      "file": "js/students.js",
+      "name": "salesSubjectPanel",
+      "line": 787
+    },
+    {
+      "file": "js/students.js",
+      "name": "renderSalesApiList",
+      "line": 818
+    },
+    {
+      "file": "js/students.js",
+      "name": "fillSalesApiPanel",
+      "line": 840
+    },
+    {
+      "file": "js/students.js",
+      "name": "salesApiCard",
+      "line": 844
+    },
+    {
+      "file": "js/students.js",
+      "name": "toggleSalesSubjectApi",
+      "line": 867
+    },
+    {
+      "file": "js/students.js",
+      "name": "salesApiPanel",
+      "line": 879
+    },
+    {
+      "file": "js/students.js",
+      "name": "toggleQuickEntry",
+      "line": 941
+    },
+    {
+      "file": "js/students.js",
+      "name": "qePanelHtml",
+      "line": 951
+    },
+    {
+      "file": "js/students.js",
+      "name": "qeCalc",
+      "line": 1071
+    },
+    {
+      "file": "js/students.js",
+      "name": "saveQuickEntry",
+      "line": 1083
+    },
+    {
+      "file": "js/students.js",
+      "name": "countSubjectRecs",
+      "line": 1112
+    },
+    {
+      "file": "js/students.js",
+      "name": "subjectRecsSorted",
+      "line": 1115
+    },
+    {
+      "file": "js/students.js",
+      "name": "savePlanCount",
+      "line": 1120
+    },
+    {
+      "file": "js/students.js",
+      "name": "editFirstClass",
+      "line": 1169
+    },
+    {
+      "file": "js/students.js",
+      "name": "saveFirstClass",
+      "line": 1174
+    },
+    {
+      "file": "js/students.js",
+      "name": "openPlanRequest",
+      "line": 1191
+    },
+    {
+      "file": "js/students.js",
+      "name": "submitPlanRequest",
+      "line": 1201
+    },
+    {
+      "file": "js/students.js",
+      "name": "_submitPlanRequestAsync",
+      "line": 1206
+    },
+    {
+      "file": "js/students.js",
+      "name": "cancelPlanRequest",
+      "line": 1225
+    },
+    {
+      "file": "js/students.js",
+      "name": "markMissedToday",
+      "line": 1233
+    },
+    {
+      "file": "js/students.js",
+      "name": "startMakeup",
+      "line": 1258
+    },
+    {
+      "file": "js/students.js",
+      "name": "subjectItems",
+      "line": 1266
+    },
+    {
+      "file": "js/students.js",
+      "name": "slotEditItem",
+      "line": 1276
+    },
+    {
+      "file": "js/students.js",
+      "name": "checkinGridHtml",
+      "line": 1290
+    },
+    {
+      "file": "js/students.js",
+      "name": "openSlot",
+      "line": 1342
+    },
+    {
+      "file": "js/students.js",
+      "name": "toggleSlotNoHw",
+      "line": 1364
+    },
+    {
+      "file": "js/students.js",
+      "name": "slotDraftSave",
+      "line": 1394
+    },
+    {
+      "file": "js/students.js",
+      "name": "slError",
+      "line": 1407
+    },
+    {
+      "file": "js/students.js",
+      "name": "slotEditHtml",
+      "line": 1414
+    },
+    {
+      "file": "js/students.js",
+      "name": "slCalc",
+      "line": 1518
+    },
+    {
+      "file": "js/students.js",
+      "name": "saveSlot",
+      "line": 1547
+    },
+    {
+      "file": "js/students.js",
+      "name": "deleteSlot",
+      "line": 1635
+    },
+    {
+      "file": "js/data.js",
+      "name": "normalizeHomeworkCycle",
+      "line": 28
+    },
+    {
+      "file": "js/data.js",
+      "name": "todayStr",
+      "line": 36
+    },
+    {
+      "file": "js/data.js",
+      "name": "fmtDate",
+      "line": 37
+    },
+    {
+      "file": "js/data.js",
+      "name": "offsetDay",
+      "line": 41
+    },
+    {
+      "file": "js/data.js",
+      "name": "uid",
+      "line": 42
+    },
+    {
+      "file": "js/data.js",
+      "name": "save",
+      "line": 44
+    },
+    {
+      "file": "js/data.js",
+      "name": "load",
+      "line": 45
+    },
+    {
+      "file": "js/data.js",
+      "name": "sha256Hex",
+      "line": 64
+    },
+    {
+      "file": "js/data.js",
+      "name": "rr",
+      "line": 65
+    },
+    {
+      "file": "js/data.js",
+      "name": "makeSalt",
+      "line": 117
+    },
+    {
+      "file": "js/data.js",
+      "name": "hashPwd",
+      "line": 118
+    },
+    {
+      "file": "js/data.js",
+      "name": "ownerInView",
+      "line": 123
+    },
+    {
+      "file": "js/data.js",
+      "name": "viewState",
+      "line": 129
+    },
+    {
+      "file": "js/data.js",
+      "name": "refreshView",
+      "line": 147
+    },
+    {
+      "file": "js/data.js",
+      "name": "writeOwnerId",
+      "line": 149
+    },
+    {
+      "file": "js/data.js",
+      "name": "canWriteOwner",
+      "line": 153
+    },
+    {
+      "file": "js/data.js",
+      "name": "isAdminView",
+      "line": 159
+    },
+    {
+      "file": "js/data.js",
+      "name": "isSalesView",
+      "line": 160
+    },
+    {
+      "file": "js/data.js",
+      "name": "nowTs",
+      "line": 163
+    },
+    {
+      "file": "js/data.js",
+      "name": "auditStuDesc",
+      "line": 168
+    },
+    {
+      "file": "js/data.js",
+      "name": "logAction",
+      "line": 173
+    },
+    {
+      "file": "js/data.js",
+      "name": "ownerName",
+      "line": 191
+    },
+    {
+      "file": "js/data.js",
+      "name": "stuOwnerId",
+      "line": 198
+    },
+    {
+      "file": "js/data.js",
+      "name": "apiPersist",
+      "line": 708
+    },
+    {
+      "file": "js/data.js",
+      "name": "resyncState",
+      "line": 717
+    },
+    {
+      "file": "js/data.js",
+      "name": "fileUrl",
+      "line": 723
+    },
+    {
+      "file": "js/data.js",
+      "name": "detectApi",
+      "line": 734
+    },
+    {
+      "file": "js/data.js",
+      "name": "isProdHost",
+      "line": 748
+    },
+    {
+      "file": "js/data.js",
+      "name": "getUsersCache",
+      "line": 756
+    },
+    {
+      "file": "js/data.js",
+      "name": "getDeletedUsersCache",
+      "line": 757
+    },
+    {
+      "file": "js/data.js",
+      "name": "refreshUsersCache",
+      "line": 758
+    },
+    {
+      "file": "js/data.js",
+      "name": "seedSamplesFor",
+      "line": 767
+    },
+    {
+      "file": "js/data.js",
+      "name": "seedPlanRequestSamples",
+      "line": 789
+    },
+    {
+      "file": "js/data.js",
+      "name": "seedAuditSamples",
+      "line": 828
+    },
+    {
+      "file": "js/data.js",
+      "name": "seedAlumniSamples",
+      "line": 858
+    },
+    {
+      "file": "js/dashboard.js",
+      "name": "dashRangeStart",
+      "line": 7
+    },
+    {
+      "file": "js/dashboard.js",
+      "name": "computeDash",
+      "line": 10
+    },
+    {
+      "file": "js/dashboard.js",
+      "name": "renderDashboard",
+      "line": 139
+    },
+    {
+      "file": "js/dashboard.js",
+      "name": "dashToggleAlert",
+      "line": 255
+    },
+    {
+      "file": "js/dashboard.js",
+      "name": "dashGotoStudent",
+      "line": 257
+    },
+    {
+      "file": "js/dashboard.js",
+      "name": "dashDrillTa",
+      "line": 265
+    },
+    {
+      "file": "js/dashboard.js",
+      "name": "openTaEntryModal",
+      "line": 281
+    },
+    {
+      "file": "js/dashboard.js",
+      "name": "renderAll",
+      "line": 299
+    },
+    {
+      "file": "js/dashboard.js",
+      "name": "init",
+      "line": 320
+    },
+    {
+      "file": "js/dashboard.js",
+      "name": "showApiOutage",
+      "line": 364
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "loadScript",
+      "line": 7
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "subjFileName",
+      "line": 18
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "reportHtml",
+      "line": 22
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "genReport",
+      "line": 120
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "shareReportToParent",
+      "line": 132
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "copyShareLink",
+      "line": 143
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "downloadReport",
+      "line": 157
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "printReportDirect",
+      "line": 197
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "pushReportToParent",
+      "line": 212
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "pushManual",
+      "line": 222
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "openBindModal",
+      "line": 232
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "maskOpenid",
+      "line": 245
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "openBindsModal",
+      "line": 248
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "openBindFromBinds",
+      "line": 289
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "editBindRemark",
+      "line": 294
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "requestUnbind",
+      "line": 304
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "unbindParent",
+      "line": 312
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "printReport",
+      "line": 326
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "qeSaveStatus",
+      "line": 339
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "qeDirtyToast",
+      "line": 362
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "qeFieldSaved",
+      "line": 369
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "qeFieldFailed",
+      "line": 381
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "saveSubjectComment",
+      "line": 386
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "saveSubjectAdvice",
+      "line": 410
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "editMock",
+      "line": 435
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "getMockStu",
+      "line": 440
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "getMockSlot",
+      "line": 443
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "bookMockExam",
+      "line": 449
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "cancelMockExam",
+      "line": 463
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "saveMockScore",
+      "line": 478
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "clearMockScore",
+      "line": 492
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "toggleAddSubject",
+      "line": 510
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "addSubjPanelHtml",
+      "line": 514
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "asSub1Change",
+      "line": 533
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "asSub2Change",
+      "line": 550
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "getAddSubjValue",
+      "line": 564
+    },
+    {
+      "file": "js/wechat.js",
+      "name": "confirmAddSubject",
+      "line": 575
+    }
+  ],
+  "static_event_bindings": [
+    {
+      "file": "js/auth.js",
+      "id": "btn-subj-save",
+      "event": "click",
+      "line": 128
+    },
+    {
+      "file": "js/auth.js",
+      "id": "btn-subj-reset",
+      "event": "click",
+      "line": 129
+    },
+    {
+      "file": "js/auth.js",
+      "id": "btn-open-add-stu",
+      "event": "click",
+      "line": 424
+    },
+    {
+      "file": "js/auth.js",
+      "id": "ns-cancel",
+      "event": "click",
+      "line": 449
+    },
+    {
+      "file": "js/auth.js",
+      "id": "ns-ok",
+      "event": "click",
+      "line": 450
+    },
+    {
+      "file": "js/auth.js",
+      "id": "alumni-search",
+      "event": "input",
+      "line": 510
+    },
+    {
+      "file": "js/auth.js",
+      "id": "btn-export",
+      "event": "click",
+      "line": 653
+    },
+    {
+      "file": "js/auth.js",
+      "id": "btn-import",
+      "event": "click",
+      "line": 661
+    },
+    {
+      "file": "js/auth.js",
+      "id": "f-import",
+      "event": "change",
+      "line": 662
+    },
+    {
+      "file": "js/auth.js",
+      "id": "btn-clear-sample",
+      "event": "click",
+      "line": 709
+    },
+    {
+      "file": "js/auth.js",
+      "id": "btn-load-sample",
+      "event": "click",
+      "line": 740
+    },
+    {
+      "file": "js/auth.js",
+      "id": "btn-clear-all",
+      "event": "click",
+      "line": 741
+    },
+    {
+      "file": "js/auth.js",
+      "id": "btn-login",
+      "event": "click",
+      "line": 895
+    },
+    {
+      "file": "js/auth.js",
+      "id": "login-pass",
+      "event": "keydown",
+      "line": 896
+    },
+    {
+      "file": "js/auth.js",
+      "id": "login-pass-eye",
+      "event": "click",
+      "line": 898
+    },
+    {
+      "file": "js/auth.js",
+      "id": "login-user",
+      "event": "keydown",
+      "line": 906
+    },
+    {
+      "file": "js/auth.js",
+      "id": "btn-logout",
+      "event": "click",
+      "line": 907
+    },
+    {
+      "file": "js/auth.js",
+      "id": "btn-chpwd",
+      "event": "click",
+      "line": 945
+    },
+    {
+      "file": "js/auth.js",
+      "id": "pwd-cancel",
+      "event": "click",
+      "line": 946
+    },
+    {
+      "file": "js/auth.js",
+      "id": "pwd-ok",
+      "event": "click",
+      "line": 947
+    },
+    {
+      "file": "js/auth.js",
+      "id": "audit-search",
+      "event": "input",
+      "line": 1148
+    },
+    {
+      "file": "js/auth.js",
+      "id": "audit-type",
+      "event": "change",
+      "line": 1149
+    },
+    {
+      "file": "js/auth.js",
+      "id": "audit-range",
+      "event": "change",
+      "line": 1150
+    },
+    {
+      "file": "js/auth.js",
+      "id": "btn-create-ta",
+      "event": "click",
+      "line": 1315
+    },
+    {
+      "file": "js/auth.js",
+      "id": "tf-cancel",
+      "event": "click",
+      "line": 1344
+    },
+    {
+      "file": "js/auth.js",
+      "id": "tf-ok",
+      "event": "click",
+      "line": 1345
+    },
+    {
+      "file": "js/students.js",
+      "id": "stu-search",
+      "event": "input",
+      "line": 383
+    },
+    {
+      "file": "js/students.js",
+      "id": "pr-cancel",
+      "event": "click",
+      "line": 1214
+    },
+    {
+      "file": "js/students.js",
+      "id": "pr-ok",
+      "event": "click",
+      "line": 1218
+    },
+    {
+      "file": "js/students.js",
+      "id": "ms-cancel",
+      "event": "click",
+      "line": 1219
+    },
+    {
+      "file": "js/students.js",
+      "id": "ms-ok",
+      "event": "click",
+      "line": 1223
+    },
+    {
+      "file": "js/dashboard.js",
+      "id": "dash-owner",
+      "event": "change",
+      "line": 273
+    },
+    {
+      "file": "js/wechat.js",
+      "id": "rp-close",
+      "event": "click",
+      "line": 206
+    },
+    {
+      "file": "js/wechat.js",
+      "id": "rp-download",
+      "event": "click",
+      "line": 207
+    },
+    {
+      "file": "js/wechat.js",
+      "id": "rp-print",
+      "event": "click",
+      "line": 208
+    },
+    {
+      "file": "js/wechat.js",
+      "id": "rp-share",
+      "event": "click",
+      "line": 209
+    },
+    {
+      "file": "js/wechat.js",
+      "id": "rp-copy",
+      "event": "click",
+      "line": 210
+    },
+    {
+      "file": "js/wechat.js",
+      "id": "rp-push",
+      "event": "click",
+      "line": 220
+    },
+    {
+      "file": "js/wechat.js",
+      "id": "binds-close",
+      "event": "click",
+      "line": 324
+    },
+    {
+      "file": "js/wechat.js",
+      "id": "bind-close",
+      "event": "click",
+      "line": 325
+    }
+  ],
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/api/login",
+      "source": "server/routes/auth.js",
+      "line": 23
+    },
+    {
+      "method": "GET",
+      "path": "/api/me",
+      "source": "server/routes/auth.js",
+      "line": 42
+    },
+    {
+      "method": "POST",
+      "path": "/api/logout",
+      "source": "server/routes/auth.js",
+      "line": 50
+    },
+    {
+      "method": "POST",
+      "path": "/api/password",
+      "source": "server/routes/auth.js",
+      "line": 56
+    },
+    {
+      "method": "GET",
+      "path": "/api/users",
+      "source": "server/routes/users.js",
+      "line": 21
+    },
+    {
+      "method": "POST",
+      "path": "/api/users",
+      "source": "server/routes/users.js",
+      "line": 30
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/:id/reset",
+      "source": "server/routes/users.js",
+      "line": 53
+    },
+    {
+      "method": "POST",
+      "path": "/api/users/:id/toggle",
+      "source": "server/routes/users.js",
+      "line": 66
+    },
+    {
+      "method": "GET",
+      "path": "/api/users/:id/delete-impact",
+      "source": "server/routes/users.js",
+      "line": 106
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/users/:id",
+      "source": "server/routes/users.js",
+      "line": 119
+    },
+    {
+      "method": "GET",
+      "path": "/api/state",
+      "source": "server/routes/state.js",
+      "line": 9
+    },
+    {
+      "method": "POST",
+      "path": "/api/students",
+      "source": "server/routes/students.js",
+      "line": 14
+    },
+    {
+      "method": "PUT",
+      "path": "/api/students/:id",
+      "source": "server/routes/students.js",
+      "line": 36
+    },
+    {
+      "method": "POST",
+      "path": "/api/students/:id/archive",
+      "source": "server/routes/students.js",
+      "line": 65
+    },
+    {
+      "method": "POST",
+      "path": "/api/students/:id/restore",
+      "source": "server/routes/students.js",
+      "line": 67
+    },
+    {
+      "method": "POST",
+      "path": "/api/students/:id/owner",
+      "source": "server/routes/students.js",
+      "line": 85
+    },
+    {
+      "method": "PUT",
+      "path": "/api/students/:id/subj-fields",
+      "source": "server/routes/students.js",
+      "line": 106
+    },
+    {
+      "method": "POST",
+      "path": "/api/students/:id/bind-qr",
+      "source": "server/routes/students.js",
+      "line": 203
+    },
+    {
+      "method": "GET",
+      "path": "/api/students/:id/binds",
+      "source": "server/routes/students.js",
+      "line": 231
+    },
+    {
+      "method": "PUT",
+      "path": "/api/students/:id/binds/:bindId/remark",
+      "source": "server/routes/students.js",
+      "line": 240
+    },
+    {
+      "method": "POST",
+      "path": "/api/students/:id/binds/:bindId/unbind",
+      "source": "server/routes/students.js",
+      "line": 255
+    },
+    {
+      "method": "POST",
+      "path": "/api/students/:id/binds/:bindId/unbind-request",
+      "source": "server/routes/students.js",
+      "line": 270
+    },
+    {
+      "method": "POST",
+      "path": "/api/records",
+      "source": "server/routes/records.js",
+      "line": 50
+    },
+    {
+      "method": "PUT",
+      "path": "/api/records/:id",
+      "source": "server/routes/records.js",
+      "line": 80
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/records/:id",
+      "source": "server/routes/records.js",
+      "line": 106
+    },
+    {
+      "method": "POST",
+      "path": "/api/missed",
+      "source": "server/routes/records.js",
+      "line": 120
+    },
+    {
+      "method": "POST",
+      "path": "/api/missed/:id/resolve",
+      "source": "server/routes/records.js",
+      "line": 143
+    },
+    {
+      "method": "PUT",
+      "path": "/api/missed/:id",
+      "source": "server/routes/records.js",
+      "line": 156
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/missed/:id",
+      "source": "server/routes/records.js",
+      "line": 174
+    },
+    {
+      "method": "POST",
+      "path": "/api/plan/set",
+      "source": "server/routes/planreq.js",
+      "line": 19
+    },
+    {
+      "method": "POST",
+      "path": "/api/plan-requests",
+      "source": "server/routes/planreq.js",
+      "line": 63
+    },
+    {
+      "method": "POST",
+      "path": "/api/plan-requests/:id/cancel",
+      "source": "server/routes/planreq.js",
+      "line": 88
+    },
+    {
+      "method": "POST",
+      "path": "/api/plan-requests/:id/review",
+      "source": "server/routes/planreq.js",
+      "line": 102
+    },
+    {
+      "method": "GET",
+      "path": "/api/search/students",
+      "source": "server/routes/search.js",
+      "line": 20
+    },
+    {
+      "method": "GET",
+      "path": "/api/search/students/:id",
+      "source": "server/routes/search.js",
+      "line": 61
+    },
+    {
+      "method": "GET",
+      "path": "/api/audit-logs",
+      "source": "server/routes/audit.js",
+      "line": 8
+    },
+    {
+      "method": "POST",
+      "path": "/api/files",
+      "source": "server/routes/files.js",
+      "line": 73
+    },
+    {
+      "method": "GET",
+      "path": "/api/files/:id",
+      "source": "server/routes/files.js",
+      "line": 119
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/files/:id",
+      "source": "server/routes/files.js",
+      "line": 132
+    },
+    {
+      "method": "POST",
+      "path": "/api/reports/share",
+      "source": "server/routes/reports.js",
+      "line": 36
+    },
+    {
+      "method": "POST",
+      "path": "/api/reports/push",
+      "source": "server/routes/reports.js",
+      "line": 48
+    },
+    {
+      "method": "POST",
+      "path": "/api/reports/share/:token/revoke",
+      "source": "server/routes/reports.js",
+      "line": 109
+    },
+    {
+      "method": "GET",
+      "path": "/api/subjects",
+      "source": "server/routes/subjects.js",
+      "line": 41
+    },
+    {
+      "method": "PUT",
+      "path": "/api/subjects",
+      "source": "server/routes/subjects.js",
+      "line": 51
+    },
+    {
+      "method": "GET",
+      "path": "/api/homework-cycle",
+      "source": "server/routes/settings.js",
+      "line": 21
+    },
+    {
+      "method": "PUT",
+      "path": "/api/homework-cycle",
+      "source": "server/routes/settings.js",
+      "line": 25
+    },
+    {
+      "method": "GET",
+      "path": "/api/unbind-requests",
+      "source": "server/routes/unbind.js",
+      "line": 19
+    },
+    {
+      "method": "POST",
+      "path": "/api/unbind-requests/:id/review",
+      "source": "server/routes/unbind.js",
+      "line": 35
+    },
+    {
+      "method": "GET",
+      "path": "/api/push-config",
+      "source": "server/routes/push.js",
+      "line": 14
+    },
+    {
+      "method": "PUT",
+      "path": "/api/push-config",
+      "source": "server/routes/push.js",
+      "line": 19
+    },
+    {
+      "method": "POST",
+      "path": "/api/push/:kind",
+      "source": "server/routes/push.js",
+      "line": 31
+    },
+    {
+      "method": "POST",
+      "path": "/api/alerts/action",
+      "source": "server/routes/alerts.js",
+      "line": 13
+    },
+    {
+      "method": "GET",
+      "path": "/api/wechat/callback",
+      "source": "server/routes/wechat.js",
+      "line": 17
+    },
+    {
+      "method": "POST",
+      "path": "/api/wechat/callback",
+      "source": "server/routes/wechat.js",
+      "line": 25
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "source": "server/index.js",
+      "line": null
+    },
+    {
+      "method": "GET",
+      "path": "/r/:token",
+      "source": "server/index.js",
+      "line": null
+    }
+  ],
+  "source_hashes": [
+    {
+      "path": "学生作业正确率.html",
+      "sha256": "157d7d5c143bf6c1a09d63b476a625dcd6b382d2bd104d45911009761b4ab2c9"
+    },
+    {
+      "path": "js/data.js",
+      "sha256": "dac4a7770147976a71ec8c9451200530d9e5c9d25ae4a4794ecbcf50c184276c"
+    },
+    {
+      "path": "js/misc.js",
+      "sha256": "8ff8d6bf1a59be65c0929aebf9b81c2699f1318951f1e4a9cf9d04f8adfd2dae"
+    },
+    {
+      "path": "js/students.js",
+      "sha256": "c5a2196e327ca7464ccf18e822b5a5f1b375d87e3c3c60020dfc086735010823"
+    },
+    {
+      "path": "js/wechat.js",
+      "sha256": "28569fc785bcef296b3ae96dbd19216cd63ceb91971dc55e8be75b3d75df58c9"
+    },
+    {
+      "path": "js/auth.js",
+      "sha256": "b21e585404330b25f63e49891d78a44fc73fc20847c058ad6cf2b615a1e4a2f1"
+    },
+    {
+      "path": "js/dashboard.js",
+      "sha256": "ddc52111defe0babeb16f2e9628aabf92f1819ef8c95b317200ab7f29b2726cd"
+    },
+    {
+      "path": "styles/main.css",
+      "sha256": "6e4e37aaf73c701514736b7027c9d261eb81aeb62a1bbf3fc9a0152c1cacd074"
+    }
+  ]
+}

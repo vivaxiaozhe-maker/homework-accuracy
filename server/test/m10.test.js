@@ -132,6 +132,8 @@ function ok(cond, name){
   push._resetRateLimit();  // 上节已用 2 次额度，重置防误触限流
   r = await req('POST', '/api/push/homework', { studentId: stuA, subject: subj }, T1);
   ok(r.status === 200 && r.data.ok && r.data.sent === 1, '手动推送作业成绩通知成功（不受开关影响）');
+  ok(r.data.results.length === 1 && r.data.results[0].status === 'sent' && r.data.results[0].name === '家长 1'
+    && JSON.stringify(r.data.results).indexOf('openid') === -1, '逐接收人结果含状态与显示名，不泄露 openid');
   ok(sendCalls()[sendCalls().length - 1].body.data.character_string18.value === '90%', '手动作业通知用最近正确率');
   r = await req('POST', '/api/push/mock-book', { studentId: stuA, subject: subj }, T1);
   ok(r.status === 200 && r.data.sent === 1, '手动推送报名通知成功');

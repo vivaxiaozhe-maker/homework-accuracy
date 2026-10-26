@@ -24,7 +24,10 @@
 - **作业记录四态互斥**：正常成绩 / 无作业（`no_homework=1`，total=0）/ 未交（missed 表）/ 未录入（空格子）。无作业计入完成次数但**不进任何正确率统计和预警**；未交独立体系，不算 0 分
 - **未交**：只有登记了「未交」的才算（missed 表）；永久停在未交组，不随时间升级。出清 = 补录 / 删除 / 搁置（shelve）
 - **逾期**（v1.9.0 起科目级，`js/misc.js` `subjectOverdueInfo`）：已开课（firstClass ≤ 今天）+ 欠账（已完成 < 应完成）+ 最近活跃超过作业周期；作业周期为全局设置（默认 14 天，教务管理页可配 1–30 天，API `/api/homework-cycle`，前端 `homeworkCycleDays`）。最近活跃 = max(最近成绩日, 最近未交登记日, 计划设定日)；无计划/无活跃记录不算。原「计划停滞」并入逾期（alert_actions 的 kind 名保留 'planStall'，存量 done/snooze/搁置不失效）
-- **已归档学生**不进首页/看板任何预警
+- **已归档学生**不进首页/看板任何预警，且为只读档案：服务端 `rejectArchived` 拦截作业/未交/学生字段写入，恢复为现有学生后才可继续编辑
+- **同名学生组**：从稳定 studentId 起点，按 ownerId + trim/toLowerCase 姓名 + 当前 archived 范围解析；教务也不能跨 owner。科目重命名/删除走 `/api/students/subject-operation` 单事务，覆盖 records/missed/subjects/plans/setAt/firstClass/comments/advice/mock
+- **补交事务**：补录未交走 `/api/records/makeup`（missedId + 稳定 recordId），成绩、附件、made-up、审计一次提交；同负载重试幂等，失败保留未交和草稿，禁止回到 records + resolve 双请求
+- **看板口径**：历史工作量/均分/最近录入/趋势统一 `date <= today`（“全部”也截至今天，未来预录只在学生/历史/报告明细）；三项助教覆盖指标的分子分母同为当前在服务 studentId 集合，未交登记+补交成绩计两次行为，软删除未交不计
 - **权限**：admin 全量、ta 仅名下（ownerId 归属）、sales 只读；解绑家长仅教务直解、助教走 unbind-request 审批
 - **推送**：保存成绩/预约模考/存模考分时按开关自动推 + 手动补推按钮；微信模板 character_string 字段不支持中文（无作业时填 `-`，中文信息靠落地页承载）
 - **家长绑定**：每学生最多 2 名有效绑定（扫码回调处硬限制）；openid 无含义，显示用 remark 备注或「家长 N」序号

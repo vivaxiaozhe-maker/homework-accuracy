@@ -1,0 +1,57 @@
+{
+  "checkedDate": "2026-10-26",
+  "repository": "vivaxiaozhe-maker/homework-accuracy",
+  "ref": "main（默认分支）",
+  "localBaselineCommit": "df79ea98888e01f8a89520f669e7b9baf16159bd",
+  "result": "本次读取的8个关键文件blob SHA与本地冻结提交逐个一致；另读js/data.js也一致。不代表所有仓库文件或生产后端本轮都已重新比对。",
+  "remoteFiles": [
+    {
+      "path": "学生作业正确率.html",
+      "status": "fulfilled",
+      "sha": "be9a4852a8f2319c11e4da6b4a33d3e5fc21e7b4",
+      "url": "https://github.com/vivaxiaozhe-maker/homework-accuracy/blob/main/%E5%AD%A6%E7%94%9F%E4%BD%9C%E4%B8%9A%E6%AD%A3%E7%A1%AE%E7%8E%87.html"
+    },
+    {
+      "path": "js/students.js",
+      "status": "fulfilled",
+      "sha": "86707ccd408748a5d30470e800bdf30267f5096a",
+      "url": "https://github.com/vivaxiaozhe-maker/homework-accuracy/blob/main/js/students.js"
+    },
+    {
+      "path": "js/dashboard.js",
+      "status": "fulfilled",
+      "sha": "f7beb53d0e3873b5611db991368faeac2eee56f1",
+      "url": "https://github.com/vivaxiaozhe-maker/homework-accuracy/blob/main/js/dashboard.js"
+    },
+    {
+      "path": "js/auth.js",
+      "status": "fulfilled",
+      "sha": "4557ee999d2c2f33e460420b047de911d8258407",
+      "url": "https://github.com/vivaxiaozhe-maker/homework-accuracy/blob/main/js/auth.js"
+    },
+    {
+      "path": "js/wechat.js",
+      "status": "fulfilled",
+      "sha": "a766158299852215d1ecb638750c30cd749a4ec8",
+      "url": "https://github.com/vivaxiaozhe-maker/homework-accuracy/blob/main/js/wechat.js"
+    },
+    {
+      "path": "js/misc.js",
+      "status": "fulfilled",
+      "sha": "64d8802e0007be8dbdbe5f88b4be4ab9af9588f3",
+      "url": "https://github.com/vivaxiaozhe-maker/homework-accuracy/blob/main/js/misc.js"
+    },
+    {
+      "path": "server/routes/users.js",
+      "status": "fulfilled",
+      "sha": "99b24501250a18028edb8249d1e8d99a30612940",
+      "url": "https://github.com/vivaxiaozhe-maker/homework-accuracy/blob/main/server/routes/users.js"
+    },
+    {
+      "path": "server/routes/records.js",
+      "status": "fulfilled",
+      "sha": "52c9aa668dd9044464174fc5610c4b3bd389d63b",
+      "url": "https://github.com/vivaxiaozhe-maker/homework-accuracy/blob/main/server/routes/records.js"
+    }
+  ]
+}

@@ -37,8 +37,8 @@ router.post('/push/:kind', requireRole('ta', 'admin'), async (req, res) => {
   if(!st) return res.status(404).json({ ok: false, msg: '学生不存在' });
   if(!canWrite(req.user, st.owner_id)) return res.status(403).json({ ok: false, msg: '没有权限操作该数据' });
   const r = await push.pushTemplate(req.user, st, kind, subject, push.shareUrlFor(req, st, subject, kind), undefined, true);
-  if(r.err) return res.status(r.status || 500).json({ ok: false, msg: r.err });
-  res.json({ ok: true, sent: r.sent });
+  if(r.err) return res.status(r.status || 500).json({ ok: false, msg: r.err, results: r.results || [] });
+  res.json({ ok: true, sent: r.sent, results: r.results || [] });
 });
 
 module.exports = router;

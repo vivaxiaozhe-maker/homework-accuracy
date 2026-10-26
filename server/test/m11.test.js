@@ -133,6 +133,8 @@ function ok(cond, name){
   ok(r.status === 200, '限流窗口内第 3 次推送通过');
   r = await req('POST', '/api/push/homework', { studentId: stuA, subject: subj }, T1);  // 4
   ok(r.status === 429 && r.data.msg.indexOf('频率已达上限') !== -1, '第 4 次手动推送被限流（429 + 明确提示）');
+  ok(r.data.results.length === 1 && r.data.results[0].status === 'rate_limited'
+    && r.data.results[0].reason.indexOf('全站同类') !== -1, '限流结果标明全站同类共享额度与重试原因');
   // 自动推送超限：静默丢弃 + 审计「限流丢弃」
   const dropBefore = db.prepare("SELECT COUNT(*) AS c FROM audit_logs WHERE action = '限流丢弃'").get().c;
   r = await req('POST', '/api/records', { studentId: stuA, date: '2026-09-16', total: 10, correct: 9, wrongs: [], subject: subj }, T1);

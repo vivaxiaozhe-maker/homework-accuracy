@@ -1,0 +1,84 @@
+{
+  "engine": "chrome",
+  "browser": "155.0.8059.86",
+  "scene": "base",
+  "fixture": "01-operating-volume",
+  "stats": {
+    "students": 443,
+    "active": 400,
+    "archived": 43,
+    "owners": 11,
+    "records": 2500,
+    "missed": 220,
+    "subjects": 40,
+    "pending": 20,
+    "alertActions": 10
+  },
+  "selected": {
+    "id": "fixture_s_0000",
+    "subject": "学科 / AP / 微积分BC"
+  },
+  "viewport": "1512x716",
+  "dpr": 1,
+  "os": "darwin 27.2.0 arm64",
+  "appVersion": "v1.14.0",
+  "interactiveMs": 1713,
+  "firstOperationMs": 51.10000002384186,
+  "samples": [
+    48.80000001192093,
+    48.19999998807907,
+    46.59999996423721,
+    45.69999998807907,
+    45.30000001192093,
+    45.60000002384186,
+    44.90000003576279,
+    49.5,
+    46.69999998807907,
+    45.30000001192093,
+    44.69999998807907,
+    44.39999997615814,
+    44.80000001192093,
+    45.700000047683716,
+    45.89999997615814,
+    45.40000003576279,
+    45,
+    34.5,
+    29.5,
+    29
+  ],
+  "sampleCount": 20,
+  "minMs": 29,
+  "medianMs": 45.30000001192093,
+  "p95Ms": 48.80000001192093,
+  "maxMs": 49.5,
+  "budgetMs": 200,
+  "withinBudget": true,
+  "metrics": {
+    "fields": [
+      {
+        "id": "sl-date",
+        "width": 421,
+        "height": 42
+      },
+      {
+        "id": "sl-total",
+        "width": 421,
+        "height": 42
+      },
+      {
+        "id": "sl-correct",
+        "width": 421,
+        "height": 42
+      },
+      {
+        "id": "sl-wrongs",
+        "width": 421,
+        "height": 42
+      }
+    ],
+    "rows": true,
+    "workspace": true,
+    "overflow": false
+  },
+  "errors": []
+}

@@ -1,0 +1,101 @@
+{
+  "browser": "27.2",
+  "results": [
+    {
+      "id": "AC-G05",
+      "role": "admin",
+      "width": 1512,
+      "height": 716,
+      "tab": "today",
+      "file": "AC-G05__webkit__admin__1512x716__01.png",
+      "errors": [],
+      "metrics": {
+        "appVersion": "v1.11.0",
+        "sidebarWidth": 184,
+        "sidebarDisplay": "flex",
+        "topbarHeight": 64,
+        "bottombarDisplay": "none",
+        "documentWidth": 1504,
+        "viewportWidth": 1512,
+        "activeTab": "今日概览",
+        "userRole": "教务",
+        "bodyBackground": "rgb(250, 249, 246)",
+        "sidebarBackground": "rgb(16, 60, 50)",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15"
+      },
+      "overflow": false
+    },
+    {
+      "id": "AC-U01",
+      "role": "admin",
+      "width": 1280,
+      "height": 720,
+      "tab": "dashboard",
+      "file": "AC-U01__webkit__admin__1280x720__01.png",
+      "errors": [],
+      "metrics": {
+        "appVersion": "v1.11.0",
+        "sidebarWidth": 184,
+        "sidebarDisplay": "flex",
+        "topbarHeight": 64,
+        "bottombarDisplay": "none",
+        "documentWidth": 1272,
+        "viewportWidth": 1280,
+        "activeTab": "数据看板",
+        "userRole": "教务",
+        "bodyBackground": "rgb(250, 249, 246)",
+        "sidebarBackground": "rgb(16, 60, 50)",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15"
+      },
+      "overflow": false
+    },
+    {
+      "id": "AC-U03",
+      "role": "ta",
+      "width": 834,
+      "height": 800,
+      "tab": "today",
+      "file": "AC-U03__webkit__ta__834x800__01.png",
+      "errors": [],
+      "metrics": {
+        "appVersion": "v1.11.0",
+        "sidebarWidth": 184,
+        "sidebarDisplay": "flex",
+        "topbarHeight": 64,
+        "bottombarDisplay": "none",
+        "documentWidth": 826,
+        "viewportWidth": 834,
+        "activeTab": "今日概览",
+        "userRole": "助教",
+        "bodyBackground": "rgb(250, 249, 246)",
+        "sidebarBackground": "rgb(16, 60, 50)",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15"
+      },
+      "overflow": false
+    },
+    {
+      "id": "AC-U03-mobile",
+      "role": "sales",
+      "width": 390,
+      "height": 844,
+      "tab": "stats",
+      "file": "AC-U03-mobile__webkit__sales__390x844__01.png",
+      "errors": [],
+      "metrics": {
+        "appVersion": "v1.11.0",
+        "sidebarWidth": 0,
+        "sidebarDisplay": "none",
+        "topbarHeight": 107,
+        "bottombarDisplay": "block",
+        "documentWidth": 382,
+        "viewportWidth": 390,
+        "activeTab": "现有学生",
+        "userRole": "销售",
+        "bodyBackground": "rgb(250, 249, 246)",
+        "sidebarBackground": "rgb(16, 60, 50)",
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15"
+      },
+      "overflow": false
+    }
+  ]
+}

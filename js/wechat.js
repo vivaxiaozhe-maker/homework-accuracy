@@ -208,13 +208,23 @@ document.getElementById('rp-download').addEventListener('click', ()=>{ downloadR
 document.getElementById('rp-print').addEventListener('click', ()=>{ printReportDirect(); });
 document.getElementById('rp-share').addEventListener('click', ()=>{ shareReportToParent(); });
 document.getElementById('rp-copy').addEventListener('click', ()=>{ copyShareLink(); });
+/* 推送结果与业务保存分开：逐接收人显示送达/失败原因，失败可重试，不包含 openid */
+function pushFeedbackText(r){
+  const rows = Array.isArray(r.results) ? r.results : [];
+  if(!rows.length) return r.ok ? '已推送到家长微信' : (r.msg || '推送失败，请重试');
+  const sent = rows.filter(x=>x.status==='sent').length;
+  const failed = rows.find(x=>x.status!=='sent' && x.status!=='pending');
+  let text = '微信发送：' + sent + '/' + rows.length + ' 人已送达';
+  if(failed) text += '；' + failed.name + '：' + (failed.reason || '发送失败') + '，可稍后重试';
+  return text;
+}
 /* 「推送给家长」：服务号模板消息推送报告；未绑定时提示并打开绑定弹窗引导；mock 提示不支持 */
 async function pushReportToParent(){
   if(!quickEntry) return;
   if(!USE_API){ toast('演示环境暂不支持推送（正式环境可用）'); return; }
   const r = await HttpApi.pushReport(quickEntry.gid, quickEntry.subject);
-  if(r.ok){ toast('已推送到家长微信'); return; }
-  toast(r.msg || '推送失败，请重试');
+  if(r.ok){ toast(pushFeedbackText(r)); return; }
+  toast(pushFeedbackText(r));
   if(r.msg && r.msg.indexOf('未绑定') !== -1) openBindModal(quickEntry.gid);  // 未绑定 → 引导绑定
 }
 document.getElementById('rp-push').addEventListener('click', ()=>{ pushReportToParent(); });
@@ -223,8 +233,8 @@ async function pushManual(kind){
   if(!quickEntry) return;
   if(!USE_API){ toast('演示环境暂不支持推送（正式环境可用）'); return; }
   const r = await HttpApi._req('POST', '/api/push/' + kind, { studentId: quickEntry.gid, subject: quickEntry.subject });
-  if(r.ok){ toast('已推送到家长微信'); return; }
-  toast(r.msg || '推送失败，请重试');
+  if(r.ok){ toast(pushFeedbackText(r)); return; }
+  toast(pushFeedbackText(r));
   if(r.msg && r.msg.indexOf('未绑定') !== -1) openBindModal(quickEntry.gid);  // 未绑定 → 引导绑定
 }
 /* 「绑定家长微信」：调 bind-qr 生成/复用学生专属二维码（同一学生二维码不变，可重复转发）；mock 提示不支持。

@@ -94,7 +94,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.9.3', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.15.0', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -523,7 +523,7 @@ function ok(cond, name){
   const listHtml = documentStub.getElementById('stu-list').innerHTML;
   ok(listHtml.indexOf('新生丙') !== -1 && listHtml.indexOf('新生丙') < listHtml.indexOf('林小满'),
     '重取 state 后新增学生仍在列表首位（createdAt 排序键生效）');
-  vm.runInContext("toggleAddSubject('e2e-stu-new')", ctx);
+  vm.runInContext("selectStudentWorkspace('e2e-stu-new');toggleAddSubject('e2e-stu-new')", ctx);
   ok(documentStub.getElementById('stu-list').innerHTML.indexOf('add-subj-panel') !== -1, '点新增科目面板出现（id 引用未失效）');
   vm.runInContext("toggleAddSubject('e2e-stu-new')", ctx);  // 收起面板
   // 录入作业 → 删除格子可用（id 引用全程有效）
@@ -680,6 +680,31 @@ function ok(cond, name){
   await wb.resyncState();
   ok((wb.pool.alertActions || []).filter(a=>a.refKey===alertMiss.missed.id).length === 2, '同一 ref_key 两条动作均同步（前端取最新生效）');
 
+  /* ---- v1.12.0：任务动作失败不出清；搁置原因恢复 ---- */
+  await wb.HttpApi.addMissed({id:'alert-miss-fail',studentId:alertMiss.missed.studentId,date:'2026-10-22',subject:'学科 / AP / 统计'});
+  await wb.resyncState();
+  await vm.runInContext("todayCatGo('miss')",ctx);
+  const alertReq = wb.HttpApi._req;
+  wb.HttpApi._req = async function(method,url,body){
+    if(method==='POST' && url==='/api/alerts/action') return {ok:false,msg:'模拟预警动作失败'};
+    return alertReq.call(this,method,url,body);
+  };
+  await vm.runInContext("alertSnooze('miss','alert-miss-fail')",ctx);
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf('2026-10-22')!==-1
+    && !(wb.pool.alertActions||[]).some(a=>a.refKey==='alert-miss-fail'),
+    'API 稍后处理失败保留原任务行且不写本地动作');
+  vm.runInContext("alertShelve('alert-miss-fail')",ctx);
+  documentStub.getElementById('cf-input').value = '家长暂停课程（失败重试）';
+  documentStub.getElementById('cf-ok').onclick();
+  await new Promise(r=>setTimeout(r,200));
+  ok(documentStub.getElementById('cf-input').value==='家长暂停课程（失败重试）'
+    && documentStub.getElementById('today-list').innerHTML.indexOf('2026-10-22')!==-1,
+    'API 搁置失败恢复原因输入并保留原任务行');
+  wb.HttpApi._req = alertReq;
+  documentStub.getElementById('confirm-modal').classList.remove('show');
+  await wb.HttpApi.deleteMissed('alert-miss-fail');
+  await wb.resyncState();
+
   /* ---- v1.9.3：全局作业周期 API（默认 14、范围校验、仅教务可改） ---- */
   let cycleR = await wb.HttpApi._req('GET', '/api/homework-cycle');
   ok(cycleR.ok && cycleR.days === 14, '作业周期默认 14 天（助教可读）');
@@ -708,6 +733,7 @@ function ok(cond, name){
   require('../server/db.js').prepare("UPDATE students SET subj_plan_set_at = ? WHERE id = ?")
     .run(JSON.stringify({ '学科 / AP / 统计': _d(-20) }), 'e2e-od-stu');
   await wb.resyncState();
+  await vm.runInContext("todayCatGo('overdue')", ctx);
   const odHtml = documentStub.getElementById('today-list').innerHTML;
   ok(odHtml.indexOf('today-grp-overdue') !== -1 && odHtml.indexOf('逾期口径生') !== -1
     && odHtml.indexOf('欠 3 次 · 20 天没动静') !== -1, 'v1.9.2：科目级逾期（欠 3 次 · 20 天没动静）进「逾期」组');
@@ -751,6 +777,111 @@ function ok(cond, name){
   ok(documentStub.getElementById('btn-import').style.display === 'none'
     && documentStub.getElementById('import-api-tip').style.display !== 'none',
     'API 模式隐藏「导入恢复」并提示「生产环境数据在服务器，恢复数据请联系管理员」');
+
+  /* ---- UI 升级前置 R01（真实 API）：跨 owner 同名学生的科目重命名隔离 ---- */
+  const r01ApiSub = '学科 / AP / 统计', r01ApiNew = '学科 / AP / 心理';
+  for(const [sid,ownerId] of [['r01-api-a',made.user.id],['r01-api-b',ta2Made.user.id]]){
+    await wb.HttpApi.addStudent({id:sid,name:'API跨助教同名',gradYear:'2027'});
+    await wb.HttpApi._req('POST','/api/students/'+sid+'/owner',{ownerId});
+    await wb.HttpApi.addRecord({id:sid+'-rec',studentId:sid,date:'2026-10-20',total:10,correct:8,wrongs:[1,2],subject:r01ApiSub});
+    await wb.HttpApi.addMissed({id:sid+'-miss',studentId:sid,date:'2026-10-21',subject:r01ApiSub});
+    await wb.HttpApi.updateSubjFields(sid,{subjects:[r01ApiSub],subjComments:{[r01ApiSub]:'评语'+sid},subjAdvice:{[r01ApiSub]:'建议'+sid},mock:{[r01ApiSub]:{date:'2026-11-01',score:88}}});
+    await wb.HttpApi._req('POST','/api/plan/set',{studentId:sid,subject:r01ApiSub,plan:3,firstClassDate:'2026-09-01'});
+  }
+  await wb.resyncState();
+  vm.runInContext("startRenameSubject('r01-api-a','" + r01ApiSub + "')",ctx);
+  documentStub.getElementById('ren-input').value = r01ApiNew;
+  vm.runInContext('saveRenameSubject()',ctx);
+  await new Promise(r=>setTimeout(r,1000));
+  const r01ApiB = require('../server/db.js').prepare("SELECT * FROM students WHERE id = 'r01-api-b'").get();
+  ok(require('../server/db.js').prepare("SELECT subject FROM records WHERE id = 'r01-api-b-rec'").get().subject===r01ApiSub
+    && require('../server/db.js').prepare("SELECT subject FROM missed WHERE id = 'r01-api-b-miss'").get().subject===r01ApiSub
+    && r01ApiB.subjects===JSON.stringify([r01ApiSub]) && r01ApiB.subj_comments===JSON.stringify({[r01ApiSub]:'评语r01-api-b'})
+    && r01ApiB.subj_advice===JSON.stringify({[r01ApiSub]:'建议r01-api-b'}),
+    'R01 API：重命名 A 不改变其他 owner 同名学生的记录、未交与科目字段');
+  const r01ApiA = require('../server/db.js').prepare("SELECT * FROM students WHERE id = 'r01-api-a'").get();
+  ok(JSON.parse(r01ApiA.subj_plan_set_at)[r01ApiNew]!==undefined && JSON.parse(r01ApiA.subj_plan_set_at)[r01ApiSub]===undefined,
+    'R01 API：计划设定日期随科目重命名平移');
+  // 事务后段失败：records 已执行的更新也必须随学生 JSON 更新一起回滚
+  const r01Db = require('../server/db.js'), r01Prepare = r01Db.prepare;
+  r01Db.prepare = function(sql){
+    if(String(sql).indexOf('UPDATE students SET subjects =')!==-1) return {run(){ throw new Error('注入学生 JSON 更新失败'); }};
+    return r01Prepare.call(r01Db,sql);
+  };
+  const r01Rollback = await wb.HttpApi._req('POST','/api/students/subject-operation',{
+    operation:'rename',studentId:'r01-api-a',studentIds:['r01-api-a'],oldSubject:r01ApiNew,newSubject:r01ApiSub});
+  r01Db.prepare = r01Prepare;
+  ok(!r01Rollback.ok
+    && require('../server/db.js').prepare("SELECT subject FROM records WHERE id = 'r01-api-a-rec'").get().subject===r01ApiNew
+    && JSON.parse(require('../server/db.js').prepare("SELECT subj_plans FROM students WHERE id = 'r01-api-a'").get().subj_plans)[r01ApiNew]===3,
+    'R01 API：事务后段失败，记录与学生字段全部回滚');
+  require('../server/db.js').prepare("DELETE FROM records WHERE student_id LIKE 'r01-api-%'").run();
+  require('../server/db.js').prepare("DELETE FROM missed WHERE student_id LIKE 'r01-api-%'").run();
+  require('../server/db.js').prepare("DELETE FROM students WHERE id LIKE 'r01-api-%'").run();
+  await wb.resyncState();
+
+  /* ---- UI 升级前置 R02：补交事务失败时，成绩与未交状态都不得部分成功 ---- */
+  const r02Stu = await wb.HttpApi.addStudent({ id:'r02-stu', name:'补交事务生', gradYear:'2027' });
+  const r02Miss = await wb.HttpApi.addMissed({ id:'r02-miss', studentId:'r02-stu', date:'2026-10-20', subject:'学科 / AP / 统计' });
+  await wb.resyncState();
+  wb.setQuickEntry({gid:'r02-stu',subject:'学科 / AP / 统计'});
+  wb.setSlotEdit({gid:'r02-stu',subject:'学科 / AP / 统计',refType:'miss',refId:'r02-miss',idx:0});
+  documentStub.getElementById('sl-date').value = '2026-10-20';
+  documentStub.getElementById('sl-total').value = '10';
+  documentStub.getElementById('sl-correct').value = '10';
+  documentStub.getElementById('sl-wrongs').value = '';
+  const r02Req = wb.HttpApi._req;
+  wb.HttpApi._req = async function(method,url,body){
+    if(method==='POST' && (url==='/api/records' || url.indexOf('/makeup')!==-1)) return {ok:false,msg:'模拟补交事务失败'};
+    return r02Req.call(this,method,url,body);
+  };
+  await vm.runInContext('saveSlot()', ctx);
+  await new Promise(r=>setTimeout(r,300));
+  wb.HttpApi._req = r02Req;
+  const r02Records = require('../server/db.js').prepare("SELECT * FROM records WHERE student_id = 'r02-stu'").all();
+  const r02MissRow = require('../server/db.js').prepare("SELECT * FROM missed WHERE id = 'r02-miss'").get();
+  ok(r02Records.length===0, 'R02：注入成绩/补交事务失败，服务端不产生成绩记录');
+  ok(r02MissRow.resolved===0 && r02MissRow.resolution===null,
+    'R02：补交失败后原未交仍未处理（不允许只标 made-up）');
+  ok(documentStub.getElementById('sl-total').value==='10' && documentStub.getElementById('sl-correct').value==='10',
+    'R02：补交失败保留用户输入以便重试');
+  require('../server/db.js').prepare("DELETE FROM records WHERE student_id = 'r02-stu'").run();
+  require('../server/db.js').prepare("DELETE FROM missed WHERE student_id = 'r02-stu'").run();
+  require('../server/db.js').prepare("DELETE FROM students WHERE id = 'r02-stu'").run();
+  await wb.resyncState();
+
+  /* ---- R02 补交事务：真实成功、幂等重试、异负载冲突、事务回滚 ---- */
+  await wb.HttpApi.addStudent({id:'r02-tx-stu',name:'补交幂等生',gradYear:'2027'});
+  await wb.HttpApi.addMissed({id:'r02-tx-miss',studentId:'r02-tx-stu',date:'2026-10-20',subject:'学科 / AP / 统计'});
+  const r02Body = {id:'r02-tx-rec',studentId:'r02-tx-stu',date:'2026-10-20',total:10,correct:10,wrongs:[],subject:'学科 / AP / 统计',images:[],pdfs:[]};
+  let r02Tx = await wb.HttpApi.makeupMissed('r02-tx-miss',r02Body);
+  const r02Count = ()=>require('../server/db.js').prepare("SELECT COUNT(*) n FROM records WHERE id = 'r02-tx-rec'").get().n;
+  ok(r02Tx.ok && r02Count()===1
+    && require('../server/db.js').prepare("SELECT resolved FROM missed WHERE id = 'r02-tx-miss'").get().resolved===1,
+    'R02：单事务成功后成绩与 made-up 同时生效');
+  r02Tx = await wb.HttpApi.makeupMissed('r02-tx-miss',r02Body);
+  ok(r02Tx.ok && r02Tx.idempotent===true && r02Count()===1,
+    'R02：同 missedId+recordId+同负载重试幂等，不重复成绩/出清');
+  r02Tx = await wb.HttpApi.makeupMissed('r02-tx-miss',{...r02Body,correct:9,wrongs:[1]});
+  ok(!r02Tx.ok && r02Count()===1, 'R02：同 ID 异负载拒绝冲突，不覆盖已存成绩');
+  await wb.HttpApi.addMissed({id:'r02-rb-miss',studentId:'r02-tx-stu',date:'2026-10-21',subject:'学科 / AP / 统计'});
+  const r02Db = require('../server/db.js'), r02Prepare = r02Db.prepare;
+  r02Db.prepare = function(sql){
+    if(String(sql).indexOf("UPDATE missed SET resolved = 1, resolution = 'made-up'")!==-1){
+      return {run(){ throw new Error('注入 missed 更新失败'); }};
+    }
+    return r02Prepare.call(r02Db,sql);
+  };
+  r02Tx = await wb.HttpApi.makeupMissed('r02-rb-miss',{...r02Body,id:'r02-rb-rec',date:'2026-10-21'});
+  r02Db.prepare = r02Prepare;
+  ok(!r02Tx.ok
+    && require('../server/db.js').prepare("SELECT COUNT(*) n FROM records WHERE id = 'r02-rb-rec'").get().n===0
+    && require('../server/db.js').prepare("SELECT resolved FROM missed WHERE id = 'r02-rb-miss'").get().resolved===0,
+    'R02：事务中途失败同时回滚成绩插入与未交处理');
+  require('../server/db.js').prepare("DELETE FROM records WHERE student_id = 'r02-tx-stu'").run();
+  require('../server/db.js').prepare("DELETE FROM missed WHERE student_id = 'r02-tx-stu'").run();
+  require('../server/db.js').prepare("DELETE FROM students WHERE id = 'r02-tx-stu'").run();
+  await wb.resyncState();
 
   console.log('\ne2e 断言：' + (pass + fail) + ' 项，PASS ' + pass + '，FAIL ' + fail);
   srv.close();

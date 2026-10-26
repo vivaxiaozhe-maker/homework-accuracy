@@ -1,0 +1,75 @@
+{
+  "engine": "webkit",
+  "browser": "27.2",
+  "results": [
+    {
+      "id": "AC-S13-responsive",
+      "role": "ta",
+      "width": 834,
+      "height": 800,
+      "tab": "stats",
+      "metrics": {
+        "documentWidth": 826,
+        "viewportWidth": 834,
+        "inputs": 0,
+        "alumniTa": "",
+        "fields": [
+          {
+            "id": "sl-date",
+            "width": 229,
+            "height": 42
+          },
+          {
+            "id": "sl-total",
+            "width": 229,
+            "height": 42
+          },
+          {
+            "id": "sl-correct",
+            "width": 229,
+            "height": 42
+          },
+          {
+            "id": "sl-wrongs",
+            "width": 229,
+            "height": 42
+          }
+        ]
+      },
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "id": "AC-H01",
+      "role": "sales",
+      "width": 390,
+      "height": 844,
+      "tab": "alumni",
+      "metrics": {
+        "documentWidth": 382,
+        "viewportWidth": 390,
+        "inputs": 0,
+        "alumniTa": "",
+        "fields": []
+      },
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "id": "AC-H01-admin",
+      "role": "admin",
+      "width": 1280,
+      "height": 720,
+      "tab": "alumni",
+      "metrics": {
+        "documentWidth": 1272,
+        "viewportWidth": 1280,
+        "inputs": 0,
+        "alumniTa": "<select id=\"alumni-ta-select\" onchange=\"setAlumniTaFilter(this.value)\"><option value=\"all\">全部助教</option><option value=\"mvo6hpa5wvc7r\">王助教</option><option value=\"mvo6hpa53mozg\">李助教</option></select>",
+        "fields": []
+      },
+      "errors": [],
+      "overflow": false
+    }
+  ]
+}

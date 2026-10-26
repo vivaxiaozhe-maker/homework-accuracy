@@ -1,0 +1,84 @@
+{
+  "engine": "chrome",
+  "browser": "155.0.8059.86",
+  "scene": "growth",
+  "fixture": "02-growth-volume",
+  "stats": {
+    "students": 1100,
+    "active": 1000,
+    "archived": 100,
+    "owners": 11,
+    "records": 10000,
+    "missed": 500,
+    "subjects": 50,
+    "pending": 50,
+    "alertActions": 10
+  },
+  "selected": {
+    "id": "fixture_s_0000",
+    "subject": "学科 / AP / 微积分BC"
+  },
+  "viewport": "1512x716",
+  "dpr": 1,
+  "os": "darwin 27.2.0 arm64",
+  "appVersion": "v1.14.0",
+  "interactiveMs": 3139,
+  "firstOperationMs": 332.69999998807907,
+  "samples": [
+    329.69999998807907,
+    326.60000002384186,
+    327.2999999523163,
+    325.60000002384186,
+    326.5999999642372,
+    196.39999997615814,
+    169.20000004768372,
+    175.60000002384186,
+    173.20000004768372,
+    168.9000000357628,
+    169.10000002384186,
+    168.0999999642372,
+    169.10000002384186,
+    169.80000001192093,
+    168.0999999642372,
+    168.69999998807907,
+    168.19999998807907,
+    169.0999999642372,
+    167.5,
+    169.10000002384186
+  ],
+  "sampleCount": 20,
+  "minMs": 167.5,
+  "medianMs": 169.10000002384186,
+  "p95Ms": 327.2999999523163,
+  "maxMs": 329.69999998807907,
+  "budgetMs": 500,
+  "withinBudget": true,
+  "metrics": {
+    "fields": [
+      {
+        "id": "sl-date",
+        "width": 421,
+        "height": 42
+      },
+      {
+        "id": "sl-total",
+        "width": 421,
+        "height": 42
+      },
+      {
+        "id": "sl-correct",
+        "width": 421,
+        "height": 42
+      },
+      {
+        "id": "sl-wrongs",
+        "width": 421,
+        "height": 42
+      }
+    ],
+    "rows": true,
+    "workspace": true,
+    "overflow": false
+  },
+  "errors": []
+}

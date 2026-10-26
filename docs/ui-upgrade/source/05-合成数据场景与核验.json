@@ -1,0 +1,41 @@
+[
+  {
+    "file": "00-empty.json",
+    "activeStudents": 0,
+    "archivedStudents": 0,
+    "records": 0,
+    "missedTotal": 0,
+    "pendingPlanRequests": 0,
+    "subjectKeys": 0,
+    "ownerIds": 11,
+    "pagesAt20": 0,
+    "fixtureIntegrity": "PASS",
+    "browserCapacityTest": "NOT_RUN"
+  },
+  {
+    "file": "01-operating-volume.json",
+    "activeStudents": 400,
+    "archivedStudents": 43,
+    "records": 2500,
+    "missedTotal": 220,
+    "pendingPlanRequests": 20,
+    "subjectKeys": 40,
+    "ownerIds": 11,
+    "pagesAt20": 11,
+    "fixtureIntegrity": "PASS",
+    "browserCapacityTest": "NOT_RUN"
+  },
+  {
+    "file": "02-growth-volume.json",
+    "activeStudents": 1000,
+    "archivedStudents": 100,
+    "records": 10000,
+    "missedTotal": 500,
+    "pendingPlanRequests": 50,
+    "subjectKeys": 50,
+    "ownerIds": 11,
+    "pagesAt20": 25,
+    "fixtureIntegrity": "PASS",
+    "browserCapacityTest": "NOT_RUN"
+  }
+]

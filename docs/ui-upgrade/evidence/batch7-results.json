@@ -1,0 +1,15 @@
+{
+  "before": {
+    "disabled": true,
+    "text": "姓名：删除界面测试\n账号：qadelui\n角色：助教\n\n业务关联检查：\n· 在服务学生 0 人\n· 已归档学生 0 人\n· 作业记录 0 条\n· 未交记录 0 条\n· 待审批计划申请 0 条\n\n将永久删除该账号：删除后无法再登录，用户名「qadelui」永久不可再注册；业务数据和历史操作记录保留。\n请输入完整登录账号「qadelui」确认："
+  },
+  "wrongDisabled": true,
+  "matchDisabled": false,
+  "deleted": true,
+  "focusReturn": {
+    "closed": true,
+    "ownerFocused": true
+  },
+  "errors": [],
+  "overflow": false
+}

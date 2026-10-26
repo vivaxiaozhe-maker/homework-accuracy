@@ -110,6 +110,15 @@ function ok(cond, name){
   const archRow = db.prepare('SELECT archived_at, archived_reason FROM students WHERE id = ?').get(stuA);
   ok(r.status === 200 && archRow.archived_reason === '已结课' && archRow.archived_at, '归档原因写库（archived_reason + archived_at）');
   ok(db.prepare("SELECT * FROM audit_logs WHERE action = '归档学生' AND detail LIKE '%已结课%'").all().length > 0, '归档审计 detail 带原因');
+  // 历史学生只读：直接调用写接口同样拒绝（不依赖前端隐藏入口）
+  r = await req('POST', '/api/records', { studentId: stuA, date: today(), total: 10, correct: 9, wrongs: [], subject: '学科 / AP / 微积分BC' }, T1);
+  ok(r.status === 400 && r.data.msg.indexOf('只读') !== -1, '历史学生新增作业被服务端只读守卫拒绝');
+  r = await req('POST', '/api/missed', { studentId: stuA, date: today(), subject: '学科 / AP / 微积分BC' }, T1);
+  ok(r.status === 400 && r.data.msg.indexOf('只读') !== -1, '历史学生登记未交被服务端只读守卫拒绝');
+  r = await req('PUT', '/api/students/' + stuA, { name: '林小满', school: 'x', gradYear: '2028' }, T1);
+  ok(r.status === 400 && r.data.msg.indexOf('只读') !== -1, '历史学生基本信息编辑被服务端只读守卫拒绝');
+  r = await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjComments: {'学科 / AP / 微积分BC': 'x'} }, T1);
+  ok(r.status === 400 && r.data.msg.indexOf('只读') !== -1, '历史学生科目字段编辑被服务端只读守卫拒绝');
   r = await req('POST', '/api/students/' + stuA + '/restore', {}, T1);
 
   /* ---- 记录 ---- */
@@ -133,6 +142,12 @@ function ok(cond, name){
   ok(!r.data.state.students.some(s => s.id === stuA), '转移后原助教 state 不再含该学生');
   // 转移回来继续用
   await req('POST', '/api/students/' + stuA + '/owner', { ownerId: ta1.user.id }, adminTok);
+  await req('POST', '/api/students/' + stuA + '/archive', {}, T1);
+  r = await req('PUT', '/api/records/' + recA, { date: today(), total: 20, correct: 19, wrongs: [], subject: '学科 / AP / 微积分BC' }, T1);
+  ok(r.status === 400 && r.data.msg.indexOf('只读') !== -1, '历史学生编辑已有作业被服务端只读守卫拒绝');
+  r = await req('DELETE', '/api/records/' + recA, null, T1);
+  ok(r.status === 400 && r.data.msg.indexOf('只读') !== -1, '历史学生删除已有作业被服务端只读守卫拒绝');
+  await req('POST', '/api/students/' + stuA + '/restore', {}, T1);
   r = await req('DELETE', '/api/records/' + recA, null, T1);
   ok(r.status === 200, '删除作业记录');
   r = await req('GET', '/api/state', null, T1);

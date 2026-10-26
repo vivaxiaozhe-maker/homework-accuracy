@@ -31,10 +31,10 @@ const DRAFT_PREFIX = 'qe-draft:v1:';
 function draftKey(gid, subject, field){
   return DRAFT_PREFIX + (currentUser ? currentUser.id : 'anon') + ':' + gid + ':' + subject + ':' + field;
 }
-// value 为 null/undefined/'' 时删除该键；对象自动 JSON 序列化
+// 空字符串/纯空白也是有效草稿；仅显式 null/undefined 删除该键，对象自动 JSON 序列化
 function draftSave(gid, subject, field, value){
   try{
-    if(value === null || value === undefined || value === '') localStorage.removeItem(draftKey(gid, subject, field));
+    if(value === null || value === undefined) localStorage.removeItem(draftKey(gid, subject, field));
     else localStorage.setItem(draftKey(gid, subject, field), typeof value === 'string' ? value : JSON.stringify(value));
   }catch(e){}
 }
@@ -145,7 +145,7 @@ document.body.addEventListener('keydown', function(e){
   if(!e || !e.target || !e.target.classList) return;
   if(e.key === 'Enter' || e.key === ' '){
     const t = e.target;
-    if(t.classList.contains('sub-chip') || t.classList.contains('today-grp-head') || t.classList.contains('ta-group-head')){
+    if(t.classList.contains('sub-chip') || t.classList.contains('today-grp-head') || t.classList.contains('ta-group-head') || t.classList.contains('owner-tag')){
       if(e.key === ' ' && e.preventDefault) e.preventDefault();
       if(t.click) t.click();
     }
@@ -156,7 +156,8 @@ document.body.addEventListener('keydown', function(e){
       const m = document.getElementById(id);
       if(m && m.classList && m.classList.contains('show')){
         if(id === 'pwd-modal' && typeof pwdForced !== 'undefined' && pwdForced) return;  // 强制改密不可 Esc 跳过
-        m.classList.remove('show');
+        if(id === 'transfer-modal' && typeof closeTransfer === 'function') closeTransfer();
+        else m.classList.remove('show');
       }
     });
   }
@@ -267,8 +268,24 @@ function animateNums(scopeEl){
     requestAnimationFrame(step);
   });
 }
-/* 确认弹窗：可选输入行（opts.input = 占位提示；回调收输入值）。归档原因等「确认 + 选填文本」场景用 */
+/* 确认弹窗：可选输入行（opts.input = 占位提示；opts.expectedInput = 必须完整匹配才允许提交）。归档原因等场景用 */
+let cfExpectedInput = null, cfReturnFocus = null;
+function cfUpdateOk(){
+  const btn = document.getElementById('cf-ok');
+  if(!btn) return;
+  const value = document.getElementById('cf-input').value;
+  btn.disabled = !!cfExpectedInput && value !== cfExpectedInput;
+}
+function closeConfirm(){
+  document.getElementById('confirm-modal').classList.remove('show');
+  cfExpectedInput = null;
+  const btn = document.getElementById('cf-ok'); if(btn) btn.disabled = false;
+  if(cfReturnFocus && cfReturnFocus.focus){ cfReturnFocus.focus(); }
+  cfReturnFocus = null;
+}
+document.getElementById('cf-input').addEventListener('input', cfUpdateOk);
 function askConfirm(title, text, cb, opts){
+  cfReturnFocus = document.activeElement || null;
   document.getElementById('cf-title').textContent = title;
   document.getElementById('cf-text').textContent = text;
   const iw = document.getElementById('cf-input-wrap');
@@ -277,15 +294,18 @@ function askConfirm(title, text, cb, opts){
     const iv = document.getElementById('cf-input');
     if(iv){ iv.value = ''; iv.placeholder = (opts && opts.input) || ''; }
   }
+  cfExpectedInput = opts && opts.expectedInput ? String(opts.expectedInput) : null;
   cfCallback = cb;
+  cfUpdateOk();
   document.getElementById('confirm-modal').classList.add('show');
   // 初始焦点（v1.8.4 UI-06）：带输入时落输入框，否则落取消键（防误确认）
   if(iw && iw.style.display !== 'none'){ const iv = document.getElementById('cf-input'); if(iv && iv.focus) iv.focus(); }
   else { const c = document.getElementById('cf-cancel'); if(c && c.focus) c.focus(); }
 }
-document.getElementById('cf-cancel').onclick = ()=>document.getElementById('confirm-modal').classList.remove('show');
+document.getElementById('cf-cancel').onclick = closeConfirm;
 document.getElementById('cf-ok').onclick = ()=>{
-  document.getElementById('confirm-modal').classList.remove('show');
+  if(cfExpectedInput && document.getElementById('cf-input').value !== cfExpectedInput) return;
+  closeConfirm();
   const iw = document.getElementById('cf-input-wrap');
   const v = (iw && iw.style.display !== 'none') ? document.getElementById('cf-input').value : undefined;
   if(cfCallback) cfCallback(v);
