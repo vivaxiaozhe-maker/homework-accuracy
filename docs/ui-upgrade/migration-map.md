@@ -144,6 +144,9 @@
 | AUD-U02 | 复查 U02 | 看板按概览/趋势/助教/学科/预警分区更新；局部操作不重建概览和学科输入框，动画只在指标变化时执行。 | D02–D10；批次4 | PASS（自动＋浏览器节点检查） | [post-release-n-u](evidence/post-release-n-u.md) |
 | AUD-U03 | 复查 U03 | 助教对比行改原生按钮，支持键盘 Enter、焦点恢复、就近当前范围与返回入口。 | D09/G08；批次3 | PASS（自动＋浏览器键盘） | [post-release-n-u](evidence/post-release-n-u.md) |
 | AUD-U04 | 复查 U04 | 通知投递结果只读持久化、筛选、权限与定位学生；不改限流、不自动重发、不泄露 openid。 | C01/P04；批次5 | PASS（自动＋mock 微信） | [post-release-n-u](evidence/post-release-n-u.md) |
+| N06 | 追加 N06 | 投递筛选/分页请求递增序号＋上下文校验；旧响应不覆盖新条件，登出失效。 | C01；批次1 | PASS（自动＋乱序回归） | [post-release-n06-n08](evidence/post-release-n06-n08.md) |
+| N07 | 追加 N07 | 投递定位按归档状态进入现有/历史只读档案，保留通知来源筛选/分页/滚动上下文；旧科目不创建。 | S04/S23；批次2 | PASS（自动＋归档定位） | [post-release-n06-n08](evidence/post-release-n06-n08.md) |
+| N08 | 追加 N08 | 投递时间统一使用 Asia/Shanghai 显示“北京时间”，ISO/UTC 存储不变，非法日期回退。 | C01/G09；批次3 | PASS（自动＋跨日边界） | [post-release-n06-n08](evidence/post-release-n06-n08.md) |
 
 ## 5. 已确认口径决定（后续验收的固定基准）
 
@@ -155,4 +158,4 @@
 | 日期语义 | 继续按作业 `date` 归日，不把真实点击保存时间伪装成作业日期；若未来需要 `created_at` 绩效，另开需求并单独确认。未来开课、未来模考仍允许。 | FIX-R05、S11、S21、D11 |
 | 评分与四态 | 无作业计完成但不进正确率/预警；未交不是 0 分；每份作业正确率简单平均，不按题量加权，空分母显示 `—`。 | R03/R04/R05 相关看板、报告与销售只读项 |
 
-> 最终结论：原矩阵 93 项 + 缺陷/依赖追加 7 项 + v1.15.1 上线后复查追加 9 项，共 109 个目标跟踪条目均已有对应证据并记 PASS。v1.15.0 历史证据见 [`evidence/final-verification.md`](evidence/final-verification.md)；本轮 N01–N05、AUD-U01–AUD-U04 的修复与回归见 [`evidence/post-release-n-u.md`](evidence/post-release-n-u.md)。另有本节 5 项口径决定，不作为已执行验收计数。
+> 最终结论：原矩阵 93 项 + 缺陷/依赖追加 7 项 + v1.15.1 上线后复查追加 9 项 + 通知投递追加 3 项，共 112 个目标跟踪条目均已有对应证据并记 PASS。历史证据见 [`evidence/final-verification.md`](evidence/final-verification.md) 和 [`evidence/post-release-n-u.md`](evidence/post-release-n-u.md)；本轮 N06–N08 的修复与回归见 [`evidence/post-release-n06-n08.md`](evidence/post-release-n06-n08.md)。另有本节 5 项口径决定，不作为已执行验收计数。

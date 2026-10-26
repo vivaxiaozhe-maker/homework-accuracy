@@ -69,9 +69,15 @@
 
 v1.15.0 已完成生产备份、隔离恢复演练、预发布和正式发布；v1.15.1 已热修代理下的登录限流 IP 识别并上线。生产三角色已认证页面、真实外部链路和回滚未执行，记录见 [`evidence/production-v1.15.0.md`](evidence/production-v1.15.0.md) 和 [`evidence/production-v1.15.1-hotfix.md`](evidence/production-v1.15.1-hotfix.md)。
 
-## 7. v1.16.0 本地候选（未发布）
+## 7. v1.16.0 生产发布
 
-- 复查整改 N01–N05、AUD-U01–AUD-U04 已完成本地回归，证据见 [`evidence/post-release-n-u.md`](evidence/post-release-n-u.md)。
-- 当前线上仍为 v1.15.1；**v1.16.0 未提交、未部署**。
-- v1.16.0 新增 `push_deliveries` 表，路由 58→59。发布前必须重新执行在线备份、迁移前恢复演练、隔离预发布和回滚验证，不能沿用“无 schema”流程。
-- 生产三种角色已认证页面、真实微信回执和回滚仍未执行，保持 `NOT_RUN`。
+- 复查整改 N01–N05、AUD-U01–AUD-U04 已完成本地回归与生产发布，证据见 [`evidence/post-release-n-u.md`](evidence/post-release-n-u.md) 和 [`evidence/production-v1.16.0.md`](evidence/production-v1.16.0.md)。
+- 发布提交 `32d1611`；生产备份、隔离恢复、`push_deliveries` 迁移预发布、先后端再前端发布均已完成。
+- 线上首页/中文入口 v1.16.0，健康检查正常，error log 新增 0 行；原学生/成绩/未交计数不变。
+- 生产三种角色已认证页面和真实微信回执仍未执行，保持 `NOT_RUN`；未发送真实通知、未修改业务数据。
+
+## 8. v1.16.1 本地候选（未发布）
+
+- N06 响应竞态、N07 归档定位、N08 时间显示已修复，证据见 [`evidence/post-release-n06-n08.md`](evidence/post-release-n06-n08.md)。
+- 当前线上仍为 v1.16.0；v1.16.1 未提交、未部署。路由仍为 59，无新增 schema。
+- 生产三角色已认证页面、真实微信回执和慢网并发验收保持 `NOT_RUN`。

@@ -179,7 +179,7 @@ function ok(cond, name){
     && accGrp.indexOf('助教<span class="cnt">') < accGrp.indexOf('销售<span class="cnt">'), '组序：教务管理员 → 助教 → 销售');
   ok(/教务管理员<span class="cnt">1 个账号/.test(accGrp) && /助教<span class="cnt">3 个账号/.test(accGrp)
     && /销售<span class="cnt">1 个账号/.test(accGrp), '分组数量正确（教务 1 / 助教 3 / 销售 1）');
-  ok(html.indexOf('id="login-ver">v1.16.0') !== -1, '登录页版本号升至 v1.16.0');
+  ok(html.indexOf('id="login-ver">v1.16.1') !== -1, '登录页版本号升至 v1.16.1');
 
   /* ---- 账号删除（v1.9.2 NEW-01，mock 与 API 同规则）：tombstone + 阻断式 + 用户名锁定 ---- */
   {
@@ -1205,8 +1205,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.16.0') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.16.0」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.16.1') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.16.1」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -1556,20 +1556,132 @@ function ok(cond, name){
 
   /* ---- U04：投递结果只读视图（不泄露 openid，可就近定位） ---- */
   const pdStu = wb.pool.students.find(s=>s.ownerId===ta1.id && !s.archived);
+  const pdSubject = (pdStu.subjects && pdStu.subjects[0]) || Object.keys(pdStu.subjPlans || {})[0];
   vm.runInContext('renderPushDeliveries(' + JSON.stringify({ ok:true, total:2, page:1, pages:1, pageSize:20, items:[
     { id:'pd1', createdAt:'2026-10-26T08:00:00.000Z', kind:'homework', studentId:pdStu.id, studentName:pdStu.name,
-      actorName:'王助教', subject:'学科 / AP / 统计', recipient:'家长 1', status:'sent', reason:'', manual:false },
+      actorName:'王助教', subject:pdSubject, recipient:'家长 1', status:'sent', reason:'', manual:false },
     { id:'pd2', createdAt:'2026-10-26T08:01:00.000Z', kind:'mockScore', studentId:pdStu.id, studentName:pdStu.name,
-      actorName:'王助教', subject:'学科 / AP / 统计', recipient:'家长 2', status:'rate_limited', reason:'全站同类通知已达 10 分钟上限', manual:true }
+      actorName:'王助教', subject:pdSubject, recipient:'家长 2', status:'rate_limited', reason:'全站同类通知已达 10 分钟上限', manual:true }
   ]}) + ')', ctx);
   const pdHtml = documentStub.getElementById('push-delivery-list').innerHTML;
   ok(pdHtml.indexOf('已送达')!==-1 && pdHtml.indexOf('限流未发')!==-1 && pdHtml.indexOf('手动')!==-1
     && pdHtml.indexOf('自动')!==-1 && pdHtml.indexOf('openid')===-1, 'U04 投递列表显示状态/来源且不含 openid');
-  vm.runInContext("pushDeliveryGoto(" + JSON.stringify(pdStu.id) + "," + JSON.stringify('学科 / AP / 统计') + ")", ctx);
+  vm.runInContext("pushDeliveryGoto(" + JSON.stringify(pdStu.id) + "," + JSON.stringify(pdSubject) + ")", ctx);
   ok(vm.runInContext('stuSelectedId',ctx)===pdStu.id && vm.runInContext('quickEntry && quickEntry.gid',ctx)===pdStu.id,
     'U04 定位学生复用现有学生工作区');
   wb.setQuickEntry(null);
   vm.runInContext("stuSelectedId=null;stuTaFilter='all';stuQuery='';stuLetters=[];renderStats();",ctx);
+
+  /* ---- N07：通知定位按归档状态路由，历史只读且返回通知上下文 ---- */
+  const n07Sub = 'N07 / 通知科目';
+  const n07Stu = {id:'n07-stu', name:'N07通知生', ownerId:ta1.id, archived:false, subjects:[n07Sub], subjPlans:{}};
+  wb.pool.students.push(n07Stu);
+  wb.refreshView();
+  vm.runInContext("pushDeliveryStatus='unbound';pushDeliveryPage=2;pushDeliveryPageSize=50;",ctx);
+  vm.runInContext("pushDeliveryGoto('" + n07Stu.id + "','" + n07Sub + "')",ctx);
+  ok(documentStub.getElementById('page-title').textContent==='现有学生'
+    && vm.runInContext('stuSelectedId',ctx)===n07Stu.id, 'N07 在服务学生定位到现有工作区');
+  vm.runInContext('pushDeliveryReturn()',ctx);
+  ok(documentStub.getElementById('page-title').textContent==='教务管理'
+    && vm.runInContext("pushDeliveryStatus==='unbound' && pushDeliveryPage===2 && pushDeliveryPageSize===50",ctx)
+    && documentStub.getElementById('push-return-stats').style.display==='none', 'N07 返回通知投递结果并恢复筛选分页');
+  n07Stu.archived = true;
+  wb.refreshView();
+  vm.runInContext("pushDeliveryGoto('" + n07Stu.id + "','" + n07Sub + "')",ctx);
+  const n07AlHtml = documentStub.getElementById('alumni-list').innerHTML;
+  ok(documentStub.getElementById('page-title').textContent==='历史学生'
+    && n07AlHtml.indexOf('N07通知生')!==-1 && n07AlHtml.indexOf('保存评语')===-1
+    && n07AlHtml.indexOf('保存模考分数')===-1 && n07AlHtml.indexOf('id="sl-total"')===-1,
+    'N07 归档学生定位历史只读档案，无保存/录入控件');
+  ok(n07Stu.archived===true, 'N07 历史定位不自动恢复学生');
+  vm.runInContext('pushDeliveryReturn()',ctx);
+  ok(documentStub.getElementById('page-title').textContent==='教务管理'
+    && documentStub.getElementById('push-return-alumni').style.display==='none', 'N07 历史定位后返回通知页');
+  n07Stu.archived = false;
+  wb.refreshView();
+  vm.runInContext("pushDeliveryGoto('" + n07Stu.id + "','" + n07Sub + "')",ctx);
+  ok(documentStub.getElementById('page-title').textContent==='现有学生'
+    && vm.runInContext('stuSelectedId',ctx)===n07Stu.id, 'N07 恢复后仍正确定位');
+  const n07Other = {id:'n07-other', name:'N07通知生', ownerId:ta2.id, archived:true, subjects:[n07Sub], subjPlans:{}};
+  wb.pool.students.push(n07Other);
+  wb.refreshView();
+  vm.runInContext("pushDeliveryGoto('" + n07Other.id + "','" + n07Sub + "')",ctx);
+  ok(documentStub.getElementById('page-title').textContent==='历史学生'
+    && vm.runInContext('alumniTaFilter',ctx)===ta2.id && vm.runInContext('alumniQuery',ctx)===n07Other.name,
+    'N07 同名跨 owner 不串档');
+  vm.runInContext("pushDeliveryGoto('" + n07Stu.id + "','N07 / 已删除旧科目')",ctx);
+  ok(vm.runInContext('quickEntry===null',ctx)===true, 'N07 已失效旧科目不创建');
+  wb.pool.students = wb.pool.students.filter(s=>s.id!==n07Stu.id && s.id!==n07Other.id);
+  vm.runInContext("stuSelectedId=null;quickEntry=null;stuTaFilter='all';alumniTaFilter='all';stuQuery='';alumniQuery='';",ctx);
+  wb.refreshView();
+
+  /* ---- N08：投递时间统一显示北京时间，存储仍为 UTC ---- */
+  ok(vm.runInContext("formatPushDeliveryTime('2026-10-26T00:30:00.000Z')",ctx)==='北京时间 2026-10-26 08:30',
+    'N08 00:30Z 显示北京时间 08:30');
+  ok(vm.runInContext("formatPushDeliveryTime('2026-10-25T23:30:00.000Z')",ctx)==='北京时间 2026-10-26 07:30',
+    'N08 前一日 23:30Z 显示北京时间次日 07:30');
+  ok(vm.runInContext("formatPushDeliveryTime('bad-date')",ctx)==='—'
+    && vm.runInContext("formatPushDeliveryTime('')",ctx)==='—', 'N08 空/非法日期回退 —');
+
+  /* ---- N06：投递筛选/分页/登出响应顺序保护 ---- */
+  const n06Student = pdStu;
+  const n06Sent = { id:'n06-sent', createdAt:'2026-10-26T00:30:00.000Z', kind:'homework', studentId:n06Student.id, studentName:n06Student.name,
+    actorName:'王助教', subject:'学科 / AP / 统计', recipient:'家长 1', status:'sent', reason:'', manual:false };
+  const n06Error = { id:'n06-error', createdAt:'2026-10-26T00:31:00.000Z', kind:'homework', studentId:n06Student.id, studentName:n06Student.name,
+    actorName:'王助教', subject:'学科 / AP / 统计', recipient:'家长 2', status:'error', reason:'模拟失败', manual:true };
+  const n06PoolBackup = {students:wb.pool.students, records:wb.pool.records, missed:wb.pool.missed,
+    planRequests:wb.pool.planRequests, alertActions:wb.pool.alertActions, auditLogs:wb.pool.auditLogs};
+  ctx.__n06OriginalGet = vm.runInContext('HttpApi.getPushDeliveries',ctx);
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  wb.setUseApi(true);
+  const n06Deferred = [];
+  ctx.n06Deferred = n06Deferred;
+  vm.runInContext("HttpApi.getPushDeliveries = (status,page,size)=>new Promise(resolve=>n06Deferred.push({status,page,size,resolve}));",ctx);
+  const n06P1 = vm.runInContext('refreshPushDeliveries()',ctx);  // all
+  const n06P2 = vm.runInContext("pushDeliveryStatusSet('error')",ctx);
+  n06Deferred[1].resolve({ok:true,total:1,page:1,pages:1,pageSize:20,items:[n06Error]});
+  await Promise.resolve();
+  n06Deferred[0].resolve({ok:true,total:1,page:1,pages:1,pageSize:20,items:[n06Sent]});
+  await Promise.all([n06P1,n06P2]);
+  const n06AfterAll = documentStub.getElementById('push-delivery-list').innerHTML;
+  ok(n06AfterAll.indexOf('发送失败')!==-1 && n06AfterAll.indexOf('已送达')===-1, 'N06 旧 all 响应不覆盖新 error 条件');
+  const n06Second = [];
+  ctx.n06Second = n06Second;
+  vm.runInContext("HttpApi.getPushDeliveries = (status,page,size)=>new Promise(resolve=>n06Second.push({status,page,size,resolve}));",ctx);
+  const n06P3 = vm.runInContext("pushDeliveryStatusSet('sent')",ctx);
+  const n06P4 = vm.runInContext("pushDeliveryStatusSet('error')",ctx);
+  n06Second[1].resolve({ok:true,total:1,page:1,pages:1,pageSize:20,items:[n06Error]});
+  await Promise.resolve();
+  n06Second[0].resolve({ok:true,total:1,page:1,pages:1,pageSize:20,items:[n06Sent]});
+  await Promise.all([n06P3,n06P4]);
+  const n06AfterSent = documentStub.getElementById('push-delivery-list').innerHTML;
+  ok(n06AfterSent.indexOf('发送失败')!==-1 && n06AfterSent.indexOf('已送达')===-1, 'N06 error→sent 时仍只显示最后 error 条件');
+  const n06Third = [];
+  ctx.n06Third = n06Third;
+  vm.runInContext("HttpApi.getPushDeliveries = (status,page,size)=>new Promise(resolve=>n06Third.push({status,page,size,resolve}));",ctx);
+  const n06P5 = vm.runInContext('pushDeliveryPageGo(1)',ctx);
+  const n06P6 = vm.runInContext('pushDeliveryPageSizeSet(50)',ctx);
+  n06Third[1].resolve({ok:true,total:1,page:1,pages:1,pageSize:50,items:[n06Sent]});
+  await Promise.resolve();
+  n06Third[0].resolve({ok:false,msg:'旧失败'});
+  await Promise.all([n06P5,n06P6]);
+  ok(documentStub.getElementById('push-delivery-list').innerHTML.indexOf('已送达')!==-1
+    && documentStub.getElementById('push-delivery-pager').innerHTML.indexOf('value="50" selected')!==-1, 'N06 旧失败不覆盖新页大小与结果');
+  const n06Fourth = [];
+  ctx.n06Fourth = n06Fourth;
+  vm.runInContext("HttpApi.getPushDeliveries = (status,page,size)=>new Promise(resolve=>n06Fourth.push({status,page,size,resolve}));",ctx);
+  const n06P7 = vm.runInContext('refreshPushDeliveries()',ctx);
+  wb.doLogout();
+  n06Fourth[0].resolve({ok:true,total:1,page:1,pages:1,pageSize:20,items:[n06Sent]});
+  await n06P7;
+  ok(documentStub.getElementById('push-delivery-list').innerHTML.indexOf('n06-sent')===-1, 'N06 登出后旧响应不渲染');
+  vm.runInContext('HttpApi.getPushDeliveries = __n06OriginalGet',ctx);
+  wb.setUseApi(false);
+  Object.assign(wb.pool, n06PoolBackup);
+  wb.refreshView();
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
 
   /* ---- 学生明细助教维度筛选（教务，双栏学生行） ---- */
   const grpCnt = list => new Set(list.map(s=>(s.ownerId||'')+'|'+s.name.trim())).size;

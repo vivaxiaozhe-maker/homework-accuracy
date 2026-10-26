@@ -1,0 +1,15 @@
+{
+  "beforeReturn": {
+    "pageTitle": "历史学生",
+    "has": true,
+    "noWrite": true,
+    "timeText": "<div class=\"push-delivery-item\"><div class=\"grow\"><span class=\"tag amber\">限流未发</span><b>林小满</b> <span class=\"tag mint\">通知科目</span><span class=\"tag sample\">手动</span><div class=\"hint\">作业成绩 · 家长 1 · 北京时间 2026-10-26 08:30 · 操作人 王助教 · 全站同类通知已达 10 分钟上限</div></div><button type=\"button\" class=\"btn ghost sm\" onclick=\"pushDeliveryGoto('mvp0fnowp15qs','N07 / 通知科目')\">定位学生</button></div>"
+  },
+  "afterReturn": "教务管理",
+  "metrics": {
+    "documentWidth": 1504,
+    "viewportWidth": 1512
+  },
+  "errors": [],
+  "overflow": false
+}

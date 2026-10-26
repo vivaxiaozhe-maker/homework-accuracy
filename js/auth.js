@@ -160,16 +160,34 @@ async function refreshPushConfig(){
   refreshPushDeliveries();
 }
 /* ================= 通知投递结果（只读；不泄露 openid） ================= */
-let pushDeliveryStatus = 'all', pushDeliveryPage = 1, pushDeliveryPageSize = 20;
+let pushDeliveryStatus = 'all', pushDeliveryPage = 1, pushDeliveryPageSize = 20, pushDeliveryReqSeq = 0;
 const PUSH_DELIVERY_LABEL = { sent:'已送达', unbound:'未绑定', unsubscribed:'已取关', rate_limited:'限流未发', error:'发送失败' };
 const PUSH_DELIVERY_KIND = { homework:'作业成绩', mockBook:'模考预约', mockScore:'模考成绩' };
+function pushDeliveryRoleKey(){ return currentUser ? currentUser.id + ':' + currentUser.role : 'anonymous'; }
+function pushDeliveryResponseIsCurrent(seq, ctx){
+  return seq === pushDeliveryReqSeq && ctx.status === pushDeliveryStatus && ctx.page === pushDeliveryPage
+    && ctx.pageSize === pushDeliveryPageSize && ctx.roleKey === pushDeliveryRoleKey();
+}
 async function refreshPushDeliveries(){
   const card = document.getElementById('push-delivery-card');
+  const list = document.getElementById('push-delivery-list');
+  const seq = ++pushDeliveryReqSeq;
+  const ctx = { status:pushDeliveryStatus, page:pushDeliveryPage, pageSize:pushDeliveryPageSize, roleKey:pushDeliveryRoleKey() };
   if(!card) return;
   if(!isAdminView() || !USE_API){ card.style.display = 'none'; return; }
   card.style.display = '';
-  const r = await HttpApi.getPushDeliveries(pushDeliveryStatus, pushDeliveryPage, pushDeliveryPageSize);
-  renderPushDeliveries(r);
+  if(list) list.dataset.busy = '1';
+  try{
+    const r = await HttpApi.getPushDeliveries(ctx.status, ctx.page, ctx.pageSize);
+    if(!pushDeliveryResponseIsCurrent(seq, ctx)) return;
+    renderPushDeliveries(r);
+  }catch(e){
+    if(!pushDeliveryResponseIsCurrent(seq, ctx)) return;
+    renderPushDeliveries(null);
+  }finally{
+    // 旧请求不得清除新请求的 loading 状态；真正最新的一次才允许结束 loading
+    if(seq === pushDeliveryReqSeq && list) delete list.dataset.busy;
+  }
 }
 function pushDeliveryStatusSet(v){
   pushDeliveryStatus = v || 'all'; pushDeliveryPage = 1; refreshPushDeliveries();
@@ -179,6 +197,15 @@ function pushDeliveryPageGo(delta){
 }
 function pushDeliveryPageSizeSet(v){
   pushDeliveryPageSize = parseInt(v, 10) === 50 ? 50 : 20; pushDeliveryPage = 1; refreshPushDeliveries();
+}
+// 存储保留 ISO/UTC，展示统一为 Asia/Shanghai 本地可读时间，并显式标注时区
+function formatPushDeliveryTime(value){
+  if(!value) return '—';
+  const d = new Date(value);
+  if(Number.isNaN(d.getTime())) return '—';
+  const parts = new Intl.DateTimeFormat('zh-CN', { timeZone:'Asia/Shanghai', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false }).formatToParts(d);
+  const get = type => (parts.find(p=>p.type===type) || {}).value;
+  return '北京时间 ' + get('year') + '-' + get('month') + '-' + get('day') + ' ' + get('hour') + ':' + get('minute');
 }
 function renderPushDeliveries(r){
   const list = document.getElementById('push-delivery-list');
@@ -208,7 +235,7 @@ function renderPushDeliveries(r){
       '<b>' + esc(it.studentName) + '</b> ' +
       (it.subject ? '<span class="tag mint">' + esc(shortSubject(it.subject)) + '</span>' : '') +
       '<span class="tag sample">' + (it.manual ? '手动' : '自动') + '</span>' +
-      '<div class="hint">' + esc(kindText) + ' · ' + esc(it.recipient || '—') + ' · ' + esc(String(it.createdAt || '').replace('T',' ').slice(0,16)) +
+      '<div class="hint">' + esc(kindText) + ' · ' + esc(it.recipient || '—') + ' · ' + esc(formatPushDeliveryTime(it.createdAt)) +
       ' · 操作人 ' + esc(it.actorName || '系统') + (it.reason ? ' · ' + esc(it.reason) : '') + '</div></div>' +
       '<button type="button" class="btn ghost sm" onclick="pushDeliveryGoto(\'' + esc(jsStr(it.studentId)) + '\',\'' + esc(jsStr(it.subject || '')) + '\')">定位学生</button></div>';
   }).join('');
@@ -220,10 +247,53 @@ function renderPushDeliveries(r){
     '<button type="button" class="btn ghost sm" onclick="pushDeliveryPageGo(-1)"' + ((r.page||1)<=1?' disabled':'') + '>上一页</button>' +
     '<button type="button" class="btn ghost sm" onclick="pushDeliveryPageGo(1)"' + ((r.page||1)>=pages?' disabled':'') + '>下一页</button>';
 }
+let pushDeliveryReturnContext = null;
+function pushDeliverySubjectExists(st, subject){
+  if(!subject) return true;
+  if(Array.isArray(st.subjects) && st.subjects.includes(subject)) return true;
+  if(st.subjPlans && Object.prototype.hasOwnProperty.call(st.subjPlans, subject)) return true;
+  return pool.records.some(r=>r.studentId===st.id && r.subject===subject)
+    || pool.missed.some(m=>m.studentId===st.id && m.subject===subject);
+}
 function pushDeliveryGoto(studentId, subject){
   const st = pool.students.find(s=>s.id===studentId);
   if(!st){ toast('该学生已不在当前数据范围，无法定位'); return; }
-  dashGotoStudent(studentId, subject || undefined);
+  const validSubject = pushDeliverySubjectExists(st, subject);
+  if(!validSubject) toast('该投递对应的科目已改名或删除，仅打开学生档案，不重建原科目');
+  // 通知页与看板分别记录返回上下文；绝不跳回数据看板或自动恢复历史学生
+  pushDeliveryReturnContext = { status:pushDeliveryStatus, page:pushDeliveryPage, pageSize:pushDeliveryPageSize,
+    scrollY:typeof window.scrollY==='number' ? window.scrollY : 0 };
+  dashReturnContext = null;
+  const dashBtn = document.getElementById('dash-return-btn'); if(dashBtn) dashBtn.style.display = 'none';
+  const returnBtn = document.getElementById(st.archived ? 'push-return-alumni' : 'push-return-stats');
+  if(returnBtn) returnBtn.style.display = '';
+  slotEdit = null; mockEdit = null; addSubjGid = null;
+  quickEntry = validSubject ? {gid:st.id, subject:subject} : null;
+  if(st.archived){
+    stuSelectedId = null;
+    switchTab('alumni');
+    alumniRange = 'all'; alumniQuery = st.name; alumniTaFilter = st.ownerId; alumniLetters = [];
+    renderAlumni();
+    return;
+  }
+  stuSelectedId = st.id;
+  quickEntry = validSubject ? {gid:st.id, subject:subject} : null;
+  switchTab('stats');
+  stuQuery = st.name; stuTaFilter = st.ownerId;
+  const inp = document.getElementById('stu-search'); if(inp) inp.value = st.name;
+  renderStats();
+}
+function pushDeliveryReturn(){
+  const ctx = pushDeliveryReturnContext;
+  if(!ctx) return;
+  pushDeliveryReturnContext = null;
+  switchTab('data');
+  refreshPushDeliveries();
+  ['push-return-stats','push-return-alumni'].forEach(id=>{
+    const btn = document.getElementById(id); if(btn) btn.style.display = 'none';
+  });
+  const restore = ()=>window.scrollTo({top:ctx.scrollY,behavior:'auto'});
+  if(typeof requestAnimationFrame==='function') requestAnimationFrame(restore); else restore();
 }
 function renderPushConfig(){
   ['homework','mockBook','mockScore'].forEach(k=>{
@@ -959,6 +1029,12 @@ function doLogout(){
   subjTreeDraft = null;  // 科目管理草稿随会话清空（下次登录从当前树重新初始化）
   unbindReqCache = [];   // 解绑申请缓存随会话清空
   pushConfigCache = Object.assign({}, PUSH_CFG_DEFAULT);  // 推送开关缓存复位
+  pushDeliveryReqSeq++;  // 登出后忽略未完成的投递查询响应，防止旧用户数据串入新会话
+  pushDeliveryStatus = 'all'; pushDeliveryPage = 1; pushDeliveryPageSize = 20;
+  pushDeliveryReturnContext = null;
+  ['push-return-stats','push-return-alumni'].forEach(id=>{
+    const btn = document.getElementById(id); if(btn) btn.style.display = 'none';
+  });
   if(USE_API){  // API 模式登出清空服务端快照，避免下个登录用户看到残留数据
     pool = { students: [], records: [], missed: [], planRequests: [], auditLogs: [], alertActions: [] };
     refreshView();
