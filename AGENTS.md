@@ -6,7 +6,7 @@
 
 火箭学院内部系统：助教记录学生作业正确率/未交/模考/评语，教务管理全局，销售只读。家长通过微信服务号收模板消息推送（作业成绩/模考预约/模考成绩三类），点开 H5 落地页看详情。
 
-- 生产：https://xueqing.rocketacademy.com.cn（阿里云 ECS `root@47.113.184.105`，SSH 免密已配好，pm2 进程名 `xueqing`）。当前线上 v1.16.0（发布提交 `32d1611`），v1.16.1 为本地候选、尚未发布。发布、备份、回滚和未覆盖项见 `docs/ui-upgrade/release-checklist.md`、`docs/ui-upgrade/evidence/production-v1.16.0.md` 和 `docs/ui-upgrade/evidence/post-release-n-u.md`、`docs/ui-upgrade/evidence/post-release-n06-n08.md`
+- 生产：https://xueqing.rocketacademy.com.cn（阿里云 ECS `root@47.113.184.105`，SSH 免密已配好，pm2 进程名 `xueqing`）。当前线上 v1.16.1（发布提交 `e09b895`）。发布、备份、回滚和未覆盖项见 `docs/ui-upgrade/release-checklist.md`、`docs/ui-upgrade/evidence/production-v1.16.1.md` 和 `docs/ui-upgrade/evidence/post-release-n06-n08.md`
 - 演示站：GitHub Pages（仓库 github.com/vivaxiaozhe-maker/homework-accuracy，push 即更新，mock 模式数据存 localStorage）
 - 微信服务号密钥：只在生产服务器 `/opt/xueqing/ecosystem.config.js`，**不入库**
 
@@ -39,7 +39,7 @@
 
 ## 工程规约
 
-- **版本号**：功能或行为变更必升版（仓库本地候选 v1.16.1，线上 v1.16.0；纯文档不升）。源文件 `学生作业正确率.html` 的 `#login-ver`+`#side-foot`、`js/data.js` `APP_VERSION`、smoke/e2e 版本断言同步；再从源文件 `cp` 到 `index.html`、`dist/index.html` 并用 `cmp` 校验
+- **版本号**：功能或行为变更必升版（当前线上与仓库均为 v1.16.1；纯文档不升）。源文件 `学生作业正确率.html` 的 `#login-ver`+`#side-foot`、`js/data.js` `APP_VERSION`、smoke/e2e 版本断言同步；再从源文件 `cp` 到 `index.html`、`dist/index.html` 并用 `cmp` 校验
 - **测试**：三套全绿才交付——`node test/smoke.js`（当前 567 项）、`node test/e2e.api.js`（177 项）、`cd server && npm test --cache /tmp/npm-cache-xueqing`（472 项，9 个里程碑套件）。CSS 纯改动只跑 smoke；逻辑改动加 e2e；server 改动跑后端。大版本候选另跑 `node test/ui-upgrade-matrix.js`（112 项证据台账）和 `node test/ui-upgrade-fixtures.js`（空/基础/扩展/分页边界）
 - **发布授权**：Git commit/push、生产备份和生产部署**每次都要用户明确授权**，不存在长期授权，AGENTS 不能自行扩权。大版本、后端、依赖或数据相关发布按 `docs/ui-upgrade/release-checklist.md`：在线备份 → 隔离恢复演练 → 隔离预发布 → 先后端再前端 → 线上验证
 - **`deploy.sh` 限制**：脚本会同步副本、跑 smoke、`git add -A`、push、scp 并重启；没有备份，且不保证“先后端再前端”。仅在用户明确同意且确认为小前端改动时使用；大版本按上面的受控流程手工执行。运行期间禁止其他进程改文件
