@@ -10,6 +10,10 @@ const { auth } = require('./auth');
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
+/* 生产 Nginx 仅从 127.0.0.1:3000 转发并写入 X-Forwarded-For。
+   只信任 loopback 代理：经本机反代时按真实客户端 IP 限流；外部直连 3000 时忽略伪造 XFF。 */
+app.set('trust proxy', 'loopback');
+
 // helmet 安全头（其余默认头如 X-Frame-Options/frameguard、nosniff、Referrer-Policy 等保持 helmet 默认）。
 // CSP 说明：前端为单文件零依赖架构（全部 JS/CSS 内联，另按需从 jsdelivr 加载 jsPDF/html2canvas），
 // 默认 CSP（script-src 'self'）会禁掉内联脚本导致整页不执行，故对内联脚本/样式放行——这是该架构的必然选择；

@@ -47,5 +47,5 @@
 
 - `NOT_RUN`：生产三角色已认证页面的只读验收。当前没有可用的生产登录会话，未使用数据库 session、未创建生产验收账号，不能以隔离结果代替。
 - `NOT_RUN`：真实微信、二维码、PDF 外部链路。
-- 非阻断告警：生产 error log 出现 `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`，原因是反向代理传入 `X-Forwarded-For`，而 Express `trust proxy` 仍为 false。实际无效账号登录返回预期 401，健康检查正常，因此未回滚；建议后续单独评估并设置与真实代理层级一致的 `trust proxy`（当前为 1 层时通常为 1），补回归后修复，不在本次发布中临时改配置。
+- 代理限流告警：生产 error log 曾出现 `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`；已在 v1.15.1 设置仅信任 loopback 代理并补回归，见 [`production-v1.15.1-hotfix.md`](production-v1.15.1-hotfix.md)。
 - 未执行回滚，未覆盖生产 DB；旧代码和 DB 备份保留用于后续受控回滚。

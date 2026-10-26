@@ -24,10 +24,10 @@ function ok(cond, name){
   await new Promise(r => srv.once('listening', r));
   const base = 'http://127.0.0.1:' + srv.address().port;
 
-  async function req(method, p, body, token){
+  async function req(method, p, body, token, extraHeaders){
     const res = await fetch(base + p, {
       method,
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) },
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}), ...(extraHeaders || {}) },
       body: body ? JSON.stringify(body) : undefined
     });
     let data = null;
@@ -265,6 +265,20 @@ function ok(cond, name){
   r = await req('GET', '/api/search/students?q=' + encodeURIComponent('孤儿生'), null, adminTok);
   ok(r.status === 200 && r.data.students[0].ownerName === '已删除账号', '历史数据归属显示「已删除账号」回退（不留 null）');
   db.prepare("DELETE FROM students WHERE id = 'orph-stu1'").run();
+
+  /* ---- 反代信任：loopback 代理可按 X-Forwarded-For 分 IP 限流，且不报代理配置校验错误 ---- */
+  const rateLimitLogs = [];
+  const origConsoleError = console.error;
+  console.error = (...args) => { rateLimitLogs.push(args.join(' ')); };
+  const xffStatuses = [];
+  for(let i = 0; i < 11; i++){
+    const rr = await req('POST', '/api/login', { username: 'nobody', password: 'x' }, null, { 'X-Forwarded-For': '203.0.113.77' });
+    xffStatuses.push(rr.status);
+  }
+  console.error = origConsoleError;
+  ok(xffStatuses.slice(0, 10).every(s => s === 401) && xffStatuses[10] === 429
+    && !rateLimitLogs.some(x => x.includes('ERR_ERL_UNEXPECTED_X_FORWARDED_FOR')),
+  'loopback 代理信任：XFF 独立限流且无代理配置校验错误');
 
   /* ---- 限流：10 次失败/分钟/IP（本测试此前已消耗 5 次失败登录） ---- */
   let lastStatus = 0, saw401 = false;

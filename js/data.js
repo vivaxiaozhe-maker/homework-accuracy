@@ -22,7 +22,7 @@ const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
 const LS_HOMEWORK_CYCLE = 'wb_ha_v2_homework_cycle';  // mock 模式作业周期（API 模式以服务端 settings 为准）
 const LS_DELETED_USERS = 'wb_ha_v2_deleted_users';  // 账号删除 tombstone（v1.9.2 NEW-01）：用户名永久锁定
-const APP_VERSION = 'v1.15.0';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.15.1';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 const HOMEWORK_CYCLE_DEFAULT = 14;
 let homeworkCycleDays = HOMEWORK_CYCLE_DEFAULT;  // 全局作业周期：逾期判定的无动态天数（1–30 天）
 function normalizeHomeworkCycle(v){

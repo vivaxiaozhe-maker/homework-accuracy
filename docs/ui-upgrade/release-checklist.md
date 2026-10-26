@@ -1,6 +1,6 @@
 # 未来发布、备份与回滚清单
 
-> 本清单区分本地候选验收、生产发布执行和未执行的外部链路。本地证据见 [`evidence/final-verification.md`](evidence/final-verification.md)，生产实际记录见 [`evidence/production-v1.15.0.md`](evidence/production-v1.15.0.md)。
+> 本清单区分本地候选验收、生产发布执行和未执行的外部链路。本地证据见 [`evidence/final-verification.md`](evidence/final-verification.md)，生产记录见 [`evidence/production-v1.15.0.md`](evidence/production-v1.15.0.md) 和 [`evidence/production-v1.15.1-hotfix.md`](evidence/production-v1.15.1-hotfix.md)。
 
 ## 1. 授权门禁
 
@@ -8,7 +8,7 @@
 |---|---|---|
 | 本地/隔离环境实施与测试 | 已执行 | 只用合成/隔离副本数据，不触发真实家长通知 |
 | Git commit / push | 已按明确授权执行 | 功能 `7e30aaf`、HTML 副本 `3a302a9`；后续文档单独提交 |
-| 生产备份与发布 | 已按“立即完整发布”授权执行 | 实际结果见 [`evidence/production-v1.15.0.md`](evidence/production-v1.15.0.md) |
+| 生产备份与发布 | 已按明确授权执行 v1.15.0 和 v1.15.1 热修 | 实际结果见 [`evidence/production-v1.15.0.md`](evidence/production-v1.15.0.md) 和 [`evidence/production-v1.15.1-hotfix.md`](evidence/production-v1.15.1-hotfix.md) |
 | 生产数据清理/导入/修复 | **未授权、未执行** | 未清理、导入或修复生产业务数据 |
 | 真实微信、二维码、PDF 外部链路 | **未授权、未执行** | 仅在后续授权测试环境和测试接收人范围验证 |
 
@@ -46,9 +46,9 @@
 4. [ ] `PARTIAL` 后端发布后旧前端 v1.9.3 页面与健康检查正常；隔离副本已验证 state/records/missed/计划/报告/附件，但未使用生产已登录会话做旧前端全链路。
 5. [x] `PASS` 新 R01/R02 已在隔离副本验证跨 owner、失败回滚和幂等重试，未向真实家长发送消息。
 6. [x] `PASS` 已同步 `index.html/dist/index.html` 并发布前端静态文件；CSP、白名单和 no-store 保持。
-7. [x] `PASS` 首页和中文入口均为 v1.15.0，classic script 顺序及实际 JS/CSS/assets 已验证。
+7. [x] `PASS` 首页和中文入口已从 v1.15.0 更新到 v1.15.1；classic script 顺序及实际 JS/CSS/assets 已验证。
 8. [ ] `NOT_RUN` 生产三角色已认证页面只读检查：当前无可用生产登录会话；未创建生产验收账号，未执行业务写入或真实推送。
-9. [x] `PASS` 已检查 pm2、错误日志、API、附件关联和报告 H5 并归档脱敏证据；代理限流告警单独记录，登录负向探测按预期 401。
+9. [x] `PASS` 已检查 pm2、错误日志、API、附件关联和报告 H5 并归档脱敏证据；v1.15.1 热修后代理限流告警不再新增，登录负向探测按预期 401。
 
 `deploy.sh` 链包含同步、smoke、git push、scp 和线上验证；未获 Git/生产授权前不得运行。若使用它执行未来发布，也必须先确认其步骤与本次审批范围一致。
 
@@ -67,4 +67,4 @@
 
 ## 6. 本批结论
 
-v1.15.0 已完成生产备份、隔离恢复演练、预发布和正式后端/前端发布，线上版本已生效。生产三角色已认证页面、真实外部链路和回滚未执行；代理限流告警及后续建议见 [`evidence/production-v1.15.0.md`](evidence/production-v1.15.0.md)。
+v1.15.0 已完成生产备份、隔离恢复演练、预发布和正式发布；v1.15.1 已热修代理下的登录限流 IP 识别并上线。生产三角色已认证页面、真实外部链路和回滚未执行，记录见 [`evidence/production-v1.15.0.md`](evidence/production-v1.15.0.md) 和 [`evidence/production-v1.15.1-hotfix.md`](evidence/production-v1.15.1-hotfix.md)。
