@@ -129,6 +129,22 @@
 | FIX-R06 | 缺陷 R06 | `draftSave` 仅 null/undefined 删除；空字符串和纯空白为有效草稿，显式保存成功走 clear，保持身份隔离与慢响应保护。 | S18/S19/S20/G07；B2 | PASS（自动回归） | [batch2-p2](evidence/batch2-p2.md) |
 | FIX-S01 | 依赖 S01 | `body-parser >=2.4.0`、`multer >=2.5.0`，锁文件同步；保持同步 fileFilter、现有限流/白名单，只在隔离环境验证压缩 JSON 错误与上传。 | F02/G07；B1 | PASS（自动回归） | [batch1-p1](evidence/batch1-p1.md) |
 
+## 4.1 v1.15.1 上线后复查追加项
+
+复查任务书的 `U01–U04` 与原 93 项 U01–U04 重号，本台账统一记为 `AUD-U01–AUD-U04`；任务书原文编号保留在“原编号”列。
+
+| 台账 ID | 原编号 | 范围与兼容目标 | 关联矩阵/批次 | 目标状态 | 证据 |
+|---|---|---|---|---|---|
+| N01 | 复查 N01 | 审批通过复核 pending/归档/归属/科目存在性/旧计划；待审批时阻止科目改名删除与归档；失效申请取消并审计。 | S09/S10/S23/FIX-R01；批次1 | PASS（自动＋隔离真实 API） | [post-release-n-u](evidence/post-release-n-u.md) |
+| N02 | 复查 N02 | 今日近 7 天均分与低分预警统一加 `date <= today`；未来明细保留。 | T01/D04/FIX-R05；批次2 | PASS（自动回归） | [post-release-n-u](evidence/post-release-n-u.md) |
+| N03 | 复查 N03 | 预警定位显式设置稳定学生工作区；无科目也打开目标档案，清理旧编辑态。 | D05/D06/D07/S07；批次3 | PASS（自动＋浏览器） | [post-release-n-u](evidence/post-release-n-u.md) |
+| N04 | 复查 N04 | 科目改名迁移 lowAcc/planStall 预警身份；删除清状态、重建不继承；mock 同步。 | D05/S08/G06；批次2 | PASS（自动＋隔离真实 API） | [post-release-n-u](evidence/post-release-n-u.md) |
+| N05 | 复查 N05 | 30 天趋势所有列预留等高标签轨道，柱底对齐；0 次不浮起。 | D08；批次3 | PASS（自动＋浏览器测量） | [post-release-n-u](evidence/post-release-n-u.md) |
+| AUD-U01 | 复查 U01 | 学生筛选区压缩为紧凑两行内布局，进入录入后四字段和主操作可见；移动端保留触控尺寸。 | S01/S02/S13；批次4 | PASS（浏览器四尺寸） | [post-release-n-u](evidence/post-release-n-u.md) |
+| AUD-U02 | 复查 U02 | 看板按概览/趋势/助教/学科/预警分区更新；局部操作不重建概览和学科输入框，动画只在指标变化时执行。 | D02–D10；批次4 | PASS（自动＋浏览器节点检查） | [post-release-n-u](evidence/post-release-n-u.md) |
+| AUD-U03 | 复查 U03 | 助教对比行改原生按钮，支持键盘 Enter、焦点恢复、就近当前范围与返回入口。 | D09/G08；批次3 | PASS（自动＋浏览器键盘） | [post-release-n-u](evidence/post-release-n-u.md) |
+| AUD-U04 | 复查 U04 | 通知投递结果只读持久化、筛选、权限与定位学生；不改限流、不自动重发、不泄露 openid。 | C01/P04；批次5 | PASS（自动＋mock 微信） | [post-release-n-u](evidence/post-release-n-u.md) |
+
 ## 5. 已确认口径决定（后续验收的固定基准）
 
 | 决定 | 固定口径 | 影响项 |
@@ -139,4 +155,4 @@
 | 日期语义 | 继续按作业 `date` 归日，不把真实点击保存时间伪装成作业日期；若未来需要 `created_at` 绩效，另开需求并单独确认。未来开课、未来模考仍允许。 | FIX-R05、S11、S21、D11 |
 | 评分与四态 | 无作业计完成但不进正确率/预警；未交不是 0 分；每份作业正确率简单平均，不按题量加权，空分母显示 `—`。 | R03/R04/R05 相关看板、报告与销售只读项 |
 
-> 最终结论：原矩阵 93 项 + 缺陷/依赖追加 7 项，共 100 个目标跟踪条目均已有对应证据并记 PASS；证据覆盖自动回归、真实本地 API、Chrome/WebKit 可见检查与容量性能。真实 Safari 已通过普通窗口＋Accessibility 补测三角色，教务覆盖四种目标尺寸，助教/销售覆盖 390×844；销售只读科目档案已展开核对。未启用远程自动化，也未将 WebKit 结果写成 Safari PASS。最终汇总见 [`evidence/final-verification.md`](evidence/final-verification.md)。另有本节 5 项口径决定，不作为已执行验收计数。
+> 最终结论：原矩阵 93 项 + 缺陷/依赖追加 7 项 + v1.15.1 上线后复查追加 9 项，共 109 个目标跟踪条目均已有对应证据并记 PASS。v1.15.0 历史证据见 [`evidence/final-verification.md`](evidence/final-verification.md)；本轮 N01–N05、AUD-U01–AUD-U04 的修复与回归见 [`evidence/post-release-n-u.md`](evidence/post-release-n-u.md)。另有本节 5 项口径决定，不作为已执行验收计数。

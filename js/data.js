@@ -22,7 +22,7 @@ const SS_SESSION = 'wb_ha_v2_session';
 const LS_SUBJECTS = 'wb_ha_v2_subjects';  // mock 模式科目树覆盖值（API 模式以服务端 settings 为准）
 const LS_HOMEWORK_CYCLE = 'wb_ha_v2_homework_cycle';  // mock 模式作业周期（API 模式以服务端 settings 为准）
 const LS_DELETED_USERS = 'wb_ha_v2_deleted_users';  // 账号删除 tombstone（v1.9.2 NEW-01）：用户名永久锁定
-const APP_VERSION = 'v1.15.1';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
+const APP_VERSION = 'v1.16.0';  // 版本号：登录页/侧栏脚注共用（静态文本处手工同步）
 const HOMEWORK_CYCLE_DEFAULT = 14;
 let homeworkCycleDays = HOMEWORK_CYCLE_DEFAULT;  // 全局作业周期：逾期判定的无动态天数（1–30 天）
 function normalizeHomeworkCycle(v){
@@ -428,19 +428,33 @@ const LocalApi = {
     const r = (pool.planRequests || []).find(x=>x.id===id);
     if(!r) return {ok:false, msg:'申请不存在'};
     if(r.status !== 'pending') return {ok:false, msg:'该申请已处理'};
+    if(approve){
+      const st = pool.students.find(x=>x.id===r.studentId);
+      const plans = st && st.subjPlans ? st.subjPlans : {};
+      let invalid = '';
+      if(!st) invalid = '学生不存在';
+      else if(st.archived) invalid = '学生已归档';
+      else if((st.ownerId || '') !== (r.ownerId || '')) invalid = '学生归属已变化';
+      else if(!Object.prototype.hasOwnProperty.call(plans, r.subject)) invalid = '科目已不存在或已改名';
+      else if(Number(plans[r.subject]) !== Number(r.oldPlan)) invalid = '当前计划次数已变化';
+      if(invalid){
+        r.status = 'cancelled';
+        r.reviewedBy = currentUser.id;
+        r.reviewedAt = todayStr();
+        save(); refreshView();
+        logAction('计划申请失效', 'plan', auditStuDesc(r.studentId, r.subject),
+          r.oldPlan + ' → ' + r.newPlan + ' 次，原因：' + invalid, {ownerId: r.ownerId});
+        return {ok:false, msg:'计划申请已失效：' + invalid + '，请让学生重新发起申请'};
+      }
+      st.subjPlans = st.subjPlans || {};
+      st.subjPlans[r.subject] = r.newPlan;
+      st.subjPlanSetAt = st.subjPlanSetAt || {};
+      st.subjPlanSetAt[r.subject] = todayStr();  // 审批通过日作为新计划的设定日
+    }
     r.status = approve ? 'approved' : 'rejected';
     r.reviewedBy = currentUser.id;
     r.reviewedAt = todayStr();
     if(note) r.note = note;
-    if(approve){
-      const st = pool.students.find(x=>x.id===r.studentId);
-      if(st){
-        st.subjPlans = st.subjPlans || {};
-        st.subjPlans[r.subject] = r.newPlan;
-        st.subjPlanSetAt = st.subjPlanSetAt || {};
-        st.subjPlanSetAt[r.subject] = todayStr();  // 审批通过日作为新计划的设定日
-      }
-    }
     save(); refreshView();
     logAction(approve ? '审批通过' : '审批驳回', 'plan', auditStuDesc(r.studentId, r.subject),
       r.oldPlan + ' → ' + r.newPlan + ' 次' + (note ? '，' + note : ''), {ownerId: r.ownerId});
@@ -604,6 +618,11 @@ const HttpApi = {
   // POST /api/reports/push（服务号模板消息推送给已绑定家长）
   pushReport(studentId, subject){
     return this._req('POST', '/api/reports/push', { studentId: studentId, subject: subject });
+  },
+  // GET /api/push-deliveries（只读投递结果；教务全量，助教仅自己名下）
+  getPushDeliveries(status, page, pageSize){
+    return this._req('GET', '/api/push-deliveries?status=' + encodeURIComponent(status || 'all') +
+      '&page=' + encodeURIComponent(page || 1) + '&pageSize=' + encodeURIComponent(pageSize || 20));
   },
   // POST /api/students/:id/bind-qr（家长绑定二维码）
   bindQr(studentId){

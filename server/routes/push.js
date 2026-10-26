@@ -15,6 +15,33 @@ router.get('/push-config', (req, res) => {
   res.json({ ok: true, config: push.pushConfig() });
 });
 
+// GET /api/push-deliveries?status=all&page=1&pageSize=20：只读投递结果（教务全量，助教仅自己名下）
+router.get('/push-deliveries', requireRole('ta', 'admin'), (req, res) => {
+  const status = String(req.query.status || 'all');
+  const statuses = ['all','sent','unbound','unsubscribed','rate_limited','error'];
+  if(!statuses.includes(status)) return res.status(400).json({ ok: false, msg: '投递状态不合法' });
+  const pageSize = parseInt(req.query.pageSize, 10) === 50 ? 50 : 20;
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const where = [], params = [];
+  if(status !== 'all'){ where.push('d.status = ?'); params.push(status); }
+  if(req.user.role !== 'admin'){ where.push('d.owner_id = ?'); params.push(req.user.id); }
+  const whereSql = where.length ? ' WHERE ' + where.join(' AND ') : '';
+  const total = db.prepare('SELECT COUNT(*) AS c FROM push_deliveries d' + whereSql).get(...params).c;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const current = Math.min(pages, page);
+  const rows = db.prepare(`SELECT d.*, s.name AS student_name FROM push_deliveries d
+    LEFT JOIN students s ON s.id = d.student_id${whereSql}
+    ORDER BY d.created_at DESC, d.id DESC LIMIT ? OFFSET ?`)
+    .all(...params, pageSize, (current - 1) * pageSize);
+  res.json({ ok: true, total, page: current, pages, pageSize, items: rows.map(d=>({
+    id: d.id, createdAt: d.created_at, kind: d.kind, studentId: d.student_id,
+    studentName: d.student_name || '（已删除学生）', ownerId: d.owner_id,
+    actorName: d.actor_name || '系统', subject: d.subject || '',
+    recipient: d.recipient_label || '—', status: d.status, reason: d.reason || '',
+    manual: !!d.manual
+  })) });
+});
+
 // PUT /api/push-config {config:{homework,mockBook,mockScore}}（仅教务）
 router.put('/push-config', requireAdmin, (req, res) => {
   const c = (req.body && (req.body.config || req.body)) || {};

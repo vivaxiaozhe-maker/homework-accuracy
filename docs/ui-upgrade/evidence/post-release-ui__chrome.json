@@ -1,0 +1,266 @@
+{
+  "engine": "chrome",
+  "browser": "155.0.8059.86",
+  "results": [
+    {
+      "engine": "chrome",
+      "width": 1512,
+      "height": 716,
+      "u01": {
+        "studentId": "mvox41wox89kf",
+        "subject": "学科 / AP / 物理1",
+        "filterTop": 6,
+        "filterHeight": 62,
+        "searchTop": 17,
+        "taTop": 17,
+        "azTop": 21,
+        "fields": [
+          {
+            "id": "sl-date",
+            "top": 410,
+            "bottom": 452,
+            "height": 42
+          },
+          {
+            "id": "sl-total",
+            "top": 410,
+            "bottom": 452,
+            "height": 42
+          },
+          {
+            "id": "sl-correct",
+            "top": 482,
+            "bottom": 524,
+            "height": 42
+          },
+          {
+            "id": "sl-wrongs",
+            "top": 482,
+            "bottom": 524,
+            "height": 42
+          }
+        ],
+        "saveBottom": 604,
+        "viewportHeight": 716,
+        "documentWidth": 1512,
+        "viewportWidth": 1512
+      },
+      "u02": {
+        "trendStable": true,
+        "subjectStable": true
+      },
+      "u03": {
+        "available": true,
+        "tag": "BUTTON",
+        "focused": true,
+        "active": true,
+        "currentVisible": true,
+        "currentText": "正在查看 王助教返回全部助教",
+        "reset": true
+      },
+      "n05": {
+        "cols": 30,
+        "labels": 30,
+        "bars": 30,
+        "barBottomSpread": 0
+      },
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "engine": "chrome",
+      "width": 1280,
+      "height": 720,
+      "u01": {
+        "studentId": "mvox4364vty2e",
+        "subject": "学科 / AP / 物理1",
+        "filterTop": 6,
+        "filterHeight": 62,
+        "searchTop": 17,
+        "taTop": 17,
+        "azTop": 21,
+        "fields": [
+          {
+            "id": "sl-date",
+            "top": 410,
+            "bottom": 452,
+            "height": 42
+          },
+          {
+            "id": "sl-total",
+            "top": 410,
+            "bottom": 452,
+            "height": 42
+          },
+          {
+            "id": "sl-correct",
+            "top": 482,
+            "bottom": 524,
+            "height": 42
+          },
+          {
+            "id": "sl-wrongs",
+            "top": 482,
+            "bottom": 524,
+            "height": 42
+          }
+        ],
+        "saveBottom": 604,
+        "viewportHeight": 720,
+        "documentWidth": 1280,
+        "viewportWidth": 1280
+      },
+      "u02": {
+        "trendStable": true,
+        "subjectStable": true
+      },
+      "u03": {
+        "available": true,
+        "tag": "BUTTON",
+        "focused": true,
+        "active": true,
+        "currentVisible": true,
+        "currentText": "正在查看 王助教返回全部助教",
+        "reset": true
+      },
+      "n05": {
+        "cols": 30,
+        "labels": 30,
+        "bars": 30,
+        "barBottomSpread": 0
+      },
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "engine": "chrome",
+      "width": 834,
+      "height": 800,
+      "u01": {
+        "studentId": "mvox44epu7fmy",
+        "subject": "学科 / AP / 物理1",
+        "filterTop": 6,
+        "filterHeight": 102,
+        "searchTop": 17,
+        "taTop": 17,
+        "azTop": 65,
+        "fields": [
+          {
+            "id": "sl-date",
+            "top": 507,
+            "bottom": 549,
+            "height": 42
+          },
+          {
+            "id": "sl-total",
+            "top": 507,
+            "bottom": 549,
+            "height": 42
+          },
+          {
+            "id": "sl-correct",
+            "top": 578,
+            "bottom": 620,
+            "height": 42
+          },
+          {
+            "id": "sl-wrongs",
+            "top": 578,
+            "bottom": 620,
+            "height": 42
+          }
+        ],
+        "saveBottom": 701,
+        "viewportHeight": 800,
+        "documentWidth": 834,
+        "viewportWidth": 834
+      },
+      "u02": {
+        "trendStable": true,
+        "subjectStable": true
+      },
+      "u03": {
+        "available": true,
+        "tag": "BUTTON",
+        "focused": true,
+        "active": true,
+        "currentVisible": true,
+        "currentText": "正在查看 王助教返回全部助教",
+        "reset": true
+      },
+      "n05": {
+        "cols": 30,
+        "labels": 30,
+        "bars": 30,
+        "barBottomSpread": 0
+      },
+      "errors": [],
+      "overflow": false
+    },
+    {
+      "engine": "chrome",
+      "width": 390,
+      "height": 844,
+      "u01": {
+        "studentId": "mvox45n814l2o",
+        "subject": "学科 / AP / 物理1",
+        "filterTop": 6,
+        "filterHeight": 182,
+        "searchTop": 17,
+        "taTop": 75,
+        "azTop": 133,
+        "fields": [
+          {
+            "id": "sl-date",
+            "top": 712,
+            "bottom": 762,
+            "height": 50
+          },
+          {
+            "id": "sl-total",
+            "top": 712,
+            "bottom": 762,
+            "height": 50
+          },
+          {
+            "id": "sl-correct",
+            "top": 792,
+            "bottom": 842,
+            "height": 50
+          },
+          {
+            "id": "sl-wrongs",
+            "top": 792,
+            "bottom": 842,
+            "height": 50
+          }
+        ],
+        "saveBottom": 923,
+        "viewportHeight": 844,
+        "documentWidth": 390,
+        "viewportWidth": 390
+      },
+      "u02": {
+        "trendStable": true,
+        "subjectStable": true
+      },
+      "u03": {
+        "available": true,
+        "tag": "BUTTON",
+        "focused": true,
+        "active": true,
+        "currentVisible": true,
+        "currentText": "正在查看 王助教返回全部助教",
+        "reset": true
+      },
+      "n05": {
+        "cols": 30,
+        "labels": 30,
+        "bars": 30,
+        "barBottomSpread": 0
+      },
+      "errors": [],
+      "overflow": false
+    }
+  ]
+}

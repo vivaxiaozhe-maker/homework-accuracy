@@ -179,7 +179,7 @@ function ok(cond, name){
     && accGrp.indexOf('助教<span class="cnt">') < accGrp.indexOf('销售<span class="cnt">'), '组序：教务管理员 → 助教 → 销售');
   ok(/教务管理员<span class="cnt">1 个账号/.test(accGrp) && /助教<span class="cnt">3 个账号/.test(accGrp)
     && /销售<span class="cnt">1 个账号/.test(accGrp), '分组数量正确（教务 1 / 助教 3 / 销售 1）');
-  ok(html.indexOf('id="login-ver">v1.15.1') !== -1, '登录页版本号升至 v1.15.1');
+  ok(html.indexOf('id="login-ver">v1.16.0') !== -1, '登录页版本号升至 v1.16.0');
 
   /* ---- 账号删除（v1.9.2 NEW-01，mock 与 API 同规则）：tombstone + 阻断式 + 用户名锁定 ---- */
   {
@@ -1205,8 +1205,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.15.1') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.15.1」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.16.0') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.16.0」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -1452,10 +1452,124 @@ function ok(cond, name){
   Api.reviewPlanRequest(req5.id, true);
   wb.renderPendingBadges();
   ok(documentStub.getElementById('badge-today').style.display==='none', '审批完成后徽章消失');
+
+  /* ---- N01：待审批时阻止科目改名/删除/归档；失效申请取消并可见 ---- */
+  const n01Sub = 'N01 / 前端计划';
+  const n01Stu = {id:'n01-fe-stu', name:'N01前端生', ownerId:ta1.id, archived:false, subjects:[n01Sub],
+    subjPlans:{[n01Sub]:8}, subjFirstClass:{[n01Sub]:offDay(-5)}, subjPlanSetAt:{[n01Sub]:offDay(-5)}};
+  wb.pool.students.push(n01Stu);
+  wb.refreshView();
+  wb.doLogout();
+  await wb.doLogin('ta1', 'ta123456', 'ta');
+  const n01Req = Api.createPlanRequest({studentId:n01Stu.id, subject:n01Sub, newPlan:12, reason:'N01'});
+  ok(n01Req.ok && n01Req.request.status==='pending', 'N01 mock：待审批申请建立');
+  let n01Alerts = alerts.length;
+  vm.runInContext("startRenameSubject('" + n01Stu.id + "','" + n01Sub + "')", ctx);
+  setVal('ren-input', 'N01 / 前端改名');
+  await vm.runInContext('saveRenameSubject()', ctx);
+  ok(n01Stu.subjects[0]===n01Sub && alerts.slice(n01Alerts).join(' ').indexOf('待审批')!==-1, 'N01 mock：待审批时阻止科目改名');
+  n01Alerts = alerts.length;
+  vm.runInContext("startRenameSubject('" + n01Stu.id + "','" + n01Sub + "')", ctx);
+  vm.runInContext('deleteSubject()', ctx);
+  ok(n01Stu.subjects[0]===n01Sub && alerts.slice(n01Alerts).join(' ').indexOf('待审批')!==-1, 'N01 mock：待审批时阻止科目删除');
+  n01Alerts = alerts.length;
+  vm.runInContext("archiveGroup(['" + n01Stu.id + "'])", ctx);
+  ok(!n01Stu.archived && alerts.slice(n01Alerts).join(' ').indexOf('待审批')!==-1, 'N01 mock：待审批时阻止归档');
+  // 模拟历史遗留：科目键已丢失，再审批旧申请
+  delete n01Stu.subjPlans[n01Sub];
+  wb.doLogout();
+  await wb.doLogin('admin', 'admin456', 'admin');
+  const n01Review = Api.reviewPlanRequest(n01Req.request.id, true);
+  ok(!n01Review.ok && n01Req.request.status==='cancelled' && n01Stu.subjPlans[n01Sub]===undefined,
+    'N01 mock：科目失效后旧审批取消且不写回');
+  ok(wb.pool.auditLogs.some(l=>l.action==='计划申请失效' && l.detail.indexOf('科目')!==-1), 'N01 mock：失效申请写审计');
+  wb.renderDoneZone();
+  ok(documentStub.getElementById('done-list').innerHTML.indexOf('已失效')!==-1, 'N01：已处理事项显示已失效申请');
+  // 清理 N01 夹具
+  wb.pool.students = wb.pool.students.filter(s=>s.id!==n01Stu.id);
+  wb.pool.planRequests = wb.pool.planRequests.filter(r=>r.id!==n01Req.request.id);
+  wb.refreshView();
   wb.doLogout();
   await wb.doLogin('ta1', 'ta123456', 'ta');
   ok(documentStub.getElementById('badge-today').style.display==='none'
     && documentStub.getElementById('badge-today-tab').style.display==='none', '助教端不显示审批徽章');
+
+  /* ---- N02：今日统计排除未来成绩，未来明细仍保留 ---- */
+  const n02Sub = 'N02 / 未来科目';
+  const n02Stu = {id:'n02-fe-stu', name:'N02未来生', ownerId:ta1.id, archived:false, subjects:[n02Sub], subjPlans:{}};
+  const n02SavedStudents = wb.pool.students, n02SavedRecords = wb.pool.records;
+  wb.pool.students = [n02Stu];
+  wb.pool.records = [
+    {id:'n02-past', studentId:n02Stu.id, ownerId:ta1.id, date:offDay(-1), total:10, correct:9, wrongs:[1], subject:n02Sub, images:[]},
+    {id:'n02-future', studentId:n02Stu.id, ownerId:ta1.id, date:offDay(10), total:10, correct:1, wrongs:[1,2,3,4,5,6,7,8,9], subject:n02Sub, images:[]}
+  ];
+  wb.refreshView(); wb.renderToday();
+  const n02Avg = (documentStub.getElementById('quick-grid').innerHTML.match(/<div class="num">([^<]+)<\/div><div class="lbl">近7天平均正确率/)||[])[1];
+  ok(n02Avg === '90%', 'N02 今日近7天均分排除未来成绩（90%）');
+  vm.runInContext("todayCatGo('lowAcc')", ctx);
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf('N02未来生') === -1, 'N02 未来低分不进入今日预警');
+  ok(vm.runInContext("subjectItems(" + JSON.stringify(n02Stu.id) + "," + JSON.stringify(n02Sub) + ").length", ctx) === 2,
+    'N02 未来成绩仍保留在学生明细');
+  wb.pool.records = [{id:'n02-only-future', studentId:n02Stu.id, ownerId:ta1.id, date:offDay(10), total:10, correct:1, wrongs:[1], subject:n02Sub, images:[]}];
+  wb.refreshView(); wb.renderToday();
+  const n02OnlyAvg = (documentStub.getElementById('quick-grid').innerHTML.match(/<div class="num">([^<]+)<\/div><div class="lbl">近7天平均正确率/)||[])[1];
+  ok(n02OnlyAvg === '—', 'N02 仅有未来成绩时今日均分为 —');
+  wb.pool.students = n02SavedStudents;
+  wb.pool.records = n02SavedRecords;
+  vm.runInContext("todayExpandKey=null;todayPage={};todayPageSize={};", ctx);
+  wb.refreshView(); wb.renderToday();
+
+  /* ---- N04：改名迁移/删除清除预警身份（mock） ---- */
+  const n04Sub = 'N04 / 原科目', n04New = 'N04 / 新科目';
+  const n04Stu = {id:'n04-fe-stu', name:'N04预警生', ownerId:ta1.id, archived:false, subjects:[n04Sub],
+    subjPlans:{[n04Sub]:8}, subjFirstClass:{[n04Sub]:offDay(-20)}, subjPlanSetAt:{[n04Sub]:offDay(-20)}};
+  wb.pool.students.push(n04Stu);
+  const n04Now = new Date().toISOString();
+  wb.pool.alertActions = (wb.pool.alertActions || []).concat([
+    {id:'n04-done', kind:'planStall', refKey:n04Stu.id+'|'+n04Sub, action:'done', createdAt:n04Now}
+  ]);
+  wb.refreshView();
+  vm.runInContext("startRenameSubject('" + n04Stu.id + "','" + n04Sub + "')", ctx);
+  setVal('ren-input', n04New);
+  await vm.runInContext('saveRenameSubject()', ctx);
+  wb.refreshView();
+  const n04KeyNew = n04Stu.id + '|' + n04New;
+  ok(wb.pool.alertActions.every(a=>a.refKey!==n04Stu.id+'|'+n04Sub)
+    && vm.runInContext("isDoneAlert(alertActionMap(),'planStall'," + JSON.stringify(n04KeyNew) + ")", ctx),
+  'N04 mock：改名后 done 仍生效且旧键消失');
+  wb.pool.alertActions.push({id:'n04-snooze', kind:'planStall', refKey:n04KeyNew, action:'snooze',
+    snoozeUntil:vm.runInContext('todayStr()',ctx), createdAt:new Date(Date.now()+1000).toISOString()});
+  wb.refreshView();
+  ok(vm.runInContext("snoozedToday(alertActionMap(),'planStall'," + JSON.stringify(n04KeyNew) + ")", ctx),
+    'N04 mock：最新 snooze 在改名后继续生效');
+  vm.runInContext("startRenameSubject('" + n04Stu.id + "','" + n04New + "')", ctx);
+  vm.runInContext('deleteSubject()', ctx);
+  documentStub.getElementById('cf-ok').onclick();
+  await Promise.resolve();
+  ok((wb.pool.alertActions || []).every(a=>a.refKey!==n04KeyNew), 'N04 mock：删除科目清除预警处理状态');
+  n04Stu.subjects = [n04New]; n04Stu.subjPlans = {[n04New]:5}; n04Stu.subjFirstClass = {[n04New]:offDay(-1)};
+  wb.refreshView();
+  ok((wb.pool.alertActions || []).every(a=>a.refKey!==n04KeyNew), 'N04 mock：重建同名科目不继承旧预警状态');
+  wb.pool.students = wb.pool.students.filter(s=>s.id!==n04Stu.id);
+  wb.pool.alertActions = (wb.pool.alertActions || []).filter(a=>a.refKey!==n04KeyNew);
+  wb.refreshView();
+
+  /* ---- U04：投递结果只读视图（不泄露 openid，可就近定位） ---- */
+  const pdStu = wb.pool.students.find(s=>s.ownerId===ta1.id && !s.archived);
+  vm.runInContext('renderPushDeliveries(' + JSON.stringify({ ok:true, total:2, page:1, pages:1, pageSize:20, items:[
+    { id:'pd1', createdAt:'2026-10-26T08:00:00.000Z', kind:'homework', studentId:pdStu.id, studentName:pdStu.name,
+      actorName:'王助教', subject:'学科 / AP / 统计', recipient:'家长 1', status:'sent', reason:'', manual:false },
+    { id:'pd2', createdAt:'2026-10-26T08:01:00.000Z', kind:'mockScore', studentId:pdStu.id, studentName:pdStu.name,
+      actorName:'王助教', subject:'学科 / AP / 统计', recipient:'家长 2', status:'rate_limited', reason:'全站同类通知已达 10 分钟上限', manual:true }
+  ]}) + ')', ctx);
+  const pdHtml = documentStub.getElementById('push-delivery-list').innerHTML;
+  ok(pdHtml.indexOf('已送达')!==-1 && pdHtml.indexOf('限流未发')!==-1 && pdHtml.indexOf('手动')!==-1
+    && pdHtml.indexOf('自动')!==-1 && pdHtml.indexOf('openid')===-1, 'U04 投递列表显示状态/来源且不含 openid');
+  vm.runInContext("pushDeliveryGoto(" + JSON.stringify(pdStu.id) + "," + JSON.stringify('学科 / AP / 统计') + ")", ctx);
+  ok(vm.runInContext('stuSelectedId',ctx)===pdStu.id && vm.runInContext('quickEntry && quickEntry.gid',ctx)===pdStu.id,
+    'U04 定位学生复用现有学生工作区');
+  wb.setQuickEntry(null);
+  vm.runInContext("stuSelectedId=null;stuTaFilter='all';stuQuery='';stuLetters=[];renderStats();",ctx);
 
   /* ---- 学生明细助教维度筛选（教务，双栏学生行） ---- */
   const grpCnt = list => new Set(list.map(s=>(s.ownerId||'')+'|'+s.name.trim())).size;
@@ -2036,29 +2150,62 @@ function ok(cond, name){
   ok(bdCount('dash-alert-miss','dash-alert-item')===20, '逾期完整名单首页仅渲染 20 条');
   vm.runInContext("dashToggleAlert('first')",ctx);
   ok(bdCount('dash-alert-sleep','dash-first-item')===20, '待首录名单同样分页而非全量展开');
+  documentStub.getElementById('dash-overview').dataset.u02trend = 'keep';
   vm.runInContext('dashToggleTrendTable()',ctx);
   const bdTrendBody = documentStub.getElementById('dash-trend').innerHTML.split('<tbody>')[1] || '';
   ok((bdTrendBody.match(/<tr>/g)||[]).length===30 && documentStub.getElementById('dash-trend').innerHTML.indexOf('aria-label')!==-1,
     '固定 30 天趋势提供完整数据表和可访问日期/次数/均分');
-  const bdSubHtml = documentStub.getElementById('dash-subs').innerHTML;
+  ok(documentStub.getElementById('dash-overview').dataset.u02trend === 'keep', 'U02 展开趋势表不重绘概览节点');
+  const bdSubHtml = documentStub.getElementById('dash-subject-results').innerHTML;
   ok((bdSubHtml.match(/subj-row/g)||[]).length===20 && bdSubHtml.indexOf('共 26 科')!==-1,
     '具体科目首页 20 并保留全量 26 科计数');
+  // U02：概览节点与外部搜索框在局部操作中保持不变
+  documentStub.getElementById('dash-overview').dataset.u02probe = 'keep';
+  documentStub.getElementById('dash-subject-search').value = '科目24';
   vm.runInContext('dashSubjectPageGo(1)',ctx);
-  ok((documentStub.getElementById('dash-subs').innerHTML.match(/subj-row/g)||[]).length===6, '具体科目第二页 6 条全部可达');
+  ok((documentStub.getElementById('dash-subject-results').innerHTML.match(/subj-row/g)||[]).length===6, '具体科目第二页 6 条全部可达');
   vm.runInContext("dashSubjectSearchSet('科目24')",ctx);
-  ok((documentStub.getElementById('dash-subs').innerHTML.match(/subj-row/g)||[]).length===1
-    && documentStub.getElementById('dash-subs').innerHTML.indexOf('学科 / AP / 科目24')!==-1,
+  ok((documentStub.getElementById('dash-subject-results').innerHTML.match(/subj-row/g)||[]).length===1
+    && documentStub.getElementById('dash-subject-results').innerHTML.indexOf('学科 / AP / 科目24')!==-1,
     '具体科目搜索保留完整路径 key');
+  ok(documentStub.getElementById('dash-overview').dataset.u02probe === 'keep'
+    && documentStub.getElementById('dash-subject-search').value === '科目24',
+    'U02 学科搜索/翻页不重建概览与输入框');
   vm.runInContext('dashSubjectClear()',ctx);
-  ok((documentStub.getElementById('dash-subs').innerHTML.match(/subj-row/g)||[]).length===20, '清除科目搜索恢复全量分页');
+  ok((documentStub.getElementById('dash-subject-results').innerHTML.match(/subj-row/g)||[]).length===20, '清除科目搜索恢复全量分页');
   const bdLowModel = bdFull.lowStus[0];
   ok(!!bdLowModel.studentId && bdLowModel.lowSubs[0].key===bdSub, '低分 view model 含稳定 studentId 与完整科目 key');
   vm.runInContext("dashGotoStudent('bd-low-00','" + bdSub + "')",ctx);
-  ok(vm.runInContext("quickEntry.gid==='bd-low-00' && quickEntry.subject==='" + bdSub + "'",ctx)===true
-    && documentStub.getElementById('dash-return-btn').style.display!=='none', '预警定位具体学生/科目并显示返回入口');
+  ok(vm.runInContext("stuSelectedId==='bd-low-00' && quickEntry.gid==='bd-low-00' && quickEntry.subject==='" + bdSub + "'",ctx)===true
+    && documentStub.getElementById('dash-return-btn').style.display!=='none', '预警定位具体学生/科目并打开档案');
+  vm.runInContext("dashReturnDashboard();stuSelectedId='bd-low-01';",ctx);
+  vm.runInContext("dashGotoStudent('bd-sleep-19')",ctx);
+  ok(vm.runInContext("stuSelectedId==='bd-sleep-19' && quickEntry===null",ctx)===true
+    && documentStub.getElementById('stu-list').innerHTML.indexOf('看板沉睡19')!==-1
+    && documentStub.getElementById('stu-list').innerHTML.indexOf('stu-workspace-empty')===-1,
+    'N03 无科目预警一次打开目标学生档案并清理旧选择');
   vm.runInContext('dashReturnDashboard()',ctx);
   ok(vm.runInContext("dashOwner==='all' && dashRange===30 && dashReturnContext===null",ctx)===true,
     '返回看板保留筛选并恢复浏览上下文');
+  // N05：30 列全部拥有同高柱体轨道与标签槽
+  const bdTrendHtml = documentStub.getElementById('dash-trend').innerHTML;
+  ok((bdTrendHtml.match(/dash-bar-col/g)||[]).length===30 && (bdTrendHtml.match(/dash-bar-track/g)||[]).length===30
+    && (bdTrendHtml.match(/dash-bar-lbl/g)||[]).length===30, 'N05 30 列均预留柱体轨道与标签槽');
+  ok(allText.indexOf('.dash-bar-track{flex:0 0 86px')!==-1 && allText.indexOf('.dash-bar-lbl{width:100%;height:14px')!==-1,
+    'N05 柱底与标签轨道高度固定一致');
+  // U03：助教行使用原生按钮，可键盘触发并提供就近状态/返回
+  vm.runInContext("dashOwner='all';renderDashboard()",ctx);
+  const bdTaHtml = documentStub.getElementById('dash-tas').innerHTML;
+  ok(bdTaHtml.indexOf('<button type="button" class="dash-ta-row')!==-1 && bdTaHtml.indexOf('aria-pressed="false"')!==-1,
+    'U03 助教对比行使用语义按钮并带 aria-pressed');
+  wb.dashDrillTa(ta1.id);
+  ok(documentStub.getElementById('dash-tas').innerHTML.indexOf('aria-pressed="true"')!==-1
+    && documentStub.getElementById('dash-ta-current').innerHTML.indexOf('正在查看')!==-1
+    && documentStub.getElementById('dash-ta-current').innerHTML.indexOf('返回全部助教')!==-1,
+    'U03 下钻显示就近当前范围与返回全部入口');
+  wb.dashDrillTa(ta1.id);
+  ok(wb.dashOwner==='all' && documentStub.getElementById('dash-ta-current').style.display==='none',
+    'U03 再点同一助教复位并隐藏当前范围提示');
   wb.pool.students=bdPool.students;wb.pool.records=bdPool.records;wb.pool.missed=bdPool.missed;
   wb.refreshView();wb.setQuickEntry(null);
 

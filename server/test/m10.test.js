@@ -153,6 +153,35 @@ function ok(cond, name){
   r = await req('POST', '/api/push/nope', { studentId: stuA, subject: subj }, T1);
   ok(r.status === 404, '未知推送类型 404');
 
+  /* ---- U04：投递结果持久化与只读查询 ---- */
+  r = await req('GET', '/api/push-deliveries?status=all&page=1&pageSize=20', null, adminTok);
+  ok(r.status === 200 && r.data.ok && r.data.total > 0 && r.data.items.some(x=>x.status==='sent')
+    && r.data.items.some(x=>x.manual === true) && r.data.items.some(x=>x.manual === false),
+  'U04 教务可查看自动/手动投递结果');
+  ok(JSON.stringify(r.data).indexOf('openid') === -1 && JSON.stringify(r.data).indexOf('openid_a') === -1,
+    'U04 投递查询不泄露 openid');
+  r = await req('GET', '/api/push-deliveries?status=unbound', null, adminTok);
+  ok(r.status === 200 && r.data.items.length > 0 && r.data.items.every(x=>x.status==='unbound' && x.reason),
+    'U04 未绑定结果可单独筛选并带原因');
+  r = await req('GET', '/api/push-deliveries?status=unbound', null, T2);
+  ok(r.status === 200 && r.data.items.some(x=>x.studentName === '陈星宇'), 'U04 助教可看自己名下未送达结果');
+  r = await req('GET', '/api/push-deliveries?status=all', null, T1);
+  ok(r.status === 200 && !r.data.items.some(x=>x.studentName === '陈星宇'), 'U04 助教不能看他人名下投递');
+  r = await req('GET', '/api/push-deliveries', null, TS);
+  ok(r.status === 403, 'U04 销售无投递记录权限');
+  r = await req('GET', '/api/push-deliveries?status=bogus', null, adminTok);
+  ok(r.status === 400, 'U04 非法状态筛选 400');
+  // 限流未发也要留下记录（手动）
+  await req('PUT', '/api/push-config', { config: { homework: { enabled: true, max: 1 } } }, adminTok);
+  push._resetRateLimit();
+  r = await req('POST', '/api/push/homework', { studentId: stuA, subject: subj }, T1);
+  ok(r.status === 200, 'U04 限流准备：首次手动推送成功');
+  r = await req('POST', '/api/push/homework', { studentId: stuA, subject: subj }, T1);
+  ok(r.status === 429, 'U04 限流准备：第二次手动推送被限流');
+  r = await req('GET', '/api/push-deliveries?status=rate_limited', null, adminTok);
+  ok(r.status === 200 && r.data.items.some(x=>x.status==='rate_limited' && x.manual === true && x.reason.indexOf('上限') !== -1),
+    'U04 限流未发记录可集中查看');
+
   /* ---- 无作业记录的模板字段：character_string 不支持中文，最近一条为无作业时填「-」 ---- */
   await req('POST', '/api/records', { studentId: stuA, date: '2026-09-17', subject: subj, noHomework: true }, T1);
   push._resetRateLimit();

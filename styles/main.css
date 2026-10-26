@@ -416,6 +416,9 @@ main{flex:1;min-width:0;max-width:none;padding:16px 24px 72px;margin:0}
 .slot-edit .se-field>span{font-size:12px;font-weight:600;color:var(--ink2)}
 .slot-edit .se-err{grid-column:1/-1;font-size:12px;color:var(--red);font-weight:600;margin-top:2px}
 .slot-edit .se-actions{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+@media (min-width:769px){
+  .slot-edit .se-actions{position:sticky;bottom:8px;z-index:12;background:#fff;border-top:1px solid var(--line);padding:8px 0;box-shadow:0 -6px 12px rgba(26,53,45,.06)}
+}
 .slot-edit .se-calc{margin-top:5px;font-size:12px;color:var(--ink2)}
 /* 老师评语（科目级） */
 .qe-comment{margin-top:12px;border-top:1.5px dashed #BFE3D4;padding-top:12px}
@@ -456,7 +459,24 @@ main{flex:1;min-width:0;max-width:none;padding:16px 24px 72px;margin:0}
 .mock-tag.booked{background:var(--amber-l);color:#B9802A;border:1px solid #F0D9AC}
 .mock-tag.score{background:var(--mint-l);color:var(--mint-d);border:1px solid #BFE3D4}
 /* 学生明细筛选区 sticky（搜索框 + 首字母条常驻顶部；背景不透明防透视；z-index 低于弹窗 300） */
-#stu-filter-card{position:sticky;top:0;z-index:20;background:var(--card)}
+#stu-filter-card{position:sticky;top:0;z-index:20;background:var(--card);padding:10px 14px}
+.stu-filter-row{display:grid;grid-template-columns:minmax(220px,1fr) minmax(170px,260px) auto;gap:8px;align-items:center}
+.stu-filter-row .search-box input{min-height:40px;padding:8px 10px;font-size:14px}
+.stu-filter-row .stu-ta-select-label{margin-top:0;gap:6px;white-space:nowrap}
+.stu-filter-row .stu-ta-select-label select{min-height:40px;width:100%;max-width:none;font-size:13px}
+#stu-letter-bar{min-width:0;overflow:hidden}
+#stu-letter-bar .letter-bar{margin-top:0;padding:0;max-width:100%}
+#stu-filter-meta{grid-column:1/-1;min-width:0}
+#stu-filter-meta:empty{display:none}
+@media (max-width:1100px){
+  .stu-filter-row{grid-template-columns:minmax(0,1fr) minmax(150px,220px)}
+  #stu-letter-bar{grid-column:1/-1}
+}
+@media (max-width:768px){
+  .stu-filter-row{grid-template-columns:1fr}
+  #stu-letter-bar,#stu-filter-meta{grid-column:1}
+  .stu-filter-row .search-box input,.stu-filter-row .stu-ta-select-label select{min-height:50px}
+}
 /* 模考预约已过期（灰色）：徽章与打卡面板共用 */
 .mock-tag.expired{background:#EFEAE0;color:#9A9280;border:1px solid #DCD4C2}
 .mock-booked.expired{background:#EFEAE0;color:#9A9280;border-color:#DCD4C2}
@@ -588,7 +608,15 @@ main{flex:1;min-width:0;max-width:none;padding:16px 24px 72px;margin:0}
 .push-max-btn:hover{border-color:var(--mint);color:var(--mint-d)}
 .push-max-num{font-weight:700;min-width:16px;text-align:center;font-variant-numeric:tabular-nums}
 .push-max-unit{font-size:11px;color:var(--ink2);margin-right:6px}
-@media (max-width:768px){ .push-cfg-row{flex-wrap:wrap} }
+/* 通知投递结果：只读列表，失败项可就近定位学生 */
+.push-delivery-filter{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 10px}
+.push-delivery-filter select{min-height:38px;padding:7px 10px;border:1.5px solid var(--line);border-radius:9px;background:#FDFCF8;color:var(--ink);font-family:inherit;font-size:13px}
+.push-delivery-count{font-size:12px;color:var(--ink2);margin-left:auto}
+.push-delivery-item{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 2px;border-bottom:1px dashed var(--line);font-size:13px}
+.push-delivery-item:last-child{border-bottom:none}
+.push-delivery-item .grow{flex:1;min-width:220px}
+.push-delivery-item .hint{font-size:12px;color:var(--ink2);margin-top:3px;overflow-wrap:anywhere}
+@media (max-width:768px){ .push-cfg-row{flex-wrap:wrap} .push-delivery-count{margin-left:0} }
 .switch{width:46px;height:26px;border-radius:999px;border:none;background:#D8D0BC;position:relative;cursor:pointer;transition:background .15s;flex-shrink:0;padding:0}
 .switch::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .15s}
 .switch.on{background:var(--mint)}
@@ -697,19 +725,25 @@ main{flex:1;min-width:0;max-width:none;padding:16px 24px 72px;margin:0}
 .dash-sub-filter{margin-top:12px}
 .dash-sub-pager{margin-top:4px}
 .dash-return-btn{margin-bottom:12px}
-.dash-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
-.dash-bar{width:100%;max-width:22px;border-radius:4px 4px 0 0;min-height:2px}
-.dash-bar-lbl{font-size:9px;color:var(--ink2);margin-top:4px;white-space:nowrap}
+.dash-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;height:100%;min-width:0}
+.dash-bar-track{flex:0 0 86px;display:flex;align-items:flex-end;justify-content:center;width:100%}
+.dash-bar{width:100%;max-width:22px;border-radius:4px 4px 0 0;min-height:2px;display:block}
+.dash-bar-lbl{width:100%;height:14px;line-height:14px;text-align:center;font-size:9px;color:var(--ink2);margin-top:4px;white-space:nowrap;overflow:hidden}
+.dash-ta-current{display:flex;align-items:center;gap:10px;margin:0 0 8px;padding:8px 10px;border-radius:10px;background:var(--mint-l);font-size:13px;color:var(--mint-d)}
+.dash-ta-current b{color:var(--ink)}
+.dash-ta-current .btn{margin-left:auto}
 .dash-ta-row{
-  display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 8px;border-bottom:1px dashed var(--line);
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 8px;border:0;border-bottom:1px dashed var(--line);
+  width:100%;font:inherit;color:inherit;text-align:left;background:transparent;
   cursor:pointer;border-radius:10px;
 }
 .dash-ta-row:last-child{border-bottom:none}
 .dash-ta-row:hover{background:var(--mint-xl)}
 .dash-ta-row.active{background:var(--mint-l)}
-.dash-ta-row .grow{flex:1;min-width:140px}
-.dash-ta-bar{flex:0 1 160px;background:var(--mint-xl);border-radius:999px;height:10px;overflow:hidden}
-.dash-ta-fill{height:100%;background:var(--mint);border-radius:999px;min-width:0}
+.dash-ta-row:focus-visible{outline:2px solid var(--mint-d);outline-offset:2px}
+.dash-ta-row .grow{flex:1;min-width:140px;display:block}
+.dash-ta-bar{flex:0 1 160px;background:var(--mint-xl);border-radius:999px;height:10px;overflow:hidden;display:block}
+.dash-ta-fill{height:100%;background:var(--mint);border-radius:999px;min-width:0;display:block}
 .dash-ta-num{font-size:13px;color:var(--ink2);white-space:nowrap}
 .dash-cat-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 2px;border-bottom:1px dashed var(--line);font-size:14px}
 .dash-cat-row:last-child{border-bottom:none}

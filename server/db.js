@@ -249,6 +249,27 @@ CREATE TABLE IF NOT EXISTS parent_binds (
 CREATE INDEX IF NOT EXISTS idx_binds_student ON parent_binds(student_id);
 CREATE INDEX IF NOT EXISTS idx_binds_openid ON parent_binds(openid);
 `);
+/* 通知投递结果（v1.16.0）：每次推送按接收人落一行，供教务集中跟进。
+   不保存 openid；历史推送无法回填，只记录升级后的新结果。 */
+db.exec(`
+CREATE TABLE IF NOT EXISTS push_deliveries (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  student_id TEXT NOT NULL,
+  owner_id TEXT,
+  actor_id TEXT,
+  actor_name TEXT,
+  subject TEXT,
+  recipient_label TEXT,
+  status TEXT NOT NULL CHECK(status IN ('sent','unbound','unsubscribed','rate_limited','error')),
+  reason TEXT,
+  manual INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_push_delivery_created ON push_deliveries(created_at);
+CREATE INDEX IF NOT EXISTS idx_push_delivery_student ON push_deliveries(student_id);
+CREATE INDEX IF NOT EXISTS idx_push_delivery_status ON push_deliveries(status);
+`);
 /* 归档日期与原因迁移（v1.7.1）：students 补 archived_at / archived_reason 列 */
 if(!db.prepare("PRAGMA table_info(students)").all().map(c => c.name).includes('archived_at')){
   db.exec('ALTER TABLE students ADD COLUMN archived_at TEXT');

@@ -36,7 +36,11 @@ function todayClearFilters(key){
 // 同一 ref_key 取最新一条预警动作
 function alertActionMap(){
   const map = {};
-  (state.alertActions || []).forEach(a=>{ map[a.kind + '|' + a.refKey] = a; });
+  (state.alertActions || []).forEach(a=>{
+    const key = a.kind + '|' + a.refKey;
+    const prev = map[key];
+    if(!prev || String(a.createdAt || '') >= String(prev.createdAt || '')) map[key] = a;
+  });
   return map;
 }
 function isDoneAlert(amap, kind, refKey){ const a = amap[kind + '|' + refKey]; return !!(a && (a.action==='done' || a.action==='shelve')); }
@@ -148,8 +152,9 @@ function renderToday(){
   });
 
   const weekAgo = offsetDay(-7);
+  const recentGraded = gradedRecs(state.records.filter(r=>r.date>=weekAgo && r.date<=t));
   const lowMap = {};
-  gradedRecs(state.records.filter(r=>r.date>=weekAgo)).forEach(r=>{
+  recentGraded.forEach(r=>{
     const st = state.students.find(x=>x.id===r.studentId);
     if(st && st.archived) return;
     if(acc(r) >= 60) return;
@@ -300,8 +305,7 @@ function renderToday(){
     const st = state.students.find(x=>x.id===m.studentId);
     return !(st && st.archived);  // 已归档学生的未交不计入待办统计
   }).length;
-  const recent = gradedRecs(state.records.filter(r=>r.date>=weekAgo));  // 无作业记录不参与正确率统计
-  const avgAcc = recent.length ? Math.round(recent.reduce((s,r)=>s+acc(r),0)/recent.length) : null;
+  const avgAcc = recentGraded.length ? Math.round(recentGraded.reduce((s,r)=>s+acc(r),0)/recentGraded.length) : null;
   document.getElementById('quick-grid').innerHTML =
     '<div class="quick"><div class="num">' + new Set(activeStudents().map(s=>s.name.trim())).size + '</div><div class="lbl">学生总数</div></div>' +
     '<div class="quick"><div class="num">' + todayRecs + '</div><div class="lbl">今日已录入</div></div>' +

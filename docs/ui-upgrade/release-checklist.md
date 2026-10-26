@@ -28,7 +28,7 @@
 
 ## 3. 候选验收门禁
 
-- [x] `PASS` 原 93 项和追加 7 项均有真实目标实现证据，100 项 PASS、0 项 NOT_RUN；见 [`evidence/final-verification.md`](evidence/final-verification.md) 与 [`../migration-map.md`](../migration-map.md)。
+- [x] `PASS` 原 93 项、追加 7 项和上线后复查 9 项均有真实目标实现证据，109 项 PASS、0 项 NOT_RUN；见 [`evidence/post-release-n-u.md`](evidence/post-release-n-u.md) 与 [`../migration-map.md`](../migration-map.md)。
 - [x] `PASS` 最终重新运行 smoke 527 项、e2e 177 项、服务端 435 项及分页/容量/事务回归，均 0 失败；结果见 [`evidence/final-verification.md`](evidence/final-verification.md)。
 - [x] `PASS` Chrome/WebKit 三角色和四种目标尺寸可见检查完成；真实 Safari 已补测三角色，教务覆盖四种尺寸，助教/销售覆盖 390×844。保存/失败/慢请求、键盘、滚动、弹窗、长文本证据按批次归档，索引见 [`evidence/final-verification.md`](evidence/final-verification.md)。
 - [x] `PASS` 基础/扩展场景均完成 20 次交互测量并保留首次值和 p95；全部满足 ≤200ms/≤500ms 预算，原始 JSON 见 [`evidence/final-verification.md`](evidence/final-verification.md)。
@@ -68,3 +68,10 @@
 ## 6. 本批结论
 
 v1.15.0 已完成生产备份、隔离恢复演练、预发布和正式发布；v1.15.1 已热修代理下的登录限流 IP 识别并上线。生产三角色已认证页面、真实外部链路和回滚未执行，记录见 [`evidence/production-v1.15.0.md`](evidence/production-v1.15.0.md) 和 [`evidence/production-v1.15.1-hotfix.md`](evidence/production-v1.15.1-hotfix.md)。
+
+## 7. v1.16.0 本地候选（未发布）
+
+- 复查整改 N01–N05、AUD-U01–AUD-U04 已完成本地回归，证据见 [`evidence/post-release-n-u.md`](evidence/post-release-n-u.md)。
+- 当前线上仍为 v1.15.1；**v1.16.0 未提交、未部署**。
+- v1.16.0 新增 `push_deliveries` 表，路由 58→59。发布前必须重新执行在线备份、迁移前恢复演练、隔离预发布和回滚验证，不能沿用“无 schema”流程。
+- 生产三种角色已认证页面、真实微信回执和回滚仍未执行，保持 `NOT_RUN`。

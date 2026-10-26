@@ -45,7 +45,7 @@
 
 下表按来源文件归并展示，方法＋完整路径与 02 索引一致；现有路由全部保留。销售无 `/api/state` 业务全集权限，搜索和写接口仍以服务端角色/owner 守卫为权威。
 
-B1 已新增并验证 `POST /api/students/subject-operation`、`POST /api/records/makeup`，因此当前实现为 58 个路由；原 56 个接口均未删除。
+B1 新增 `POST /api/students/subject-operation`、`POST /api/records/makeup`；v1.16.0 上线后整改新增只读 `GET /api/push-deliveries`，因此当前实现为 59 个路由；原 56 个接口均未删除。
 
 | 来源 | 当前路由 |
 |---|---|
@@ -62,7 +62,7 @@ B1 已新增并验证 `POST /api/students/subject-operation`、`POST /api/record
 | `server/routes/subjects.js` | `GET /api/subjects`；`PUT /api/subjects` |
 | `server/routes/settings.js` | `GET /api/homework-cycle`；`PUT /api/homework-cycle` |
 | `server/routes/unbind.js` | `GET /api/unbind-requests`；`POST /api/unbind-requests/:id/review` |
-| `server/routes/push.js` | `GET /api/push-config`；`PUT /api/push-config`；`POST /api/push/:kind` |
+| `server/routes/push.js` | `GET /api/push-config`；`PUT /api/push-config`；`POST /api/push/:kind`；`GET /api/push-deliveries` |
 | `server/routes/alerts.js` | `POST /api/alerts/action` |
 | `server/routes/wechat.js` | `GET /api/wechat/callback`；`POST /api/wechat/callback` |
 | `server/index.js` | `GET /api/health`；`GET /r/:token` |

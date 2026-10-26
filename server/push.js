@@ -7,7 +7,7 @@
    url 统一为分享报告链接（复用 reports.ensureShareToken）。 */
 const db = require('./db');
 const wx = require('./wechat');
-const { logAudit, parseJson, shortSubject } = require('./util');
+const { uid, logAudit, parseJson, shortSubject } = require('./util');
 const { ensureShareToken } = require('./routes/reports');
 
 const KIND_LABEL = { homework: '作业批改完成通知', mockBook: '考试报名成功通知', mockScore: '考试成绩通知' };
@@ -16,6 +16,23 @@ const TEMPLATE_CFG_KEY = { homework: 'templateHomework', mockBook: 'templateMock
 /* 推送开关 + 按类型限流上限（settings.push_config JSON；默认 {enabled:false, max:3}，仅教务可改）
    兼容旧格式 {homework:false,...}：读入自动归一化为新结构（enabled 布尔 + max 1–10 次/10 分钟） */
 const PUSH_KINDS = ['homework', 'mockBook', 'mockScore'];
+const DELIVERY_STATUS = new Set(['sent','unbound','unsubscribed','rate_limited','error']);
+/* 逐接收人落库；只存备注名/序号与状态，不存 openid。无接收人时也记录一条未绑定/系统失败事件。 */
+function recordDeliveries(user, st, kind, subject, isManual, results, fallbackStatus, fallbackReason){
+  const rows = Array.isArray(results) && results.length
+    ? results.map(x=>({ label:x.name || '—', status:DELIVERY_STATUS.has(x.status) ? x.status : (fallbackStatus || 'error'), reason:x.reason || '' }))
+    : [{ label:'—', status:fallbackStatus || 'error', reason:fallbackReason || '' }];
+  const createdAt = new Date().toISOString();
+  try{
+    const insert = db.prepare(`INSERT INTO push_deliveries
+      (id, created_at, kind, student_id, owner_id, actor_id, actor_name, subject, recipient_label, status, reason, manual)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`);
+    db.transaction(()=>{
+      rows.forEach(x=>insert.run(uid('pd_'), createdAt, kind, st.id, st.owner_id,
+        user ? user.id : null, user ? user.name : '系统', subject || '', x.label, x.status, x.reason || '', isManual ? 1 : 0));
+    })();
+  }catch(e){ console.error('[推送记录] 写入失败：', e.message); }  // 记录失败不改变真实发送结果
+}
 function clampMax(v){
   const n = parseInt(v, 10);
   if(isNaN(n)) return 3;
@@ -81,18 +98,31 @@ function shareUrlFor(req, st, subject, kind){
    isManual=true 为手动推送（限流时返回 429 提示；自动推送限流静默丢弃）。
    返回 {sent} / {dropped:true}（限流丢弃）/ {err, status}（400 未绑定 / 429 限流 / 503 未配置 / 502 微信接口失败） */
 async function pushTemplate(user, st, kind, subject, url, slotOverride, isManual){
-  if(!wx.configured()) return { err: '服务号未配置', status: 503 };
+  if(!wx.configured()){
+    recordDeliveries(user, st, kind, subject, isManual, null, 'error', '服务号未配置');
+    return { err: '服务号未配置', status: 503 };
+  }
   const templateId = wx.cfg()[TEMPLATE_CFG_KEY[kind]];
-  if(!templateId) return { err: '模板消息未配置', status: 503 };
+  if(!templateId){
+    recordDeliveries(user, st, kind, subject, isManual, null, 'error', '模板消息未配置');
+    return { err: '模板消息未配置', status: 503 };
+  }
   const binds = db.prepare('SELECT * FROM parent_binds WHERE student_id = ? AND unbound = 0').all(st.id);
-  if(!binds.length) return { err: '该学生未绑定家长微信', status: 400 };
+  if(!binds.length){
+    recordDeliveries(user, st, kind, subject, isManual, null, 'unbound', '该学生未绑定家长微信');
+    return { err: '该学生未绑定家长微信', status: 400 };
+  }
   const data = buildTplData(kind, st, subject, slotOverride);
-  if(!data) return { err: '缺少推送所需数据（如模考日期/分数）', status: 400 };
+  if(!data){
+    recordDeliveries(user, st, kind, subject, isManual, null, 'error', '缺少推送所需数据');
+    return { err: '缺少推送所需数据（如模考日期/分数）', status: 400 };
+  }
   // 每个接收人的结果只返回备注名/序号与状态，不返回 openid；全站同类共享限流规则不变
   const results = binds.map((b, i) => ({ name: b.remark || ('家长 ' + (i + 1)), status: 'pending', reason: '' }));
   // 限流在数据校验之后：无效调用不消耗额度（额度只在真正发送前占用）
   if(!rateAllow(kind)){
     results.forEach(x => { x.status = 'rate_limited'; x.reason = '全站同类通知已达 10 分钟上限'; });
+    recordDeliveries(user, st, kind, subject, isManual, results);
     logAudit(user, '限流丢弃', 'student', st.name + ' · ' + KIND_LABEL[kind], '10 分钟内推送超过上限', st.owner_id);
     if(isManual) return { err: '推送频率已达上限，请 10 分钟后再试', status: 429, results: results };
     return { dropped: true, results: results };
@@ -118,7 +148,11 @@ async function pushTemplate(user, st, kind, subject, url, slotOverride, isManual
         }
       }catch(e){ result.status = 'error'; result.reason = '网络或服务异常'; /* 单个家长失败不阻塞其他人 */ }
     }
-  }catch(e){ return { err: '微信接口调用失败：' + e.message, status: 502, results: results }; }
+  }catch(e){
+    recordDeliveries(user, st, kind, subject, isManual, results, 'error', '微信接口调用失败');
+    return { err: '微信接口调用失败：' + e.message, status: 502, results: results };
+  }
+  recordDeliveries(user, st, kind, subject, isManual, results);
   logAudit(user, '推送' + KIND_LABEL[kind], 'student', st.name + ' · ' + shortSubject(subject),
     '成功 ' + sent + ' 人' + (unboundCnt ? '，' + unboundCnt + ' 人已取关标记失效' : ''), st.owner_id);
   if(!sent) return { err: '推送失败（家长可能已取关，请重新绑定）', status: 400, results: results };

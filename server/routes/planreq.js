@@ -99,31 +99,47 @@ router.post('/plan-requests/:id/cancel', requireRole('ta', 'admin'), (req, res) 
 });
 
 // POST /api/plan-requests/:id/review {approve, note?}：仅教务；通过时原子更新 subj_plans 与 subj_plan_set_at
+// 审批前重新核对 pending/学生归档/归属/科目存在性/旧计划；状态已变化时取消旧申请，禁止写回失效科目
 router.post('/plan-requests/:id/review', requireRole('admin'), (req, res) => {
-  const r = db.prepare('SELECT * FROM plan_requests WHERE id = ?').get(req.params.id);
-  if(!r) return res.status(404).json({ ok: false, msg: '申请不存在' });
-  if(r.status !== 'pending') return res.status(400).json({ ok: false, msg: '该申请已处理' });
+  const initial = db.prepare('SELECT * FROM plan_requests WHERE id = ?').get(req.params.id);
+  if(!initial) return res.status(404).json({ ok: false, msg: '申请不存在' });
+  if(initial.status !== 'pending') return res.status(400).json({ ok: false, msg: '该申请已处理' });
   const approve = !!(req.body && req.body.approve);
   const note = req.body && req.body.note;
+  let result = { status: 200, body: { ok: true } };
   const tx = db.transaction(() => {
+    const r = db.prepare('SELECT * FROM plan_requests WHERE id = ?').get(initial.id);
+    if(!r || r.status !== 'pending'){ result = { status: 400, body: { ok: false, msg: '该申请已处理' } }; return; }
+    const st = getStu(r.student_id);
+    if(approve){
+      const plans = st ? parseJson(st.subj_plans, {}) : {};
+      let invalid = '';
+      if(!st) invalid = '学生不存在';
+      else if(st.archived) invalid = '学生已归档';
+      else if((st.owner_id || '') !== (r.owner_id || '')) invalid = '学生归属已变化';
+      else if(!Object.prototype.hasOwnProperty.call(plans, r.subject)) invalid = '科目已不存在或已改名';
+      else if(Number(plans[r.subject]) !== Number(r.old_plan)) invalid = '当前计划次数已变化';
+      if(invalid){
+        db.prepare("UPDATE plan_requests SET status = 'cancelled', reviewed_by = ?, reviewed_at = ? WHERE id = ? AND status = 'pending'")
+          .run(req.user.id, todayStr(), r.id);
+        logAudit(req.user, '计划申请失效', 'plan', stuDesc(st, r.subject),
+          r.old_plan + ' → ' + r.new_plan + ' 次，原因：' + invalid, r.owner_id);
+        result = { status: 409, body: { ok: false, msg: '计划申请已失效：' + invalid + '，请让学生重新发起申请' } };
+        return;
+      }
+      const setAt = parseJson(st.subj_plan_set_at, {});
+      plans[r.subject] = r.new_plan;
+      setAt[r.subject] = todayStr();
+      db.prepare('UPDATE students SET subj_plans = ?, subj_plan_set_at = ? WHERE id = ?')
+        .run(JSON.stringify(plans), JSON.stringify(setAt), st.id);
+    }
     db.prepare("UPDATE plan_requests SET status = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?")
       .run(approve ? 'approved' : 'rejected', req.user.id, todayStr(), r.id);
-    if(approve){
-      const st = getStu(r.student_id);
-      if(st){
-        const plans = parseJson(st.subj_plans, {});
-        const setAt = parseJson(st.subj_plan_set_at, {});
-        plans[r.subject] = r.new_plan;
-        setAt[r.subject] = todayStr();
-        db.prepare('UPDATE students SET subj_plans = ?, subj_plan_set_at = ? WHERE id = ?')
-          .run(JSON.stringify(plans), JSON.stringify(setAt), st.id);
-      }
-    }
+    logAudit(req.user, approve ? '审批通过' : '审批驳回', 'plan', stuDesc(st, r.subject),
+      r.old_plan + ' → ' + r.new_plan + ' 次' + (note ? '，' + note : ''), r.owner_id);
   });
   tx();
-  logAudit(req.user, approve ? '审批通过' : '审批驳回', 'plan', stuDesc(getStu(r.student_id), r.subject),
-    r.old_plan + ' → ' + r.new_plan + ' 次' + (note ? '，' + note : ''), r.owner_id);
-  res.json({ ok: true });
+  res.status(result.status).json(result.body);
 });
 
 module.exports = router;

@@ -213,6 +213,87 @@ function ok(cond, name){
   stuRow = db.prepare('SELECT * FROM students WHERE id = ?').get(stuA);
   ok(JSON.parse(stuRow.subj_plans)['学科 / AP / 微积分BC'] === 12, '审批驳回后计划不变');
 
+  /* ---- N01：审批前复核当前状态；待审批期间阻止科目操作/归档 ---- */
+  async function setupN01(id, name, token, subject){
+    const created = await req('POST', '/api/students', { id: id, name: name, gradYear: '2027' }, token);
+    ok(created.status === 200, 'N01 准备学生：' + id);
+    await req('POST', '/api/plan/set', { studentId: id, subject: subject, plan: 8, firstClassDate: offDay(-5) }, token);
+    const pr = await req('POST', '/api/plan-requests', { studentId: id, subject: subject, newPlan: 12, reason: 'N01' }, token);
+    ok(pr.status === 200, 'N01 准备待审批申请：' + id);
+    return pr.data.request.id;
+  }
+  const n01Sub = 'N01 / 计划';
+  const n01ReqA = await setupN01('n01-a', 'N01审批生', T1, n01Sub);
+  r = await req('POST', '/api/students/subject-operation', { operation: 'rename', studentId: 'n01-a', studentIds: ['n01-a'], oldSubject: n01Sub, newSubject: 'N01 / 改名' }, T1);
+  ok(r.status === 409 && r.data.msg.indexOf('撤回') !== -1, 'N01 待审批时阻止科目改名');
+  r = await req('POST', '/api/students/subject-operation', { operation: 'delete', studentId: 'n01-a', studentIds: ['n01-a'], oldSubject: n01Sub }, T1);
+  ok(r.status === 409, 'N01 待审批时阻止科目删除');
+  r = await req('POST', '/api/students/n01-a/archive', {}, T1);
+  ok(r.status === 409, 'N01 待审批时阻止学生归档');
+  stuRow = db.prepare('SELECT * FROM students WHERE id = ?').get('n01-a');
+  ok(stuRow.archived === 0 && JSON.parse(stuRow.subj_plans)[n01Sub] === 8, 'N01 被阻止后学生与计划不变');
+  // 模拟升级前遗留：科目已从学生计划中消失，但旧申请仍 pending
+  db.prepare('UPDATE students SET subj_plans = ? WHERE id = ?').run('{}', 'n01-a');
+  r = await req('POST', '/api/plan-requests/' + n01ReqA + '/review', { approve: true }, adminTok);
+  const n01RowA = db.prepare('SELECT status, reviewed_at FROM plan_requests WHERE id = ?').get(n01ReqA);
+  stuRow = db.prepare('SELECT subj_plans FROM students WHERE id = ?').get('n01-a');
+  ok(r.status === 409 && n01RowA.status === 'cancelled' && JSON.parse(stuRow.subj_plans)[n01Sub] === undefined,
+    'N01 科目消失后旧审批失效且不写回计划');
+  ok(db.prepare("SELECT 1 FROM audit_logs WHERE action = '计划申请失效' AND target_desc LIKE '%N01%'").get() !== undefined,
+    'N01 失效申请写审计');
+  // 归档后遗留 pending（直接改库模拟旧数据，不经过已加守卫的归档接口）
+  const n01ReqB = await setupN01('n01-b', 'N01归档生', T1, n01Sub);
+  db.prepare('UPDATE students SET archived = 1 WHERE id = ?').run('n01-b');
+  r = await req('POST', '/api/plan-requests/' + n01ReqB + '/review', { approve: true }, adminTok);
+  ok(r.status === 409 && db.prepare('SELECT status FROM plan_requests WHERE id = ?').get(n01ReqB).status === 'cancelled'
+    && JSON.parse(db.prepare('SELECT subj_plans FROM students WHERE id = ?').get('n01-b').subj_plans)[n01Sub] === 8,
+  'N01 归档学生旧审批失效且计划不变');
+  // 计划值已变化后旧审批失效
+  const n01ReqC = await setupN01('n01-c', 'N01改值生', T1, n01Sub);
+  const n01PlansC = JSON.parse(db.prepare('SELECT subj_plans FROM students WHERE id = ?').get('n01-c').subj_plans);
+  n01PlansC[n01Sub] = 9;
+  db.prepare('UPDATE students SET subj_plans = ? WHERE id = ?').run(JSON.stringify(n01PlansC), 'n01-c');
+  r = await req('POST', '/api/plan-requests/' + n01ReqC + '/review', { approve: true }, adminTok);
+  ok(r.status === 409 && JSON.parse(db.prepare('SELECT subj_plans FROM students WHERE id = ?').get('n01-c').subj_plans)[n01Sub] === 9,
+    'N01 旧计划值变化后旧审批失效');
+  // 正常审批仍可用
+  const n01ReqD = await setupN01('n01-d', 'N01正常生', T1, n01Sub);
+  r = await req('POST', '/api/plan-requests/' + n01ReqD + '/review', { approve: true }, adminTok);
+  ok(r.status === 200 && JSON.parse(db.prepare('SELECT subj_plans FROM students WHERE id = ?').get('n01-d').subj_plans)[n01Sub] === 12,
+    'N01 状态一致时正常审批通过');
+  // 跨 owner 同名组：另一助教的同名科目不受本组 pending 影响
+  const n01ReqE = await setupN01('n01-e', 'N01同名生', T1, n01Sub);
+  await req('POST', '/api/students', { id: 'n01-e2', name: 'N01同名生', gradYear: '2027' }, T2);
+  await req('POST', '/api/plan/set', { studentId: 'n01-e2', subject: n01Sub, plan: 8, firstClassDate: offDay(-5) }, T2);
+  r = await req('POST', '/api/students/subject-operation', { operation: 'rename', studentId: 'n01-e2', studentIds: ['n01-e2'], oldSubject: n01Sub, newSubject: 'N01 / 另一组' }, T2);
+  ok(r.status === 200 && JSON.parse(db.prepare('SELECT subj_plans FROM students WHERE id = ?').get('n01-e').subj_plans)[n01Sub] === 8,
+    'N01 跨 owner 同名组互不阻塞' + (r.status !== 200 ? '（' + r.status + ' ' + (r.data && r.data.msg) + '）' : ''));
+  await req('POST', '/api/plan-requests/' + n01ReqE + '/cancel', {}, T1);
+
+  /* ---- N04：科目改名迁移预警身份，删除清除旧状态 ---- */
+  const n04Sub = 'N04 / 原科目', n04New = 'N04 / 新科目';
+  await req('POST', '/api/students', { id: 'n04-a', name: 'N04预警生', gradYear: '2027' }, T1);
+  await req('POST', '/api/plan/set', { studentId: 'n04-a', subject: n04Sub, plan: 8, firstClassDate: offDay(-5) }, T1);
+  r = await req('POST', '/api/alerts/action', { kind: 'planStall', refKey: 'n04-a|' + n04Sub, action: 'done' }, T1);
+  ok(r.status === 200, 'N04 建立完成态预警');
+  r = await req('POST', '/api/alerts/action', { kind: 'lowAcc', refKey: 'n04-a|' + n04Sub, action: 'snooze', snoozeUntil: today() }, T1);
+  ok(r.status === 200, 'N04 建立当日稍后处理预警');
+  r = await req('POST', '/api/students/subject-operation', { operation: 'rename', studentId: 'n04-a', studentIds: ['n04-a'], oldSubject: n04Sub, newSubject: n04New }, T1);
+  const n04Keys = db.prepare("SELECT kind,ref_key,snooze_until FROM alert_actions WHERE ref_key LIKE 'n04-a|%' ORDER BY kind").all();
+  ok(r.status === 200 && r.data.alerts === 2 && n04Keys.length === 2 && n04Keys.every(x=>x.ref_key === 'n04-a|' + n04New)
+    && n04Keys.some(x=>x.kind === 'lowAcc' && x.snooze_until === today()),
+  'N04 改名迁移 done/snooze 且保留到期日');
+  const n04State = (await req('GET', '/api/state', null, T1)).data.state;
+  ok(n04State.alertActions.some(a=>a.kind==='planStall' && a.refKey==='n04-a|' + n04New && a.action==='done'),
+    'N04 state 使用迁移后的新预警键');
+  r = await req('POST', '/api/students/subject-operation', { operation: 'delete', studentId: 'n04-a', studentIds: ['n04-a'], oldSubject: n04New }, T1);
+  ok(r.status === 200 && r.data.alerts === 2
+    && db.prepare("SELECT COUNT(*) c FROM alert_actions WHERE ref_key LIKE 'n04-a|%'").get().c === 0,
+  'N04 删除科目清除预警状态并计数');
+  await req('POST', '/api/plan/set', { studentId: 'n04-a', subject: n04New, plan: 5, firstClassDate: offDay(-1) }, T1);
+  ok(db.prepare("SELECT COUNT(*) c FROM alert_actions WHERE ref_key = ?").get('n04-a|' + n04New).c === 0,
+    'N04 重建同名科目不继承旧预警状态');
+
   /* ---- M5c：学生 JSON 列合并式更新（subj-fields） ---- */
   r = await req('PUT', '/api/students/' + stuA + '/subj-fields', { subjComments: { '学科 / AP / 微积分BC': '进步明显' } }, T1);
   ok(r.status === 200, 'subj-fields 保存评语成功');

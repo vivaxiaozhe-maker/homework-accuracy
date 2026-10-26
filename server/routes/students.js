@@ -57,6 +57,9 @@ router.post('/subject-operation', (req, res) => {
     const submitted = body.studentIds.slice().sort();
     if(submitted.length !== ids.length || submitted.some((id, i) => id !== ids[i])) fail(409, '学生组已变化，请刷新后重试');
     const inSql = ids.map(() => '?').join(',');
+    const pendingPlan = db.prepare(`SELECT 1 FROM plan_requests WHERE status = 'pending'
+                                    AND subject = ? AND student_id IN (${inSql}) LIMIT 1`).get(oldSubject, ...ids);
+    if(pendingPlan) fail(409, '该科目有待审批的计划修改申请，请先撤回后再改名或删除');
 
     const columns = ['subj_plans', 'subj_plan_set_at', 'subj_first_class', 'subj_comments', 'subj_advice', 'mock'];
     const readMap = value => {
@@ -77,7 +80,19 @@ router.post('/subject-operation', (req, res) => {
       }
     }
 
-    let recordCount = 0, missedCount = 0;
+    let recordCount = 0, missedCount = 0, alertCount = 0;
+    // 预警动作以 studentId|科目 为稳定键：改名随科目迁移，删除清除（详情保留在操作审计）
+    for(const sid of ids){
+      const oldKey = sid + '|' + oldSubject;
+      if(body.operation === 'rename'){
+        alertCount += db.prepare(`UPDATE alert_actions SET ref_key = ?
+                                  WHERE kind IN ('lowAcc','planStall') AND ref_key = ?`)
+          .run(sid + '|' + newSubject, oldKey).changes;
+      } else {
+        alertCount += db.prepare(`DELETE FROM alert_actions
+                                  WHERE kind IN ('lowAcc','planStall') AND ref_key = ?`).run(oldKey).changes;
+      }
+    }
     if(body.operation === 'rename'){
       recordCount = db.prepare(`UPDATE records SET subject = ? WHERE subject = ? AND student_id IN (${inSql})`)
         .run(newSubject, oldSubject, ...ids).changes;
@@ -121,8 +136,10 @@ router.post('/subject-operation', (req, res) => {
         .run(JSON.stringify(subjects), ...maps.map(map => JSON.stringify(map)), st.id);
     }
     logAudit(req.user, body.operation === 'rename' ? '重命名科目' : '删除科目', 'student', anchor.name,
-      body.operation === 'rename' ? oldSubject + ' → ' + newSubject : oldSubject + '（含 ' + recordCount + ' 条作业记录）', anchor.owner_id);
-    return { ok: true, updated: ids.length, records: recordCount, missed: missedCount };
+      (body.operation === 'rename' ? oldSubject + ' → ' + newSubject : oldSubject + '（含 ' + recordCount + ' 条作业记录）') +
+      (alertCount ? (body.operation === 'rename' ? '，迁移预警处理 ' : '，清除预警处理 ') + alertCount + ' 条' : ''),
+      anchor.owner_id);
+    return { ok: true, updated: ids.length, records: recordCount, missed: missedCount, alerts: alertCount };
   });
 
   try{
@@ -175,6 +192,12 @@ function setArchived(req, res, flag){
   // 同名组（同 owner 同名）一并操作
   const group = db.prepare('SELECT id FROM students WHERE owner_id = ? AND TRIM(name) = ?')
     .all(st.owner_id, st.name.trim()).map(r => r.id);
+  if(flag && group.length){
+    const inSql = group.map(() => '?').join(',');
+    const pendingPlan = db.prepare(`SELECT 1 FROM plan_requests WHERE status = 'pending'
+                                    AND student_id IN (${inSql}) LIMIT 1`).get(...group);
+    if(pendingPlan) return res.status(409).json({ ok: false, msg: '该学生有待审批的计划修改申请，请先撤回后再归档' });
+  }
   // v1.7.1：归档写 archived_at + 可选原因；恢复清空
   const reason = flag ? String((req.body && req.body.reason) || '').trim() : '';
   const upd = db.prepare('UPDATE students SET archived = ?, archived_at = ?, archived_reason = ? WHERE id = ?');

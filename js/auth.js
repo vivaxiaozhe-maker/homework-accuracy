@@ -151,10 +151,79 @@ async function refreshPushConfig(){
   const card = document.getElementById('push-config-card');
   if(!card) return;
   card.style.display = (isAdminView() && USE_API) ? '' : 'none';  // mock 演示环境无微信，隐藏
+  const deliveryCard = document.getElementById('push-delivery-card');
+  if(deliveryCard) deliveryCard.style.display = (isAdminView() && USE_API) ? '' : 'none';
   if(!USE_API) return;
   const r = await HttpApi._req('GET', '/api/push-config');
   pushConfigCache = (r && r.ok && r.config) ? normalizePushCfg(r.config) : normalizePushCfg(null);
   renderPushConfig();
+  refreshPushDeliveries();
+}
+/* ================= 通知投递结果（只读；不泄露 openid） ================= */
+let pushDeliveryStatus = 'all', pushDeliveryPage = 1, pushDeliveryPageSize = 20;
+const PUSH_DELIVERY_LABEL = { sent:'已送达', unbound:'未绑定', unsubscribed:'已取关', rate_limited:'限流未发', error:'发送失败' };
+const PUSH_DELIVERY_KIND = { homework:'作业成绩', mockBook:'模考预约', mockScore:'模考成绩' };
+async function refreshPushDeliveries(){
+  const card = document.getElementById('push-delivery-card');
+  if(!card) return;
+  if(!isAdminView() || !USE_API){ card.style.display = 'none'; return; }
+  card.style.display = '';
+  const r = await HttpApi.getPushDeliveries(pushDeliveryStatus, pushDeliveryPage, pushDeliveryPageSize);
+  renderPushDeliveries(r);
+}
+function pushDeliveryStatusSet(v){
+  pushDeliveryStatus = v || 'all'; pushDeliveryPage = 1; refreshPushDeliveries();
+}
+function pushDeliveryPageGo(delta){
+  pushDeliveryPage = Math.max(1, pushDeliveryPage + delta); refreshPushDeliveries();
+}
+function pushDeliveryPageSizeSet(v){
+  pushDeliveryPageSize = parseInt(v, 10) === 50 ? 50 : 20; pushDeliveryPage = 1; refreshPushDeliveries();
+}
+function renderPushDeliveries(r){
+  const list = document.getElementById('push-delivery-list');
+  const pager = document.getElementById('push-delivery-pager');
+  const count = document.getElementById('push-delivery-count');
+  if(!list || !pager) return;
+  if(!r || !r.ok){
+    if(count) count.textContent = '';
+    list.innerHTML = '<p class="hint">投递记录加载失败，请稍后重试。</p>';
+    pager.innerHTML = '';
+    return;
+  }
+  const items = Array.isArray(r.items) ? r.items : [];
+  pushDeliveryPage = r.page || 1; pushDeliveryPageSize = r.pageSize || 20;
+  if(count) count.textContent = '共 ' + (r.total || 0) + ' 条';
+  if(!items.length){
+    list.innerHTML = '<p class="hint">暂无符合条件的新投递记录。</p>';
+    pager.innerHTML = '';
+    return;
+  }
+  list.innerHTML = items.map(it=>{
+    const statusText = PUSH_DELIVERY_LABEL[it.status] || it.status;
+    const kindText = PUSH_DELIVERY_KIND[it.kind] || it.kind;
+    const cls = it.status === 'sent' ? 'mint' : (it.status === 'error' ? 'red' : 'amber');
+    return '<div class="push-delivery-item"><div class="grow">' +
+      '<span class="tag ' + cls + '">' + esc(statusText) + '</span>' +
+      '<b>' + esc(it.studentName) + '</b> ' +
+      (it.subject ? '<span class="tag mint">' + esc(shortSubject(it.subject)) + '</span>' : '') +
+      '<span class="tag sample">' + (it.manual ? '手动' : '自动') + '</span>' +
+      '<div class="hint">' + esc(kindText) + ' · ' + esc(it.recipient || '—') + ' · ' + esc(String(it.createdAt || '').replace('T',' ').slice(0,16)) +
+      ' · 操作人 ' + esc(it.actorName || '系统') + (it.reason ? ' · ' + esc(it.reason) : '') + '</div></div>' +
+      '<button type="button" class="btn ghost sm" onclick="pushDeliveryGoto(\'' + esc(jsStr(it.studentId)) + '\',\'' + esc(jsStr(it.subject || '')) + '\')">定位学生</button></div>';
+  }).join('');
+  const pages = r.pages || 1;
+  pager.className = 'today-pager';
+  pager.innerHTML = '<span class="pager-meta">第 ' + (r.page || 1) + ' / ' + pages + ' 页</span>' +
+    '<label>每页 <select id="push-delivery-size" onchange="pushDeliveryPageSizeSet(this.value)">' +
+    '<option value="20"' + (pushDeliveryPageSize===20?' selected':'') + '>20</option><option value="50"' + (pushDeliveryPageSize===50?' selected':'') + '>50</option></select> 条</label>' +
+    '<button type="button" class="btn ghost sm" onclick="pushDeliveryPageGo(-1)"' + ((r.page||1)<=1?' disabled':'') + '>上一页</button>' +
+    '<button type="button" class="btn ghost sm" onclick="pushDeliveryPageGo(1)"' + ((r.page||1)>=pages?' disabled':'') + '>下一页</button>';
+}
+function pushDeliveryGoto(studentId, subject){
+  const st = pool.students.find(s=>s.id===studentId);
+  if(!st){ toast('该学生已不在当前数据范围，无法定位'); return; }
+  dashGotoStudent(studentId, subject || undefined);
 }
 function renderPushConfig(){
   ['homework','mockBook','mockScore'].forEach(k=>{
@@ -239,6 +308,11 @@ function resolveStudentGroup(studentId){
     && s.name.trim().toLowerCase()===normalizedName).map(s=>s.id);
   return {student:student, ids:ids};
 }
+/* 同组待审批计划申请：科目操作按科目匹配，归档按整组匹配 */
+function pendingPlanInGroup(ids, subject){
+  return (pool.planRequests || []).find(r=>r.status==='pending' && ids.includes(r.studentId)
+    && (subject === undefined || r.subject === subject)) || null;
+}
 async function apiSubjectOperation(operation, repStu, ids, oldName, newName){
   try{
     const body = {operation:operation, studentId:repStu.id, studentIds:ids, oldSubject:oldName};
@@ -273,6 +347,7 @@ async function saveRenameSubject(){
   const group = resolveStudentGroup(renaming.gid);
   if(!group){ renaming = null; renderStats(); return; }
   const repStu = group.student, ids = group.ids;
+  if(pendingPlanInGroup(ids, oldName)){ toast('该科目有待审批的计划修改申请，请先撤回后再改名。'); return; }
   // 重名检查：该学生已有其他科目叫新名字
   const dup = state.records.some(r=>ids.includes(r.studentId) && r.subject===newName) ||
     state.missed.some(m=>ids.includes(m.studentId) && m.subject===newName) ||
@@ -327,6 +402,13 @@ async function saveRenameSubject(){
       delete s.subjPlanSetAt[oldName];
     }
   });
+  // 预警处理状态按 studentId|科目 引用：科目改名时同步迁移，避免 done/snooze 丢失
+  (pool.alertActions || []).forEach(a=>{
+    if((a.kind==='lowAcc' || a.kind==='planStall') && ids.includes(String(a.refKey).split('|')[0])
+      && String(a.refKey).split('|').slice(1).join('|')===oldName){
+      a.refKey = String(a.refKey).split('|')[0] + '|' + newName;
+    }
+  });
   // 若该科目的快速录入面板正打开，同步更新
   if(quickEntry && quickEntry.gid===renaming.gid && quickEntry.subject===oldName){
     quickEntry.subject = newName;
@@ -336,6 +418,7 @@ async function saveRenameSubject(){
   }
   renaming = null;
   logAction('重命名科目', 'student', repStu.name, oldName + ' → ' + newName, {ownerId: repStu.ownerId});
+  refreshView();  // 预警 refKey 已迁移，立即同步当前视图
   save();
   renderAll();
 }
@@ -346,6 +429,7 @@ function deleteSubject(){
   const group = resolveStudentGroup(renaming.gid);
   if(!group){ renaming = null; renderStats(); return; }
   const repStu = group.student, ids = group.ids;
+  if(pendingPlanInGroup(ids, oldName)){ toast('该科目有待审批的计划修改申请，请先撤回后再删除。'); return; }
   const nRecs = state.records.filter(r=>ids.includes(r.studentId) && r.subject===oldName).length;
   const nMiss = state.missed.filter(m=>ids.includes(m.studentId) && m.subject===oldName).length;
   askConfirm('删除科目', '确定删除科目「' + oldName + '」吗？该科目下的 ' + nRecs + ' 条作业记录' +
@@ -354,6 +438,11 @@ function deleteSubject(){
     if(USE_API){ await apiSubjectOperation('delete', repStu, ids, oldName); return; }
     pool.records = pool.records.filter(r=>!(ids.includes(r.studentId) && r.subject===oldName));
     pool.missed = pool.missed.filter(m=>!(ids.includes(m.studentId) && m.subject===oldName));
+    const alertBefore = (pool.alertActions || []).length;
+    pool.alertActions = (pool.alertActions || []).filter(a=>!(
+      (a.kind==='lowAcc' || a.kind==='planStall') && ids.includes(String(a.refKey).split('|')[0])
+      && String(a.refKey).split('|').slice(1).join('|')===oldName));
+    const alertCleared = alertBefore - pool.alertActions.length;
     state.students.forEach(s=>{
       if(ids.includes(s.id)){
         if(Array.isArray(s.subjects)) s.subjects = s.subjects.filter(x=>x!==oldName);
@@ -370,7 +459,9 @@ function deleteSubject(){
     if(slotEdit && ids.includes(slotEdit.gid) && slotEdit.subject===oldName) slotEdit = null;
     if(mockEdit && ids.includes(mockEdit.gid) && mockEdit.subject===oldName) mockEdit = null;
     renaming = null;
-    logAction('删除科目', 'student', repStu.name, oldName + '（含 ' + nRecs + ' 条作业记录）', {ownerId: repStu.ownerId});
+    logAction('删除科目', 'student', repStu.name, oldName + '（含 ' + nRecs + ' 条作业记录' +
+      (alertCleared ? '，清除预警处理 ' + alertCleared + ' 条' : '') + '）', {ownerId: repStu.ownerId});
+    refreshView();  // 已清除的预警动作立即退出当前视图
     save();
     renderAll();
   });
@@ -447,13 +538,17 @@ document.getElementById('ns-ok').addEventListener('click', ()=>{
 function archiveGroup(ids){
   const denied = ids.some(id=>{ const s = pool.students.find(x=>x.id===id); return !s || !canWriteOwner(s.ownerId); });
   if(denied){ toast('没有权限操作该数据'); return; }
-  askConfirm('转为历史学生', '该学生将从「现有学生」移到「历史学生」，录入下拉中不再出现；科目、作业记录、打卡、评语、模考等数据完整保留，可在历史板块查看（恢复为现有学生后可继续编辑）。确定吗？', (reason)=>{
+  if(pendingPlanInGroup(ids)){ toast('该学生有待审批的计划修改申请，请先撤回后再归档。'); return; }
+  askConfirm('转为历史学生', '该学生将从「现有学生」移到「历史学生」，录入下拉中不再出现；科目、作业记录、打卡、评语、模考等数据完整保留，可在历史板块查看（恢复为现有学生后可继续编辑）。确定吗？', async (reason)=>{
     const rs = (reason || '').trim();
+    if(USE_API){
+      const res = await HttpApi.setStudentArchived(ids[0], true, rs);  // 服务端确认成功后再改本地，避免被拦截却已归档
+      if(!res.ok){ toast(res.msg || '归档失败，请先处理待审批申请'); await resyncState(); return; }
+    }
     const nowIso = new Date().toISOString();
     pool.students.forEach(s=>{ if(ids.includes(s.id)){ s.archived = true; s.archivedAt = nowIso; s.archivedReason = rs; } });
     const st0 = pool.students.find(x=>x.id===ids[0]);
     logAction('归档学生', 'student', st0 ? st0.name : '', '转为历史学生' + (rs ? '，原因：' + rs : ''), {ownerId: st0 ? st0.ownerId : undefined});
-    apiPersist(HttpApi.setStudentArchived(ids[0], true, rs));  // 后端同步同名组（含归档时间/原因）
     save(); renderAll();
   }, { input: '归档原因（选填，如：已结课 / 已毕业）' });
 }
@@ -1051,7 +1146,7 @@ function renderDoneZone(){
     items.push({ kind:'miss', at:m.resolvedAt, resolution:m.resolution || 'made-up',
       name: st ? st.name : '（已删除学生）', subject: m.subject || '', date: m.date, ownerId: m.ownerId });
   });
-  (pool.planRequests || []).filter(r=>(r.status==='approved' || r.status==='rejected') && r.reviewedAt && r.reviewedAt >= winStart)
+  (pool.planRequests || []).filter(r=>(r.status==='approved' || r.status==='rejected' || r.status==='cancelled') && r.reviewedAt && r.reviewedAt >= winStart)
     .forEach(r=>{
       if(!isAdminView() && r.requestedBy !== currentUser.id) return;
       const st = pool.students.find(x=>x.id===r.studentId);
@@ -1118,8 +1213,9 @@ function renderDoneZone(){
         '<div style="font-size:13px;color:var(--ink2)">未交日期 ' + it.date + ' · 处理于 ' + it.at + '</div></div></div>';
     }
     const ap = it.status==='approved';
+    const cancelled = it.status==='cancelled';
     return '<div class="todo-item">' +
-      '<div class="grow"><span class="tag ' + (ap ? 'mint' : 'red') + '">' + (ap ? '已通过' : '已驳回') + '</span>' +
+      '<div class="grow"><span class="tag ' + (ap ? 'mint' : (cancelled ? 'amber' : 'red')) + '">' + (ap ? '已通过' : (cancelled ? '已失效' : '已驳回')) + '</span>' +
       '<span class="who">' + esc(it.name) + '</span>' +
       '<span class="tag mint">' + esc(shortSubject(it.subject)) + '</span>' +
       '<span style="font-size:13px"> ' + it.oldPlan + ' → ' + it.newPlan + ' 次</span>' +

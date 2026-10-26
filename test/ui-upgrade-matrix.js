@@ -1,19 +1,21 @@
-/* 校验 UI 迁移台账结构：93 个原 ID + 7 个 FIX ID；PASS 必须有证据，不允许整表提前全绿。 */
+/* 校验 UI 迁移台账结构：93 个原 ID + 7 个 FIX ID + 9 个上线后复查项；PASS 必须有证据。 */
 'use strict';
 const fs = require('fs');
 const path = require('path');
 const file = path.join(__dirname,'..','docs','ui-upgrade','migration-map.md');
 const text = fs.readFileSync(file,'utf8');
 const original = JSON.parse(fs.readFileSync(path.join(__dirname,'..','docs','ui-upgrade','source','01-完整功能对照矩阵.json'),'utf8'));
-const rows = text.split('\n').filter(x=>/^\| (?:[GTDSHPFACORU]\d{2}|FIX-[RS]\d{2}) \|/.test(x));
+const rows = text.split('\n').filter(x=>/^\| (?:[GTDSHPFACORU]\d{2}|FIX-[RS]\d{2}|N\d{2}|AUD-U\d{2}) \|/.test(x));
 const ids = rows.map(x=>x.split('|')[1].trim());
 const expected = new Set(original.map(x=>x.id));
-const originalIds = ids.filter(x=>!x.startsWith('FIX-'));
+const reviewIds = ids.filter(x=>/^N\d{2}$/.test(x) || x.startsWith('AUD-U'));
+const originalIds = ids.filter(x=>!x.startsWith('FIX-') && !reviewIds.includes(x));
 const fixIds = ids.filter(x=>x.startsWith('FIX-'));
 if(new Set(ids).size!==ids.length) throw new Error('迁移台账存在重复 ID');
 if(originalIds.length!==93 || originalIds.some(x=>!expected.has(x))) throw new Error('原 93 项 ID 缺失或多余');
 if(fixIds.length!==7) throw new Error('FIX 追加项必须为 7 项');
+if(reviewIds.length!==9) throw new Error('上线后复查追加项必须为 9 项');
 const pass = rows.filter(x=>x.includes('PASS'));
 if(pass.some(x=>!x.includes('evidence/'))) throw new Error('PASS 行缺少 evidence 链接');
 const notRun = rows.filter(x=>x.includes('NOT_RUN'));
-console.log('PASS  台账结构：93 原项 + 7 FIX，ID 唯一；' + pass.length + ' 项有证据 PASS，' + notRun.length + ' 项 NOT_RUN');
+console.log('PASS  台账结构：93 原项 + 7 FIX + 9 复查项，共 ' + rows.length + ' 项且 ID 唯一；' + pass.length + ' 项有证据 PASS，' + notRun.length + ' 项 NOT_RUN');
