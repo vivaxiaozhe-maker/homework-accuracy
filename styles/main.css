@@ -723,7 +723,30 @@ main{flex:1;min-width:0;max-width:none;padding:16px 24px 72px;margin:0}
 .dash-first-toggle{margin-top:6px}
 .dash-first-item{background:var(--mint-xl)}
 .dash-sub-filter{margin-top:12px}
-.dash-sub-pager{margin-top:4px}
+/* 学科维度专属：细条、独立数值列与阈值参考线；不影响学生页共用 subj 组件 */
+.dash-subject-list{display:flex;flex-direction:column;gap:4px}
+.dash-subject-guide{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 0 7px;border-bottom:1px solid var(--line);font-size:12px;color:var(--ink2)}
+.dash-subject-guide > span:last-child{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.dash-subject-guide i{display:inline-block;width:12px;height:0;margin-left:8px}
+.dash-subject-guide .dash-ref-60{border-top:1px dashed #D8A7A2}
+.dash-subject-guide .dash-ref-85{border-top:1px solid #8FC5B2}
+#dash-subject-results .dash-subject-row{display:grid;grid-template-columns:132px minmax(0,1fr) 48px 96px;gap:12px;min-height:28px}
+#dash-subject-results .subj-name{min-width:0;font-size:13px}
+#dash-subject-results .subj-bar{height:10px;min-width:0;border-radius:5px;background:#EDF4EF}
+#dash-subject-results .subj-bar::after{left:60%;border-left:1px dashed #D8A7A2;opacity:.8}
+#dash-subject-results .subj-bar::before{content:'';position:absolute;left:85%;top:0;bottom:0;border-left:1px solid #8FC5B2;opacity:.75;z-index:1}
+#dash-subject-results .subj-fill{border-radius:5px}
+#dash-subject-results .subj-pct{position:static;transform:none;text-align:right;font-size:13px;line-height:1.2}
+#dash-subject-results .subj-cnt{min-width:0;text-align:right;font-size:12px;white-space:nowrap}
+@media(max-width:640px){
+  .dash-subject-guide{align-items:flex-start;flex-direction:column;gap:3px}
+  .dash-subject-guide > span:last-child{white-space:normal}
+  #dash-subject-results .dash-subject-row{grid-template-columns:96px minmax(60px,1fr) 40px 80px;gap:6px}
+  #dash-subject-results .subj-name{font-size:12px}
+  #dash-subject-results .subj-pct{font-size:12px}
+  #dash-subject-results .subj-cnt{font-size:11px}
+}
+.dash-sub-pager{margin-top:12px}
 .dash-return-btn{margin-bottom:12px}
 .dash-bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;height:100%;min-width:0}
 .dash-bar-track{flex:0 0 86px;display:flex;align-items:flex-end;justify-content:center;width:100%}

@@ -318,19 +318,20 @@ function renderSubjectResults(d){
   dashSubjectPage = page.page; dashSubjectPageSize = page.pageSize;
   const rowsHtml = page.rows.map(x=>{
     const color = x.avg===null ? '#C9C2B0' : (x.avg>=85?'#4FA88B':(x.avg>=60?'#C7A75E':'#C95353'));
-    return '<div class="subj-row" data-subject-key="' + esc(x.key) + '">' +
+    return '<div class="subj-row dash-subject-row" data-subject-key="' + esc(x.key) + '">' +
       '<div class="subj-name' + (x.avg!==null && x.avg<60?' low':'') + '" title="' + esc(x.key) + '">' + esc(x.name) + '</div>' +
-      '<div class="subj-bar"><div class="subj-fill" style="width:' + (x.avg===null?0:x.avg) + '%;background:' + color + '"></div>' +
-      '<span class="subj-pct">' + (x.avg===null?'—':x.avg+'%') + '</span></div>' +
-      '<div class="subj-cnt" style="flex-basis:96px">' + x.cnt + ' 次 · ' + x.stuCnt + ' 人</div></div>';
+      '<div class="subj-bar"><div class="subj-fill" style="width:' + (x.avg===null?0:x.avg) + '%;background:' + color + '"></div></div>' +
+      '<div class="subj-pct">' + (x.avg===null?'—':x.avg+'%') + '</div>' +
+      '<div class="subj-cnt">' + x.cnt + ' 次 · ' + x.stuCnt + ' 人</div></div>';
   }).join('');
+  const guide = '<div class="dash-subject-guide"><span>平均正确率</span><span><i class="dash-ref-60"></i>60% 关注线 <i class="dash-ref-85"></i>85% 优秀线</span></div>';
   const pager = '<div class="today-pager dash-sub-pager"><span class="pager-meta">第 ' + page.start + '–' + page.end + ' 科 / 共 ' + page.total + ' 科</span>' +
     '<label>每页 <select id="dash-subject-size" onchange="dashSubjectPageSizeSet(this.value)"><option value="20"' + (page.pageSize===20?' selected':'') + '>20</option>' +
     '<option value="50"' + (page.pageSize===50?' selected':'') + '>50</option></select> 科</label>' +
     '<button type="button" class="btn ghost sm" onclick="dashSubjectPageGo(-1)"' + (page.page<=1?' disabled':'') + '>上一页</button>' +
     '<span class="pager-page">第 ' + page.page + ' / ' + page.pages + ' 页</span>' +
     '<button type="button" class="btn ghost sm" onclick="dashSubjectPageGo(1)"' + (page.page>=page.pages?' disabled':'') + '>下一页</button></div>';
-  box.innerHTML = (page.rows.length ? rowsHtml : '<p class="hint">没有符合条件的科目。</p>') + pager;
+  box.innerHTML = (page.rows.length ? '<div class="dash-subject-list">' + guide + rowsHtml + '</div>' : '<p class="hint">没有符合条件的科目。</p>') + pager;
   const clear = document.getElementById('dash-subject-clear');
   if(clear) clear.style.display = (subjectQuery || dashSubjectSort!=='cnt') ? '' : 'none';
 }
