@@ -6,7 +6,7 @@
 
 火箭学院内部系统：助教记录学生作业正确率/未交/模考/评语，教务管理全局，销售只读。家长通过微信服务号收模板消息推送（作业成绩/模考预约/模考成绩三类），点开 H5 落地页看详情。
 
-- 生产：https://xueqing.rocketacademy.com.cn（阿里云 ECS `root@47.113.184.105`，SSH 免密已配好，pm2 进程名 `xueqing`）。当前线上 v1.16.5（发布提交 `8b76e0f`）。发布、备份、回滚和未覆盖项见 `docs/ui-upgrade/release-checklist.md` 和 `docs/ui-upgrade/evidence/production-v1.16.5.md`
+- 生产：https://xueqing.rocketacademy.com.cn（阿里云 ECS `root@47.113.184.105`，SSH 免密已配好，pm2 进程名 `xueqing`）。当前线上 v1.16.7（发布提交 `0e167c4`）。发布、备份、回滚和未覆盖项见 `docs/ui-upgrade/release-checklist.md` 和 `docs/ui-upgrade/evidence/production-v1.16.7.md`
 - 演示站：GitHub Pages（仓库 github.com/vivaxiaozhe-maker/homework-accuracy，push 即更新，mock 模式数据存 localStorage）
 - 微信服务号密钥：只在生产服务器 `/opt/xueqing/ecosystem.config.js`，**不入库**
 
@@ -31,7 +31,7 @@
 - **计划审批**：待审批存在时，本科目禁止改名/删除，整组禁止归档；审批通过必须重读并核对 pending、归档、归属、科目存在性和 `old_plan`，状态失效则转 `cancelled` 并审计，不能写回旧键
 - **预警身份**：lowAcc/planStall 的 `ref_key = studentId|完整科目路径`；科目改名同事务迁移动作，删除清除状态并保留操作审计；历史回溯按新键展示
 - **通知投递**：`push_deliveries` 按接收人保存 sent/unbound/unsubscribed/rate_limited/error、显示名与原因，不存 openid；只读视图不自动重发、不改全站限流。`refreshPushDeliveries` 必须用递增请求序号+筛选/页码/登录身份校验丢弃旧响应；投递定位按 archived 进入现有/历史只读档案，时间用 Asia/Shanghai 显示北京时间
-- **看板口径**：历史工作量/均分/最近录入/趋势统一 `date <= today`（“全部”也截至今天，未来预录只在学生/历史/报告明细）；三项助教覆盖指标的分子分母同为当前在服务 studentId 集合，未交登记+补交成绩计两次行为，软删除未交不计
+- **看板口径**：历史工作量/均分/趋势统一 `date <= today`（“全部”也截至今天，未来预录只在学生/历史/报告明细）；三项助教覆盖指标的分子分母同为当前在服务 studentId 集合，未交登记+补交成绩计两次行为，软删除未交不计。最近作业日期取 `records.date`，最近操作时间取 `taActivity` 审计 ts，沉默优先按操作时间
 - **权限**：admin 全量、ta 仅名下（ownerId 归属）、sales 只读；解绑家长仅教务直解、助教走 unbind-request 审批
 - **推送**：保存成绩/预约模考/存模考分时按开关自动推 + 手动补推按钮；微信模板 character_string 字段不支持中文（无作业时填 `-`，中文信息靠落地页承载）
 - **家长绑定**：每学生最多 2 名有效绑定（扫码回调处硬限制）；openid 无含义，显示用 remark 备注或「家长 N」序号
@@ -39,8 +39,8 @@
 
 ## 工程规约
 
-- **版本号**：功能或行为变更必升版（当前线上 v1.16.5，仓库本地候选 v1.16.6；纯文档不升）。源文件 `学生作业正确率.html` 的 `#login-ver`+`#side-foot`、`js/data.js` `APP_VERSION`、smoke/e2e 版本断言同步；再从源文件 `cp` 到 `index.html`、`dist/index.html` 并用 `cmp` 校验
-- **测试**：三套全绿才交付——`node test/smoke.js`（当前 603 项）、`node test/e2e.api.js`（177 项）、`cd server && npm test --cache /tmp/npm-cache-xueqing`（472 项，9 个里程碑套件）。CSS 纯改动只跑 smoke；逻辑改动加 e2e；server 改动跑后端。大版本候选另跑 `node test/ui-upgrade-matrix.js`（112 项证据台账）和 `node test/ui-upgrade-fixtures.js`（空/基础/扩展/分页边界）
+- **版本号**：功能或行为变更必升版（当前线上与仓库均为 v1.16.7；纯文档不升）。源文件 `学生作业正确率.html` 的 `#login-ver`+`#side-foot`、`js/data.js` `APP_VERSION`、smoke/e2e 版本断言同步；再从源文件 `cp` 到 `index.html`、`dist/index.html` 并用 `cmp` 校验
+- **测试**：三套全绿才交付——`node test/smoke.js`（当前 606 项）、`node test/e2e.api.js`（179 项）、`cd server && npm test --cache /tmp/npm-cache-xueqing`（474 项，9 个里程碑套件）。CSS 纯改动只跑 smoke；逻辑改动加 e2e；server 改动跑后端。大版本候选另跑 `node test/ui-upgrade-matrix.js`（112 项证据台账）和 `node test/ui-upgrade-fixtures.js`（空/基础/扩展/分页边界）
 - **发布授权**：Git commit/push、生产备份和生产部署**每次都要用户明确授权**，不存在长期授权，AGENTS 不能自行扩权。大版本、后端、依赖或数据相关发布按 `docs/ui-upgrade/release-checklist.md`：在线备份 → 隔离恢复演练 → 隔离预发布 → 先后端再前端 → 线上验证
 - **`deploy.sh` 限制**：脚本会同步副本、跑 smoke、`git add -A`、push、scp 并重启；没有备份，且不保证“先后端再前端”。仅在用户明确同意且确认为小前端改动时使用；大版本按上面的受控流程手工执行。运行期间禁止其他进程改文件
 - **GitHub 网络**：repo 已配 `http.version=HTTP/1.1`（必须，HTTP/2 易挂）；443 断流时让用户开全局代理。不要擅自绕过 Git 直接 scp 生产来“补提交”，生产发布和 Git 操作都必须已获当次授权
@@ -62,4 +62,4 @@
 - **小活不派子代理**：边界清楚、单文件级的小改由主代理直接改（成本约为派代理的 1/5）；子代理只用于跨多文件的大功能
 - **任务书钉锚点**：派子代理时把行号/函数名/文件路径写进 brief，减少其探索消耗；涉及前后端联动的方案，两端改动点都在方案阶段钉死，避免"后端改了前端没跟上"式返工
 - **测试分层**：迭代期只跑受影响套件，部署前才跑全量三套
-- 测试断言总量不省（smoke 603＋e2e 177＋服务端 472，合计 1,249 项是线上零事故的保障）
+- 测试断言总量不省（smoke 606＋e2e 179＋服务端 474，合计 1,259 项是线上零事故的保障）
