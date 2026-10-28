@@ -94,7 +94,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.16.6', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.16.7', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -230,6 +230,11 @@ function ok(cond, name){
   await sleep(300);
   let st1 = await apiGetState();
   ok(st1.records.some(r=>r.studentId===sid && r.total===20 && r.correct===18), '录入作业已持久化到服务端');
+  const freshAdmin = await (await fetch(base + '/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:'admin',password:'admin456',role:'admin'}) })).json();
+  const adminState = await (await fetch(base + '/api/state', { headers: { Authorization: 'Bearer ' + freshAdmin.token } })).json();
+  ok(Array.isArray(adminState.state.taActivity) && adminState.state.taActivity.some(a=>a.ownerId===made.user.id && a.lastActionAt),
+    '教务 state 返回助教最近操作时间');
+  ok(!Object.prototype.hasOwnProperty.call(st1, 'taActivity'), '助教 state 不返回 taActivity 字段');
   const recId = wb.pool.records.find(r=>r.studentId===sid && r.total===20).id;
   ok(st1.records.some(r=>r.id===recId), '记录 id 客户端生成并贯穿（服务端与本地一致）');
 

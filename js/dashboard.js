@@ -56,13 +56,25 @@ function computeDash(){
   }
 
   // 助教维度对比（按范围内录入次数降序；≥7 天未录入标「沉默」）
-  // 口径：跨助教对比不受「助教筛选」下拉影响（否则选中某助教后其他人归零、被选中者跳到第一条——已踩过），时间范围过滤保留
+  // 最近作业日期 = records.date；最近操作时间 = 审计 ts，避免当天补录旧作业被误判为沉默
+  const activityActions = new Set(['录入作业','补录作业','修改作业','登记未交','补交未交','录入作业（无作业）','修改作业（无作业）']);
+  const activityRows = USE_API ? (pool.taActivity || []) : (pool.auditLogs || []).filter(l=>activityActions.has(l.action))
+    .map(l=>({ownerId:l.userId,lastActionAt:l.ts}));
+  const lastActionByOwner = new Map();
+  activityRows.forEach(a=>{
+    if(!a.ownerId || !a.lastActionAt) return;
+    const prev = lastActionByOwner.get(a.ownerId);
+    if(!prev || a.lastActionAt > prev) lastActionByOwner.set(a.ownerId,a.lastActionAt);
+  });
+  // 跨助教对比不受「助教筛选」下拉影响；时间范围过滤保留
   const taRows = tas.map(u=>{
     const ownerRecords = index.recordsByOwner.get(u.id) || [];
     const rs = ownerRecords.filter(r=>r.date <= t && (!start || r.date >= start));
     const ms = index.missedByOwner.get(u.id) || [];
     const allRs = ownerRecords.filter(r=>r.date <= t);
     const lastDate = allRs.length ? allRs.reduce((a,b)=>a.date>b.date?a:b).date : null;
+    const lastActionAt = lastActionByOwner.get(u.id) || null;
+    const activityDate = lastActionAt ? lastActionAt.slice(0,10) : lastDate;  // 历史无审计时向后兼容
     const stuActive = (index.studentsByOwner.get(u.id) || []).filter(s=>!s.archived);
     const activeIds = new Set(stuActive.map(s=>s.id));
     const activeRecs = allRs.filter(r=>activeIds.has(r.studentId));
@@ -76,8 +88,8 @@ function computeDash(){
       entryCover:planTotal>0 ? Math.round(entryCnt/planTotal*100) : null,
       perStu:stuWithEntry.length ? (entryCnt/stuWithEntry.length).toFixed(1) : null,
       recCnt:rs.length, avg:dashAvg(rs), missCnt:ms.filter(m=>!m.resolved).length,
-      overdueCnt:overdueCountByOwner.get(u.id) || 0, lastDate:lastDate,
-      silent:!lastDate || lastDate <= offsetDay(-7) };
+      overdueCnt:overdueCountByOwner.get(u.id) || 0, lastDate:lastDate, lastActionAt:lastActionAt,
+      silent:!activityDate || activityDate <= offsetDay(-7) };
   }).sort((a,b)=>b.recCnt-a.recCnt);
 
   const catMap = new Map(), subMapD = new Map();
@@ -208,7 +220,8 @@ function renderDashboard(scope){
     '<span class="grow"><b>' + esc(x.user.name) + '</b>' +
     (x.user.disabled ? ' <span class="tag red">已停用</span>' : '') +
     (x.silent ? ' <span class="tag amber">沉默</span>' : '') +
-    '<span class="hint" style="display:block;margin-top:2px">学生 ' + x.stuCnt + ' 人 · 最近录入 ' + (x.lastDate || '从未') + '</span>' +
+    '<span class="hint" style="display:block;margin-top:2px">学生 ' + x.stuCnt + ' 人 · 最近作业日期 ' + (x.lastDate || '从未') + '</span>' +
+    '<span class="hint" style="display:block;margin-top:2px">最近操作时间 ' + (x.lastActionAt ? x.lastActionAt.slice(0,16) : '无记录') + '</span>' +
     // 当前在服务覆盖指标：学生覆盖率 / 作业录入覆盖率 / 人均录入次数（实际录入含未交+补交两次行为）
     '<span class="hint" style="display:block;margin-top:2px;font-size:12px">学生覆盖 ' + (x.stuCover===null?'—':x.stuCover+'%') +
     ' · 录入覆盖 ' + (x.entryCover===null?'—':x.entryCover+'%') +
@@ -414,7 +427,7 @@ function openTaEntryModal(){
         (none ? '<span class="tag red">未录入</span>' : '<span class="tag mint">已录入 ' + x.recCnt + ' 次</span>') +
         (x.silent ? ' <span class="tag amber">≥7 天沉默</span>' : '') +
         (x.user.disabled ? ' <span class="tag red">已停用</span>' : '') +
-        '<div class="hint" style="margin-top:2px">最近录入：' + (x.lastDate || '从未') + '</div></div></div>';
+        '<div class="hint" style="margin-top:2px">最近作业日期：' + (x.lastDate || '从未') + ' · 最近操作时间：' + (x.lastActionAt ? x.lastActionAt.slice(0,16) : '无记录') + '</div></div></div>';
     }).join('') || '<p class="hint">暂无助教账号。</p>';
   document.getElementById('ta-entry-modal').classList.add('show');
 }

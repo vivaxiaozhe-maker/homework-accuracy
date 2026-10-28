@@ -42,7 +42,11 @@ router.get('/', (req, res) => {
     .map(a => ({ id: a.id, kind: a.kind, refKey: a.ref_key, action: a.action,
       actorId: a.actor_id, actorName: a.actor_name, note: a.note || '',
       createdAt: a.created_at, snoozeUntil: a.snooze_until || null }));
-  res.json({ ok: true, state: { students, records, missed, planRequests, alertActions } });
+  // 教务看板“最近操作时间”：复用审计时间，不把历史作业所属日期误认为实际操作时间
+  const taActivity = isAdmin ? db.prepare(`SELECT user_id AS ownerId, MAX(ts) AS lastActionAt FROM audit_logs
+    WHERE action IN (?,?,?,?,?,?,?) GROUP BY user_id`).all(
+    '录入作业', '补录作业', '修改作业', '登记未交', '补交未交', '录入作业（无作业）', '修改作业（无作业）') : [];
+  res.json({ ok: true, state: { students, records, missed, planRequests, alertActions, ...(isAdmin ? { taActivity } : {}) } });
 });
 
 module.exports = router;

@@ -1,0 +1,23 @@
+{
+  "environment": "isolated-full-page-synthetic",
+  "browser": "Kimi Code Desktop built-in Chromium",
+  "version": "v1.16.7",
+  "pass": 6,
+  "fail": 0,
+  "viewports": [
+    { "width": 1280, "pass": 3, "fail": 0, "documentWidth": 1272 },
+    { "width": 320, "pass": 3, "fail": 0, "documentWidth": 320 }
+  ],
+  "scenario": {
+    "homeworkDate": "2026-10-18",
+    "operationDate": "2026-10-28",
+    "lastDateIsHomeworkDate": true,
+    "lastActionAtIsAuditTime": true,
+    "silent": false
+  },
+  "checks": [
+    "同一助教同时显示最近作业日期和最近操作时间",
+    "当天补录历史作业不再被误判为沉默",
+    "1280/320 无横向溢出"
+  ]
+}

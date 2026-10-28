@@ -180,7 +180,7 @@ function ok(cond, name){
     && accGrp.indexOf('助教<span class="cnt">') < accGrp.indexOf('销售<span class="cnt">'), '组序：教务管理员 → 助教 → 销售');
   ok(/教务管理员<span class="cnt">1 个账号/.test(accGrp) && /助教<span class="cnt">3 个账号/.test(accGrp)
     && /销售<span class="cnt">1 个账号/.test(accGrp), '分组数量正确（教务 1 / 助教 3 / 销售 1）');
-  ok(html.indexOf('id="login-ver">v1.16.6') !== -1, '登录页版本号升至 v1.16.6');
+  ok(html.indexOf('id="login-ver">v1.16.7') !== -1, '登录页版本号升至 v1.16.7');
 
   /* ---- 账号删除（v1.9.2 NEW-01，mock 与 API 同规则）：tombstone + 阻断式 + 用户名锁定 ---- */
   {
@@ -1265,8 +1265,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.16.6') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.16.6」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.16.7') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.16.7」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -2509,6 +2509,29 @@ function ok(cond, name){
   r05Dash = wb.computeDash();
   ok(r05Dash.recCnt===1, 'R05：全部历史同样只统计截至今天的记录');
   wb.pool.students = r04Save.students; wb.pool.records = r04Save.records; wb.pool.missed = r04Save.missed;
+  wb.refreshView();
+
+  /* ---- 最近作业日期与最近操作时间拆分：当天补录旧作业不沉默 ---- */
+  const activityLogsBackup = wb.pool.auditLogs;
+  const activityTs = vm.runInContext('nowTs()',ctx);
+  wb.pool.students = [{id:'activity-stu',name:'补录活跃生',ownerId:ta1.id,archived:false}];
+  wb.pool.records = [{id:'activity-rec',studentId:'activity-stu',date:offDay(-10),total:176,correct:158,wrongs:[],subject:r01Sub,ownerId:ta1.id}];
+  wb.pool.auditLogs = [
+    {id:'activity-log',userId:ta1.id,userName:ta1.name,role:'ta',action:'录入作业',targetType:'record',targetDesc:'补录活跃生',detail:'',ts:activityTs,ownerId:ta1.id},
+    {id:'activity-login',userId:ta2.id,userName:ta2.name,role:'ta',action:'登录成功',targetType:'auth',targetDesc:'',detail:'',ts:activityTs,ownerId:ta2.id}
+  ];
+  wb.refreshView();
+  const activityRow = wb.computeDash().taRows.find(x=>x.user.id===ta1.id);
+  const activityOtherRow = wb.computeDash().taRows.find(x=>x.user.id===ta2.id);
+  ok(activityRow.lastDate===offDay(-10) && activityRow.lastActionAt===activityTs && activityRow.silent===false,
+    '最近作业日期与最近操作时间分离且当天补录不沉默');
+  ok(activityOtherRow.lastActionAt===null && activityOtherRow.silent===true, '登录成功不计入作业操作时间');
+  wb.doLogout(); await wb.doLogin('admin','admin456','admin');
+  wb.renderDashboard();
+  ok(documentStub.getElementById('dash-tas').innerHTML.indexOf('最近作业日期')!==-1
+    && documentStub.getElementById('dash-tas').innerHTML.indexOf('最近操作时间 ' + activityTs.slice(0,16))!==-1,
+    '助教看板同时显示两个日期口径');
+  wb.pool.auditLogs = activityLogsBackup; wb.pool.students = r04Save.students; wb.pool.records = r04Save.records; wb.pool.missed = r04Save.missed;
   wb.refreshView();
 
   /* ---- N09：销售搜索/详情的响应代次与身份保护（合成异步响应，不请求真实 API） ---- */

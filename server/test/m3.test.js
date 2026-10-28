@@ -131,6 +131,12 @@ function ok(cond, name){
   ok(r.status === 403, '越权：助教不能给他人学生录入');
   r = await req('PUT', '/api/records/' + recA, { date: today(), total: 20, correct: 19, wrongs: [7], subject: '学科 / AP / 微积分BC' }, T1);
   ok(r.status === 200, '编辑作业记录');
+  r = await req('GET', '/api/state', null, adminTok);
+  const expectedActivity = db.prepare("SELECT MAX(ts) AS ts FROM audit_logs WHERE user_id = ? AND action IN ('录入作业','补录作业','修改作业','登记未交','补交未交','录入作业（无作业）','修改作业（无作业）')").get(ta1.user.id).ts;
+  ok(r.data.state.taActivity.find(a=>a.ownerId===ta1.user.id).lastActionAt === expectedActivity,
+    '教务 state 按同类作业动作聚合最近操作时间');
+  r = await req('GET', '/api/state', null, T1);
+  ok(!Object.prototype.hasOwnProperty.call(r.data.state, 'taActivity'), '助教 state 不携带 taActivity 字段');
   r = await req('PUT', '/api/records/' + recA, { date: today(), total: 20, correct: 19, wrongs: [], subject: 'x' }, T2);
   ok(r.status === 403, '越权：助教不能改他人记录');
   // 转移归属连带
