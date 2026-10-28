@@ -1,0 +1,19 @@
+{
+  "environment": "isolated-full-page-synthetic",
+  "browser": "Kimi Code Desktop built-in Chromium",
+  "version": "v1.16.5",
+  "pass": 20,
+  "fail": 0,
+  "viewports": [
+    { "width": 1280, "height": 800, "pass": 5, "fail": 0, "alumniFilterHeight": 110, "documentWidth": 1280 },
+    { "width": 768, "height": 900, "pass": 5, "fail": 0, "alumniFilterHeight": 242, "documentWidth": 768 },
+    { "width": 375, "height": 812, "pass": 5, "fail": 0, "alumniFilterHeight": 242, "documentWidth": 375 },
+    { "width": 320, "height": 800, "pass": 5, "fail": 0, "alumniFilterHeight": 242, "documentWidth": 320 }
+  ],
+  "checks": [
+    "AUD-U05 第二页焦点为 today-group-head-miss，页码为第 21–21 条 / 共 21 条，aria-live=polite",
+    "AUD-U06 搜索、负责助教、归档范围、首字母和摘要均保留，桌面为紧凑网格，窄屏自然换行",
+    "AUD-U07 20 科均完整显示数量，documentWidth=viewport，无横向溢出",
+    "AUD-U07 320px 柱条位于第二行；0%、100%、长名称和无成绩均保留"
+  ]
+}

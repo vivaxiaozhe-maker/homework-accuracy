@@ -223,6 +223,7 @@ async function pushReportToParent(){
   if(!quickEntry) return;
   if(!USE_API){ toast('演示环境暂不支持推送（正式环境可用）'); return; }
   const r = await HttpApi.pushReport(quickEntry.gid, quickEntry.subject);
+  refreshPushDeliveries();  // 成功与失败投递均刷新；只读查询，不影响业务结果
   if(r.ok){ toast(pushFeedbackText(r)); return; }
   toast(pushFeedbackText(r));
   if(r.msg && r.msg.indexOf('未绑定') !== -1) openBindModal(quickEntry.gid);  // 未绑定 → 引导绑定
@@ -233,6 +234,7 @@ async function pushManual(kind){
   if(!quickEntry) return;
   if(!USE_API){ toast('演示环境暂不支持推送（正式环境可用）'); return; }
   const r = await HttpApi._req('POST', '/api/push/' + kind, { studentId: quickEntry.gid, subject: quickEntry.subject });
+  refreshPushDeliveries();  // 模考报名/成绩补推后同步最新投递记录
   if(r.ok){ toast(pushFeedbackText(r)); return; }
   toast(pushFeedbackText(r));
   if(r.msg && r.msg.indexOf('未绑定') !== -1) openBindModal(quickEntry.gid);  // 未绑定 → 引导绑定

@@ -44,7 +44,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>
       操作记录
     </button>
-    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.16.2</div>
+    <div class="side-foot" id="side-foot">演示环境 · 数据暂存本机 · v1.16.5</div>
   </aside>
 
   <main>
@@ -190,18 +190,19 @@
     <!-- 历史学生 -->
     <section id="pane-alumni" class="tab-pane">
       <button type="button" class="btn ghost sm dash-return-btn" id="push-return-alumni" style="display:none" onclick="pushDeliveryReturn()">← 返回通知投递结果</button>
-      <div class="card" style="padding:14px 20px">
+      <div class="card alumni-filter-card" style="padding:14px 20px">
         <div class="search-box">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           <input id="alumni-search" placeholder="按学生姓名或学校搜索，支持部分匹配">
         </div>
         <div id="alumni-ta-filter"></div>
         <!-- 归档时间范围筛选（近 30 天 / 全部） -->
-        <div style="margin-top:10px;display:flex;gap:8px">
+        <div class="alumni-range-filter" style="margin-top:10px;display:flex;gap:8px">
           <span class="sub-chip" id="alumni-range-30d" onclick="setAlumniRange('30d')">近 30 天归档</span>
           <span class="sub-chip active" id="alumni-range-all" onclick="setAlumniRange('all')">全部</span>
         </div>
         <div id="alumni-letter-bar"></div>
+        <div id="alumni-filter-meta"></div>
       </div>
       <div class="card">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="#3E9B7F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>历史学生（已毕业 / 已结课）</h2>
@@ -241,6 +242,8 @@
             <option value="sent">已送达</option>
           </select>
           <span id="push-delivery-count" class="push-delivery-count"></span>
+          <button type="button" class="btn ghost sm" id="push-delivery-refresh" onclick="refreshPushDeliveries()">刷新</button>
+          <span id="push-delivery-updated" class="hint" aria-live="polite"></span>
         </div>
         <div id="push-delivery-list"></div>
         <div id="push-delivery-pager"></div>
@@ -566,7 +569,7 @@
       助教 <b>ta1 / ta123456</b>（王助教）、<b>ta2 / ta123456</b>（李助教）<br>
       销售 <b>sales1 / sales123456</b>（张顾问）
     </div>
-    <div class="login-ver" id="login-ver">v1.16.2</div>
+    <div class="login-ver" id="login-ver">v1.16.5</div>
   </div>
 </div>
 

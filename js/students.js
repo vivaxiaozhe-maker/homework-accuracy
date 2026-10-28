@@ -28,8 +28,14 @@ function todayTaSet(key, oid){ todayTaFilter[key] = oid; todayPage[key] = 1; ren
 function todaySearchSet(key, value){
   todayQuery[key] = value; todayPage[key] = 1; renderToday(); restoreInputFocus('today-search-' + key);
 }
-function todayPageGo(key, delta){ todayPage[key] = (todayPage[key] || 1) + delta; renderToday(); }
-function todayPageSizeSet(key, value){ todayPageSize[key] = parseInt(value,10)===50 ? 50 : 20; todayPage[key] = 1; renderToday(); }
+function todayFocusPageStart(key){
+  const head = document.getElementById('today-group-head-' + key);
+  if(!head) return;
+  if(head.focus) head.focus({preventScroll:true});
+  if(head.scrollIntoView) head.scrollIntoView({block:'start',behavior:'smooth'});
+}
+function todayPageGo(key, delta){ todayPage[key] = (todayPage[key] || 1) + delta; renderToday(); todayFocusPageStart(key); }
+function todayPageSizeSet(key, value){ todayPageSize[key] = parseInt(value,10)===50 ? 50 : 20; todayPage[key] = 1; renderToday(); todayFocusPageStart(key); }
 function todayClearFilters(key){
   delete todayTaFilter[key]; delete todayQuery[key]; todayPage[key] = 1; renderToday();
 }
@@ -273,14 +279,14 @@ function renderToday(){
     const filterHtml = '<div class="today-filter">' + ownerHtml +
       '<input id="today-search-' + active.key + '" class="today-search" value="' + esc(todayQuery[active.key] || '') + '" placeholder="搜索学生或科目" aria-label="搜索学生或科目" oninput="todaySearchSet(\'' + active.key + '\',this.value)">' +
       (hasConditions ? '<button type="button" class="btn ghost sm" onclick="todayClearFilters(\'' + active.key + '\')">清除条件</button>' : '') + '</div>';
-    const pagerHtml = '<div class="today-pager"><span class="pager-meta" id="today-page-meta-' + active.key + '">第 ' + filtered.start + '–' + filtered.end + ' 条 / 共 ' + filtered.total + ' 条</span>' +
+    const pagerHtml = '<div class="today-pager"><span class="pager-meta" id="today-page-meta-' + active.key + '" aria-live="polite">第 ' + filtered.start + '–' + filtered.end + ' 条 / 共 ' + filtered.total + ' 条</span>' +
       '<label>每页 <select id="today-size-' + active.key + '" onchange="todayPageSizeSet(\'' + active.key + '\',this.value)">' +
       '<option value="20"' + (filtered.pageSize===20?' selected':'') + '>20</option><option value="50"' + (filtered.pageSize===50?' selected':'') + '>50</option></select> 条</label>' +
       '<button type="button" class="btn ghost sm" id="today-prev-' + active.key + '" onclick="todayPageGo(\'' + active.key + '\',-1)"' + (filtered.page<=1?' disabled':'') + '>上一页</button>' +
       '<span class="pager-page">第 ' + filtered.page + ' / ' + filtered.pages + ' 页</span>' +
       '<button type="button" class="btn ghost sm" id="today-next-' + active.key + '" onclick="todayPageGo(\'' + active.key + '\',1)"' + (filtered.page>=filtered.pages?' disabled':'') + '>下一页</button></div>';
     html = '<div class="today-grp" id="today-grp-' + active.key + '">' +
-      '<div class="today-grp-head" tabindex="0"><b>' + active.label + '</b><span class="grp-sub">' + active.sub + '</span>' +
+      '<div class="today-grp-head" id="today-group-head-' + active.key + '" tabindex="0"><b>' + active.label + '</b><span class="grp-sub">' + active.sub + '</span>' +
       '<span class="cnt">全部 ' + active.rows.length + (active.key==='miss' ? ' 次未交' : ' 条') + '</span></div>' +
       '<div class="today-grp-body">' + filterHtml +
       (filtered.rows.length ? filtered.rows.map(active.render).join('') : '<div class="today-empty">没有符合当前筛选条件的事项，请调整条件或清除筛选。</div>') +
@@ -649,7 +655,7 @@ function renderStats(){
         const arr = subMap[k] || [];
         const arrG = gradedRecs(arr);  // 徽章正确率排除无作业（次数仍含无作业——计入已完成）
         const sa = arrG.length ? Math.round(arrG.reduce((x,r)=>x+acc(r),0)/arrG.length) : null;
-        const isActive = quickEntry && quickEntry.gid===s.id && quickEntry.subject===k;
+        const isActive = quickEntry && g.ids.includes(quickEntry.gid) && quickEntry.subject===k;
         const isRenaming = renaming && renaming.gid===s.id && renaming.subject===k;
         const repStuCmt = state.students.find(x=>x.id===s.id);
         const hasCmt = !!(repStuCmt && repStuCmt.subjComments && repStuCmt.subjComments[k]);
@@ -718,7 +724,7 @@ function renderStats(){
       '<span style="margin-left:auto"><button class="btn ghost sm" onclick="archiveGroup([\'' + g.ids.map(id=>esc(jsStr(id))).join('\',\'') + '\'])">转为历史学生</button></span></div>' +
       subHtml +
       (addSubjGid===s.id ? addSubjPanelHtml(s.id) : '') +
-      (quickEntry && quickEntry.gid===s.id ? qePanelHtml() : '') +
+      (quickEntry && g.ids.includes(quickEntry.gid) ? qePanelHtml() : '') +
       missHtml +
       '</div>';
   };
@@ -889,34 +895,62 @@ function salesSubjectPanel(g, subject){
 }
 
 /* ================= 销售端（API 模式）：搜索/详情走服务端接口，本地不拉全量 ================= */
-let salesSubjApi = null;        // {id, subject} 当前展开的科目详情
+let salesSubjApi = null;        // {id, subject, view, roleKey} 当前展开的科目详情
 const salesDetailCache = {};    // studentId → 详情（接口返回）
-// 列表：GET /api/search/students?q=
+const salesListReqSeq = { active:0, alumni:0 };
+let salesDetailReqSeq = 0;
+function salesRoleKey(){ return currentUser ? currentUser.id + ':' + currentUser.role : 'anonymous'; }
+function salesViewContext(isAlumni){
+  const letters = (isAlumni ? alumniLetters : stuLetters).slice();
+  return { q:isAlumni ? alumniQuery : stuQuery, range:isAlumni ? alumniRange : '',
+    letters, lettersKey:letters.slice().sort().join(','), roleKey:salesRoleKey() };
+}
+function sameSalesViewContext(a, b){
+  return !!a && !!b && a.q===b.q && a.range===b.range && a.lettersKey===b.lettersKey && a.roleKey===b.roleKey;
+}
+function invalidateSalesRequests(){
+  salesListReqSeq.active++; salesListReqSeq.alumni++; salesDetailReqSeq++;
+  salesSubjApi = null;
+  Object.keys(salesDetailCache).forEach(k=>delete salesDetailCache[k]);
+}
+// 列表：GET /api/search/students?q=；新筛选/空查询/切页/退出均使旧代次失效
 async function renderSalesApiList(listEl, isAlumni){
-  const q = isAlumni ? alumniQuery : stuQuery;
-  if(!q){ listEl.innerHTML = '<p class="hint">输入学生姓名或学校进行查询</p>'; return; }
-  const r = await HttpApi._req('GET', '/api/search/students?q=' + encodeURIComponent(q));
+  const kind = isAlumni ? 'alumni' : 'active';
+  const seq = ++salesListReqSeq[kind];
+  const ctx = salesViewContext(isAlumni);
+  if(salesSubjApi && !sameSalesViewContext(salesSubjApi.view, ctx)){ salesSubjApi = null; salesDetailReqSeq++; }
+  if(!ctx.q){
+    listEl.innerHTML = '<p class="hint">输入学生姓名或学校进行查询</p>';
+    if(!isAlumni){ const metaEl = document.getElementById('stu-filter-meta'); if(metaEl) metaEl.innerHTML = ''; }
+    else { const metaEl = document.getElementById('alumni-filter-meta'); if(metaEl) metaEl.innerHTML = ''; }
+    return;
+  }
+  const r = await HttpApi._req('GET', '/api/search/students?q=' + encodeURIComponent(ctx.q));
+  const current = salesViewContext(isAlumni);
+  if(seq !== salesListReqSeq[kind] || !sameSalesViewContext(ctx, current)) return;
   if(!r.ok){ listEl.innerHTML = '<p class="hint">查询失败，请重试。</p>'; return; }
-  // 首字母筛选在服务端搜索结果上叠加（客户端后过滤）
-  const letters = isAlumni ? alumniLetters : stuLetters;
-  // 归档时间范围筛选（v1.7.2）：历史学生「近 30 天归档」在服务端结果上叠加；无归档时间的旧数据不进
-  const rangeStart = (isAlumni && alumniRange==='30d') ? offsetDay(-29) : null;
-  const items = r.students.filter(s=> (isAlumni ? s.archived : !s.archived) && matchLetters(s.name, letters)
+  // 首字母与归档范围基于请求时快照过滤，避免与当前筛选混用
+  const rangeStart = (isAlumni && ctx.range==='30d') ? offsetDay(-29) : null;
+  const items = r.students.filter(s=> (isAlumni ? s.archived : !s.archived) && matchLetters(s.name, ctx.letters)
     && (!rangeStart || (s.archivedAt && String(s.archivedAt).slice(0,10) >= rangeStart)));
   listEl.innerHTML = items.length
     ? items.map(s=>salesApiCard(s, isAlumni)).join('')
-    : '<p class="hint">没有匹配「' + esc(q) + '」的' + (isAlumni ? '历史' : '') + '学生。</p>';
-  // 列表是异步渲染的：若有展开中的科目详情且已缓存，渲染完成后自动回填面板（避免竞态）
-  if(salesSubjApi && salesDetailCache[salesSubjApi.id]) fillSalesApiPanel(salesSubjApi.id);
-  // 筛选区 meta 同步（v1.8.4 UI-03）：仅现有学生页（历史学生页无 meta 元素）
+    : '<p class="hint">没有匹配「' + esc(ctx.q) + '」的' + (isAlumni ? '历史' : '') + '学生。</p>';
+  // 仅回填仍属于当前查询、当前身份的展开详情
+  if(salesSubjApi && sameSalesViewContext(salesSubjApi.view, ctx) && salesDetailCache[salesSubjApi.id]) fillSalesApiPanel(salesSubjApi.id);
+  // 现有/历史筛选 meta 均只按当前响应更新
   if(!isAlumni){
     const metaEl = document.getElementById('stu-filter-meta');
     if(metaEl) metaEl.innerHTML = stuFilterMetaHtml(items.length);
+  }else{
+    const metaEl = document.getElementById('alumni-filter-meta');
+    if(metaEl) metaEl.innerHTML = alumniFilterMetaHtml(items.length);
   }
 }
 function fillSalesApiPanel(id){
   const el = document.getElementById('sales-api-panel-' + id);
-  if(el && salesSubjApi && salesSubjApi.id===id) el.innerHTML = salesApiPanel(salesDetailCache[id], salesSubjApi.subject);
+  if(el && salesSubjApi && salesSubjApi.id===id && salesSubjApi.roleKey===salesRoleKey() && salesDetailCache[id])
+    el.innerHTML = salesApiPanel(salesDetailCache[id], salesSubjApi.subject);
 }
 function salesApiCard(s, isAlumni){
   const subHtml = (s.subjects && s.subjects.length) ? '<div class="sub-acc">' + s.subjects.map(sub=>
@@ -940,17 +974,27 @@ function salesApiCard(s, isAlumni){
     (salesSubjApi && salesSubjApi.id===s.id ? '<div id="sales-api-panel-' + s.id + '"></div>' : '') +
     '</div>';
 }
-// 详情：GET /api/search/students/:id（带缓存），展开只读面板
+// 详情：GET /api/search/students/:id（带缓存）；只允许当前展开代次回填
 async function toggleSalesSubjectApi(id, subject, isAlumni){
-  salesSubjApi = (salesSubjApi && salesSubjApi.id===id && salesSubjApi.subject===subject) ? null : {id:id, subject:subject};
+  const collapsing = salesSubjApi && salesSubjApi.id===id && salesSubjApi.subject===subject;
+  salesDetailReqSeq++;
+  if(collapsing){
+    salesSubjApi = null;
+    if(isAlumni) renderAlumni(); else renderStats();
+    return;
+  }
+  const seq = salesDetailReqSeq;
+  const view = salesViewContext(isAlumni);
+  salesSubjApi = {id:id, subject:subject, view:view, roleKey:view.roleKey};
   if(isAlumni) renderAlumni(); else renderStats();
-  if(!salesSubjApi) return;
   if(!salesDetailCache[id]){
     const r = await HttpApi._req('GET', '/api/search/students/' + id);
+    if(seq !== salesDetailReqSeq || !salesSubjApi || salesSubjApi.id!==id || salesSubjApi.subject!==subject
+      || !sameSalesViewContext(salesSubjApi.view, salesViewContext(isAlumni))) return;
     if(!r.ok) return;
     salesDetailCache[id] = r.student;
   }
-  fillSalesApiPanel(id);  // 面板占位由 renderSalesApiList 渲染；此处先填一次，重绘时由列表末尾自动回填
+  fillSalesApiPanel(id);  // 面板占位由 renderSalesApiList 渲染；重绘时仅回填当前上下文
 }
 /* 只读科目详情面板（数据来自服务端）：打卡格子 + 评语 + 学习计划与建议 + 模考 */
 function salesApiPanel(st, subject){

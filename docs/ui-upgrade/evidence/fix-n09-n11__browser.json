@@ -1,0 +1,18 @@
+{
+  "environment": "isolated-synthetic-browser",
+  "browser": "Kimi Code Desktop built-in Chromium",
+  "version": "v1.16.3",
+  "pass": 9,
+  "fail": 0,
+  "results": [
+    { "name": "N09 甲→乙倒序", "status": "PASS", "actual": "最终仅显示审查乙" },
+    { "name": "N09 清空后旧名单不回流", "status": "PASS", "actual": "保持空关键词提示" },
+    { "name": "N09 历史筛选上下文", "status": "PASS", "actual": "按最新首字母上下文显示 Alina" },
+    { "name": "N09 旧详情不回填", "status": "PASS", "actual": "切换查询后详情面板为空" },
+    { "name": "N11 筛选倒序不混合", "status": "PASS", "actual": "仅显示审查乙，总数共 1 条匹配" },
+    { "name": "N11 连续加载仅一个请求", "status": "PASS", "actual": "连续两次操作只产生一个下一页请求" },
+    { "name": "N11 追加按 ID 去重", "status": "PASS", "actual": "分页一仅一次，分页二顺序追加" },
+    { "name": "N11 旧下一页不追加", "status": "PASS", "actual": "旧分页响应未混入新条件" },
+    { "name": "N11 登出旧响应失效", "status": "PASS", "actual": "旧退出前查询未渲染" }
+  ]
+}

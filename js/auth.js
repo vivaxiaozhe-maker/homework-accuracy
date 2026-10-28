@@ -171,22 +171,30 @@ function pushDeliveryResponseIsCurrent(seq, ctx){
 async function refreshPushDeliveries(){
   const card = document.getElementById('push-delivery-card');
   const list = document.getElementById('push-delivery-list');
+  const btn = document.getElementById('push-delivery-refresh');
+  const updated = document.getElementById('push-delivery-updated');
   const seq = ++pushDeliveryReqSeq;
   const ctx = { status:pushDeliveryStatus, page:pushDeliveryPage, pageSize:pushDeliveryPageSize, roleKey:pushDeliveryRoleKey() };
   if(!card) return;
   if(!isAdminView() || !USE_API){ card.style.display = 'none'; return; }
   card.style.display = '';
   if(list) list.dataset.busy = '1';
+  if(btn){ btn.disabled = true; btn.textContent = '刷新中…'; }
   try{
     const r = await HttpApi.getPushDeliveries(ctx.status, ctx.page, ctx.pageSize);
     if(!pushDeliveryResponseIsCurrent(seq, ctx)) return;
     renderPushDeliveries(r);
+    if(updated) updated.textContent = '更新于 ' + formatPushDeliveryTime(new Date().toISOString());
   }catch(e){
     if(!pushDeliveryResponseIsCurrent(seq, ctx)) return;
     renderPushDeliveries(null);
+    if(updated) updated.textContent = '刷新失败，可重试';
   }finally{
     // 旧请求不得清除新请求的 loading 状态；真正最新的一次才允许结束 loading
-    if(seq === pushDeliveryReqSeq && list) delete list.dataset.busy;
+    if(seq === pushDeliveryReqSeq){
+      if(list) delete list.dataset.busy;
+      if(btn){ btn.disabled = false; btn.textContent = '刷新'; }
+    }
   }
 }
 function pushDeliveryStatusSet(v){
@@ -273,6 +281,7 @@ function pushDeliveryGoto(studentId, subject){
     stuSelectedId = null;
     switchTab('alumni');
     alumniRange = 'all'; alumniQuery = st.name; alumniTaFilter = st.ownerId; alumniLetters = [];
+    const inp = document.getElementById('alumni-search'); if(inp) inp.value = st.name;
     renderAlumni();
     return;
   }
@@ -638,6 +647,22 @@ let alumniRange = 'all';
 let alumniTaFilter = 'all';
 function setAlumniRange(v){ alumniRange = v; renderAlumni(); }
 function setAlumniTaFilter(v){ alumniTaFilter = v; renderAlumni(); }
+function alumniFilterMetaHtml(count){
+  const taFiltered = isAdminView() && alumniTaFilter !== 'all';
+  if(!alumniQuery && !alumniLetters.length && !taFiltered && alumniRange==='all') return '';
+  const parts = [];
+  if(alumniQuery) parts.push('搜索「' + esc(alumniQuery) + '」');
+  if(alumniLetters.length) parts.push('首字母 ' + alumniLetters.join('/'));
+  if(taFiltered) parts.push('助教 ' + esc(ownerName(alumniTaFilter)));
+  if(alumniRange==='30d') parts.push('近 30 天归档');
+  return '命中 <b>' + count + '</b> 个历史学生 · 筛选中：' + parts.join(' + ') +
+    ' <span class="sub-chip" tabindex="0" style="margin-left:6px" onclick="clearAlumniFilters()">清除</span>';
+}
+function clearAlumniFilters(){
+  alumniQuery = ''; alumniLetters = []; alumniRange = 'all'; alumniTaFilter = 'all';
+  const inp = document.getElementById('alumni-search'); if(inp) inp.value = '';
+  renderAlumni();
+}
 document.getElementById('alumni-search').addEventListener('input', function(){
   alumniQuery = this.value.trim();
   renderAlumni();
@@ -683,6 +708,8 @@ function renderAlumni(){
     && matchLetters(g.name, alumniLetters)
     && (!isAdminView() || alumniTaFilter==='all' || g.ownerId===alumniTaFilter)
     && (!rangeStart || (g.archivedAt && g.archivedAt.slice(0,10) >= rangeStart)));
+  const alumniMeta = document.getElementById('alumni-filter-meta');
+  if(alumniMeta) alumniMeta.innerHTML = alumniFilterMetaHtml(filtered.length);
   // 销售视角：无关键字只展示示例历史学生（演示用），真实学生仍需搜索
   if(isSalesView()){
     if(USE_API){ renderSalesApiList(list, true); return; }  // API 模式：搜索走服务端
@@ -742,7 +769,7 @@ function renderAlumni(){
         const arr = subMap[k] || [];
         const arrG = gradedRecs(arr);  // 徽章正确率排除无作业（次数含无作业——计入已完成）
         const sa = arrG.length ? Math.round(arrG.reduce((x,r)=>x+acc(r),0)/arrG.length) : null;
-        const isActive = quickEntry && quickEntry.gid===s.id && quickEntry.subject===k;
+        const isActive = quickEntry && g.ids.includes(quickEntry.gid) && quickEntry.subject===k;
         const repStuCmt = state.students.find(x=>x.id===s.id);
         const hasCmt = !!(repStuCmt && repStuCmt.subjComments && repStuCmt.subjComments[k]);
         const planCnt = (repStuCmt && repStuCmt.subjPlans && repStuCmt.subjPlans[k]) || null;
@@ -784,7 +811,7 @@ function renderAlumni(){
       (recs.length ? '<span>最近正确率 <b>' + (lastGraded ? acc(lastGraded) + '%' : '—') + '</b></span>' : '') +
       '<span style="margin-left:auto"><button class="btn ghost sm" onclick="restoreGroup([\'' + g.ids.map(id=>esc(jsStr(id))).join('\',\'') + '\'])">恢复为现有学生</button></span></div>' +
       subHtml +
-      (quickEntry && quickEntry.gid===s.id ? qePanelHtml() : '') +
+      (quickEntry && g.ids.includes(quickEntry.gid) ? qePanelHtml() : '') +
       missHtml +
       '</div>';
   }).join('');
@@ -897,6 +924,8 @@ document.getElementById('btn-clear-all').addEventListener('click', ()=>{
 
 /* ================= 登录与会话 ================= */
 function showLogin(){
+  if(typeof invalidateSalesRequests==='function') invalidateSalesRequests();
+  if(typeof invalidateAuditRequests==='function') invalidateAuditRequests();
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app').style.display = 'none';
 }
@@ -1362,26 +1391,46 @@ function renderAudit(){
     : '';
 }
 /* API 模式：审计查询走服务端（GET /api/audit-logs），搜索/筛选/分页服务端完成；「加载更多」按页累加 */
-let auditApiPage = 1;
+let auditApiPage = 1, auditApiReqSeq = 0, auditApiLoading = false;
 const auditApiItems = [];
+function auditRoleKey(){ return currentUser ? currentUser.id + ':' + currentUser.role : 'anonymous'; }
+function auditQueryContext(){ return { q:auditQuery, type:auditType, range:auditRange, roleKey:auditRoleKey() }; }
+function sameAuditQueryContext(a, b){ return a.q===b.q && a.type===b.type && a.range===b.range && a.roleKey===b.roleKey; }
+function invalidateAuditRequests(){
+  auditApiReqSeq++; auditApiLoading = false; auditApiPage = 1; auditApiItems.length = 0;
+}
 async function renderAuditApi(append){
   const list = document.getElementById('audit-list');
   const cntEl = document.getElementById('audit-count');
   const moreEl = document.getElementById('audit-more');
   if(!currentUser || currentUser.role==='sales'){ list.innerHTML = ''; cntEl.textContent = ''; moreEl.innerHTML = ''; return; }
+  if(append && auditApiLoading) return;  // 连续点击只允许一个下一页请求
+  const seq = append ? auditApiReqSeq : ++auditApiReqSeq;
+  const ctx = auditQueryContext();
   if(!append){ auditApiPage = 1; auditApiItems.length = 0; }
-  const r = await HttpApi._req('GET', '/api/audit-logs?q=' + encodeURIComponent(auditQuery) +
-    '&type=' + encodeURIComponent(auditType) + '&range=' + auditRange + '&page=' + auditApiPage + '&pageSize=50');
-  if(!r.ok){ cntEl.textContent = r.msg || '加载失败'; return; }
-  auditApiItems.push.apply(auditApiItems, r.items);
-  cntEl.textContent = '共 ' + r.total + ' 条匹配';
-  list.innerHTML = auditApiItems.length ? auditApiItems.map(auditRowHtml).join('') : '<p class="hint">暂无匹配的操作记录。</p>';
-  moreEl.innerHTML = auditApiItems.length < r.total
-    ? '<button class="btn ghost sm" style="width:100%" onclick="auditLoadMore()">加载更多（已显示 ' + auditApiItems.length + '/' + r.total + ' 条）</button>'
-    : '';
+  const page = append ? auditApiPage + 1 : 1;
+  auditApiLoading = true;
+  try{
+    const r = await HttpApi._req('GET', '/api/audit-logs?q=' + encodeURIComponent(ctx.q) +
+      '&type=' + encodeURIComponent(ctx.type) + '&range=' + ctx.range + '&page=' + page + '&pageSize=50');
+    if(seq !== auditApiReqSeq || !sameAuditQueryContext(ctx, auditQueryContext())) return;
+    if(!r.ok){ cntEl.textContent = r.msg || '加载失败'; return; }
+    if(append){
+      const seen = new Set(auditApiItems.map(x=>x.id));
+      auditApiItems.push.apply(auditApiItems, r.items.filter(x=>!seen.has(x.id)));
+    }else auditApiItems.push.apply(auditApiItems, r.items);
+    auditApiPage = page;  // 仅当前请求成功后推进页码
+    cntEl.textContent = '共 ' + r.total + ' 条匹配';
+    list.innerHTML = auditApiItems.length ? auditApiItems.map(auditRowHtml).join('') : '<p class="hint">暂无匹配的操作记录。</p>';
+    moreEl.innerHTML = auditApiItems.length < r.total
+      ? '<button class="btn ghost sm" style="width:100%" onclick="auditLoadMore()">加载更多（已显示 ' + auditApiItems.length + '/' + r.total + ' 条）</button>'
+      : '';
+  }finally{
+    if(seq === auditApiReqSeq) auditApiLoading = false;  // 旧请求不得结束新请求的 loading
+  }
 }
 function auditLoadMore(){
-  if(USE_API){ auditApiPage++; renderAuditApi(true); return; }
+  if(USE_API){ renderAuditApi(true); return; }
   auditShown += 50; renderAudit();
 }
 /* 教务审批：通过直接生效；驳回需确认 */

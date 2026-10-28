@@ -19,7 +19,8 @@ function makeEl(id){
       contains(c){ return this._s.has(c); }
     },
     addEventListener(){}, removeEventListener(){},
-    appendChild(){}, click(){}, focus(){}, select(){}
+    appendChild(){}, click(){}, focus(){ this.dataset.focused = '1'; }, select(){},
+    scrollIntoView(args){ this.dataset.scrolled = JSON.stringify(args || {}); }
   };
 }
 const _els = {};
@@ -179,7 +180,7 @@ function ok(cond, name){
     && accGrp.indexOf('助教<span class="cnt">') < accGrp.indexOf('销售<span class="cnt">'), '组序：教务管理员 → 助教 → 销售');
   ok(/教务管理员<span class="cnt">1 个账号/.test(accGrp) && /助教<span class="cnt">3 个账号/.test(accGrp)
     && /销售<span class="cnt">1 个账号/.test(accGrp), '分组数量正确（教务 1 / 助教 3 / 销售 1）');
-  ok(html.indexOf('id="login-ver">v1.16.2') !== -1, '登录页版本号升至 v1.16.2');
+  ok(html.indexOf('id="login-ver">v1.16.5') !== -1, '登录页版本号升至 v1.16.5');
 
   /* ---- 账号删除（v1.9.2 NEW-01，mock 与 API 同规则）：tombstone + 阻断式 + 用户名锁定 ---- */
   {
@@ -505,7 +506,8 @@ function ok(cond, name){
   ok(documentStub.getElementById('stu-list').innerHTML.indexOf('tabindex="0" onclick="toggleQuickEntry') !== -1,
     'UI-06：科目徽章可键盘聚焦（tabindex=0）');
   wb.renderToday();
-  ok(documentStub.getElementById('today-list').innerHTML.indexOf('today-grp-head" tabindex="0"') !== -1, 'UI-06：待办分组头可键盘聚焦');
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf('today-grp-head" id="today-group-head-') !== -1
+    && documentStub.getElementById('today-list').innerHTML.indexOf('tabindex="0"') !== -1, 'UI-06：待办分组头可键盘聚焦');
   ok(allText.indexOf("e.key === 'Escape'") !== -1 && allText.indexOf('binds-modal') !== -1, 'UI-06：Esc 统一关闭弹窗（含绑定管理/二维码/报告预览/转移归属）');
   // 弹窗初始焦点：转移归属落下拉、确认弹窗输入落输入框
   wb.doLogout();
@@ -895,6 +897,11 @@ function ok(cond, name){
   vm.runInContext("todayPageGo('miss',1)",ctx);
   ok(pgCount()===1 && pgMeta()==='第 21–21 条 / 共 21 条'
     && documentStub.getElementById('today-list').innerHTML.indexOf('pg-0021')!==-1, '第二页仅显示最后 1 条且记录身份正确');
+  const pgHead = documentStub.getElementById('today-group-head-miss');
+  ok(pgHead.dataset.focused==='1' && (pgHead.dataset.scrolled||'').indexOf('"block":"start"')!==-1,
+    'AUD-U05 翻页后焦点与滚动定位到当前组开头');
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf('id="today-page-meta-miss" aria-live="polite"')!==-1,
+    'AUD-U05 页数变化提供可访问提示');
   vm.runInContext("todayPageSizeSet('miss',50)",ctx);
   ok(pgCount()===21 && pgMeta()==='第 1–21 条 / 共 21 条', '每页 50 时完整 21 条可达');
   vm.runInContext("todaySearchSet('miss','不存在的学生')",ctx);
@@ -1205,8 +1212,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.16.2') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.16.2」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.16.5') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.16.5」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -2450,6 +2457,162 @@ function ok(cond, name){
   ok(r05Dash.recCnt===1, 'R05：全部历史同样只统计截至今天的记录');
   wb.pool.students = r04Save.students; wb.pool.records = r04Save.records; wb.pool.missed = r04Save.missed;
   wb.refreshView();
+
+  /* ---- N09：销售搜索/详情的响应代次与身份保护（合成异步响应，不请求真实 API） ---- */
+  wb.doLogout();
+  await wb.doLogin('sales1', 'sales123456', 'sales');
+  wb.setUseApi(true);
+  const n09OriginalReq = vm.runInContext('HttpApi._req',ctx);
+  const n09Reqs = [];
+  ctx.__n09OriginalReq = n09OriginalReq;
+  ctx.n09Reqs = n09Reqs;
+  vm.runInContext('HttpApi._req=(method,url)=>new Promise((resolve,reject)=>n09Reqs.push({url,resolve,reject}));',ctx);
+  const n09Student = (id,name,extra)=>Object.assign({id,name,school:'',gradYear:'',ownerName:'合成助教',recCnt:1,missCnt:0,lastAcc:80,subjects:[],archived:false},extra||{});
+  wb.setStuQuery('审查甲'); wb.setStuQuery('审查乙');
+  n09Reqs[1].resolve({ok:true,students:[n09Student('n09-b','审查乙')]}); await new Promise(r=>setTimeout(r,0));
+  n09Reqs[0].resolve({ok:true,students:[n09Student('n09-a','审查甲')]}); await new Promise(r=>setTimeout(r,0));
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('审查乙')!==-1
+    && documentStub.getElementById('stu-list').innerHTML.indexOf('审查甲')===-1, 'N09 销售搜索旧成功不覆盖最新关键词');
+  wb.setStuQuery('旧失败甲'); wb.setStuQuery('最新乙');
+  n09Reqs[3].resolve({ok:true,students:[n09Student('n09-new','最新乙')]}); await new Promise(r=>setTimeout(r,0));
+  n09Reqs[2].resolve({ok:false,msg:'旧失败'}); await new Promise(r=>setTimeout(r,0));
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('最新乙')!==-1
+    && documentStub.getElementById('stu-list').innerHTML.indexOf('查询失败')===-1, 'N09 销售搜索旧失败不覆盖最新结果');
+  wb.setStuQuery('待清空'); wb.setStuQuery('');
+  n09Reqs[4].resolve({ok:true,students:[n09Student('n09-clear','待清空')]}); await new Promise(r=>setTimeout(r,0));
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('输入学生姓名或学校进行查询')!==-1
+    && documentStub.getElementById('stu-list').innerHTML.indexOf('待清空')===-1, 'N09 清空后旧名单不回流');
+  wb.setAlumniQuery('Alina');
+  vm.runInContext("toggleLetter('alumni','A')",ctx);
+  n09Reqs[6].resolve({ok:true,students:[n09Student('n09-alina','Alina',{archived:true})]}); await new Promise(r=>setTimeout(r,0));
+  n09Reqs[5].resolve({ok:true,students:[n09Student('n09-old-letter','审查历史',{archived:true})]}); await new Promise(r=>setTimeout(r,0));
+  ok(documentStub.getElementById('alumni-list').innerHTML.indexOf('Alina')!==-1
+    && documentStub.getElementById('alumni-list').innerHTML.indexOf('审查历史')===-1, 'N09 历史列表保留最新首字母上下文');
+  vm.runInContext("setAlumniRange('30d');setAlumniRange('all')",ctx);
+  n09Reqs[8].resolve({ok:true,students:[n09Student('n09-range','Alina',{archived:true,archivedAt:offDay(-40)})]}); await new Promise(r=>setTimeout(r,0));
+  n09Reqs[7].resolve({ok:true,students:[]}); await new Promise(r=>setTimeout(r,0));
+  ok(documentStub.getElementById('alumni-list').innerHTML.indexOf('Alina')!==-1
+    && documentStub.getElementById('alumni-list').innerHTML.indexOf('没有匹配')===-1, 'N09 历史归档范围旧响应不覆盖');
+  wb.setStuQuery('登出旧查询'); wb.doLogout();
+  n09Reqs[9].resolve({ok:true,students:[n09Student('n09-logout','登出旧查询')]}); await new Promise(r=>setTimeout(r,0));
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('登出旧查询')===-1, 'N09 登出后旧搜索不渲染');
+
+  wb.setUseApi(false); await wb.doLogin('sales1','sales123456','sales'); wb.setUseApi(true);
+  wb.setStuQuery('详情生');
+  n09Reqs[10].resolve({ok:true,students:[n09Student('n09-d','详情生',{subjects:[{subject:'AMC10',avg:80,cnt:1}]})]}); await new Promise(r=>setTimeout(r,0));
+  wb.toggleSalesSubjectApi('n09-d','AMC10',false);
+  n09Reqs[11].resolve({ok:true,students:[n09Student('n09-d','详情生',{subjects:[{subject:'AMC10',avg:80,cnt:1}]})]}); await new Promise(r=>setTimeout(r,0));
+  wb.setStuQuery('新条件');
+  n09Reqs[12].resolve({ok:true,student:{id:'n09-d',subjects:[{subject:'AMC10',plan:1,done:0,items:[]}],subjComments:{},subjAdvice:{},mock:{}}});
+  await new Promise(r=>setTimeout(r,0));
+  ok(documentStub.getElementById('sales-api-panel-n09-d').innerHTML==='' && wb.salesSubjApi===null,
+    'N09 切换查询后旧详情不回填');
+  n09Reqs[13].resolve({ok:true,students:[]}); await new Promise(r=>setTimeout(r,0));
+  vm.runInContext('HttpApi._req=__n09OriginalReq',ctx);
+
+  /* ---- N11：审计筛选/追加/登出的响应代次与分页保护 ---- */
+  wb.setUseApi(false); await wb.doLogin('admin','admin456','admin'); wb.setUseApi(true);
+  const n11OriginalReq = vm.runInContext('HttpApi._req',ctx);
+  const n11Reqs = [];
+  ctx.__n11OriginalReq = n11OriginalReq;
+  ctx.n11Reqs = n11Reqs;
+  vm.runInContext('HttpApi._req=(method,url)=>new Promise((resolve,reject)=>n11Reqs.push({url,resolve,reject}));',ctx);
+  const n11Log = (id,desc)=>({id,ts:'2026-10-28 10:00:00',userName:'合成教务',role:'admin',targetType:'record',action:'合成操作',targetDesc:desc,detail:''});
+  const n11Page = (items,total,page)=>({ok:true,items,total,page,pageSize:50});
+  wb.setAuditQuery('审查甲'); wb.setAuditQuery('审查乙');
+  n11Reqs[1].resolve(n11Page([n11Log('n11-b','审查乙')],1,1)); await new Promise(r=>setTimeout(r,0));
+  n11Reqs[0].resolve(n11Page([n11Log('n11-a','审查甲')],1,1)); await new Promise(r=>setTimeout(r,0));
+  ok(documentStub.getElementById('audit-list').innerHTML.indexOf('审查乙')!==-1
+    && documentStub.getElementById('audit-list').innerHTML.indexOf('审查甲')===-1
+    && documentStub.getElementById('audit-count').textContent==='共 1 条匹配', 'N11 审计旧查询不混合最新结果与总数');
+  wb.setAuditQuery('旧失败'); wb.setAuditQuery('最新成功');
+  n11Reqs[3].resolve(n11Page([n11Log('n11-new','最新成功')],1,1)); await new Promise(r=>setTimeout(r,0));
+  n11Reqs[2].resolve({ok:false,msg:'旧失败'}); await new Promise(r=>setTimeout(r,0));
+  ok(documentStub.getElementById('audit-list').innerHTML.indexOf('最新成功')!==-1
+    && documentStub.getElementById('audit-count').textContent==='共 1 条匹配', 'N11 审计旧失败不覆盖最新成功');
+  wb.setAuditQuery('分页'); n11Reqs[4].resolve(n11Page([n11Log('n11-p1','分页一')],100,1)); await new Promise(r=>setTimeout(r,0));
+  wb.auditLoadMore(); wb.auditLoadMore();
+  ok(n11Reqs.length===6, 'N11 连续加载更多阻止并发重复请求');
+  n11Reqs[5].resolve(n11Page([n11Log('n11-p1','分页一'),n11Log('n11-p2','分页二')],100,2)); await new Promise(r=>setTimeout(r,0));
+  ok((documentStub.getElementById('audit-list').innerHTML.match(/分页一/g)||[]).length===1
+    && documentStub.getElementById('audit-list').innerHTML.indexOf('分页二')!==-1, 'N11 追加页按日志 ID 去重且保持顺序');
+  wb.setAuditQuery('旧分页'); n11Reqs[6].resolve(n11Page([n11Log('n11-old1','旧页一')],100,1)); await new Promise(r=>setTimeout(r,0));
+  wb.auditLoadMore(); wb.setAuditQuery('新条件');
+  n11Reqs[8].resolve(n11Page([n11Log('n11-newq','新条件')],1,1)); await new Promise(r=>setTimeout(r,0));
+  n11Reqs[7].resolve(n11Page([n11Log('n11-old2','旧页二')],100,2)); await new Promise(r=>setTimeout(r,0));
+  ok(documentStub.getElementById('audit-list').innerHTML.indexOf('新条件')!==-1
+    && documentStub.getElementById('audit-list').innerHTML.indexOf('旧页二')===-1, 'N11 旧查询下一页不得追加到新查询');
+  wb.setAuditQuery('退出旧查询'); wb.doLogout();
+  n11Reqs[9].resolve(n11Page([n11Log('n11-out','退出旧查询')],1,1)); await new Promise(r=>setTimeout(r,0));
+  ok(documentStub.getElementById('audit-list').innerHTML.indexOf('退出旧查询')===-1, 'N11 登出后旧审计响应不渲染');
+  vm.runInContext('HttpApi._req=__n11OriginalReq',ctx);
+  wb.setUseApi(false);
+
+  /* ---- N10：普通导航与推送完成均刷新投递记录 ---- */
+  await wb.doLogin('admin','admin456','admin'); wb.setUseApi(true);
+  const n10OriginalGet = vm.runInContext('HttpApi.getPushDeliveries',ctx);
+  const n10OriginalReq = vm.runInContext('HttpApi._req',ctx);
+  ctx.__n10OriginalGet = n10OriginalGet; ctx.__n10OriginalReq = n10OriginalReq;
+  const n10Rows = []; ctx.n10Rows = n10Rows; ctx.n10Reads = 0;
+  vm.runInContext("pushDeliveryStatus='all';pushDeliveryPage=1;pushDeliveryPageSize=20;",ctx);
+  vm.runInContext("HttpApi.getPushDeliveries=(status,page,size)=>{n10Reads++;return Promise.resolve({ok:true,total:n10Rows.length,page:1,pages:1,pageSize:size,items:n10Rows.slice()});};",ctx);
+  const n10Item = (id,status)=>({id,createdAt:'2026-10-28T00:30:00.000Z',kind:'mockScore',studentId:'n10-stu',studentName:'合成学生',actorName:'合成教务',subject:'AMC10',recipient:'家长 1',status:status||'sent',reason:'',manual:true});
+  ctx.n10Item = n10Item;
+  await vm.runInContext('refreshPushDeliveries()',ctx);
+  ok(documentStub.getElementById('push-delivery-count').textContent==='共 0 条', 'N10 初始投递为空');
+  n10Rows.push(n10Item('n10-nav'));
+  vm.runInContext("switchTab('data')",ctx); await new Promise(r=>setTimeout(r,0));
+  ok(vm.runInContext('n10Reads',ctx)===2 && documentStub.getElementById('push-delivery-count').textContent==='共 1 条', 'N10 侧栏进入教务管理自动刷新');
+  vm.runInContext("HttpApi.pushReport=()=>{n10Rows.push(n10Item('n10-report'));return Promise.resolve({ok:true,results:[]});};",ctx);
+  wb.setQuickEntry({gid:'n10-stu',subject:'AMC10'});
+  await vm.runInContext('pushReportToParent()',ctx); await new Promise(r=>setTimeout(r,0));
+  ok(vm.runInContext('n10Reads',ctx)===3 && documentStub.getElementById('push-delivery-count').textContent==='共 2 条', 'N10 报告推送后刷新投递');
+  vm.runInContext("HttpApi._req=(method,url)=>{n10Rows.push(n10Item('n10-manual'));return Promise.resolve({ok:true,results:[]});};",ctx);
+  await vm.runInContext("pushManual('mockScore')",ctx); await new Promise(r=>setTimeout(r,0));
+  ok(vm.runInContext('n10Reads',ctx)===4 && documentStub.getElementById('push-delivery-count').textContent==='共 3 条'
+    && documentStub.getElementById('push-delivery-refresh').disabled===false
+    && documentStub.getElementById('push-delivery-updated').textContent.indexOf('更新于 北京时间')!==-1, 'N10 模考补推后刷新并更新完成状态');
+  vm.runInContext("HttpApi.getPushDeliveries=()=>Promise.reject(new Error('合成读取失败'));",ctx);
+  await vm.runInContext('refreshPushDeliveries()',ctx);
+  ok(documentStub.getElementById('push-delivery-updated').textContent==='刷新失败，可重试'
+    && documentStub.getElementById('push-delivery-refresh').disabled===false, 'N10 读取失败允许重试并恢复按钮');
+  vm.runInContext('HttpApi.getPushDeliveries=__n10OriginalGet;HttpApi._req=__n10OriginalReq',ctx);
+  wb.setUseApi(false); wb.setQuickEntry(null);
+
+  /* ---- N07-R：历史筛选可见/可清除，同名组非首 ID 展开目标科目 ---- */
+  const n07rSub = 'N07R / 目标科目';
+  wb.pool.students.push(
+    {id:'n07r-a1',name:'N07R同名生',ownerId:ta1.id,archived:true,subjects:[n07rSub],subjPlans:{[n07rSub]:2}},
+    {id:'n07r-a2',name:'N07R同名生',ownerId:ta1.id,archived:true,subjects:[n07rSub],subjPlans:{[n07rSub]:2}}
+  );
+  wb.pool.records.push({id:'n07r-rec',studentId:'n07r-a2',date:offDay(-2),total:10,correct:8,wrongs:[1,2],subject:n07rSub,images:[],ownerId:ta1.id});
+  wb.refreshView();
+  vm.runInContext("pushDeliveryGoto('n07r-a2','" + n07rSub + "')",ctx);
+  const n07rAlumniHtml = documentStub.getElementById('alumni-list').innerHTML;
+  ok(documentStub.getElementById('alumni-search').value==='N07R同名生'
+    && documentStub.getElementById('alumni-filter-meta').innerHTML.indexOf('搜索「N07R同名生」')!==-1
+    && documentStub.getElementById('alumni-filter-meta').innerHTML.indexOf('清除')!==-1, 'N07-R 历史姓名输入框与筛选摘要同步');
+  ok(n07rAlumniHtml.indexOf('sub-chip active')!==-1 && n07rAlumniHtml.indexOf('作业打卡')!==-1,
+    'N07-R 历史同名组非首 ID 自动展开目标科目');
+  vm.runInContext('clearAlumniFilters()',ctx);
+  ok(vm.runInContext("alumniQuery==='' && alumniRange==='all' && alumniTaFilter==='all'",ctx)===true
+    && documentStub.getElementById('alumni-search').value===''
+    && documentStub.getElementById('alumni-filter-meta').innerHTML==='', 'N07-R 清除历史筛选恢复完整范围');
+  wb.pool.students.filter(s=>s.id==='n07r-a1'||s.id==='n07r-a2').forEach(s=>s.archived=false);
+  wb.refreshView(); vm.runInContext("pushDeliveryGoto('n07r-a2','" + n07rSub + "')",ctx);
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('sub-chip active')!==-1
+    && documentStub.getElementById('stu-list').innerHTML.indexOf('作业打卡')!==-1, 'N07-R 现有同名组非首 ID 自动展开目标科目');
+  wb.pool.students = wb.pool.students.filter(s=>s.id!=='n07r-a1'&&s.id!=='n07r-a2');
+  wb.pool.records = wb.pool.records.filter(r=>r.id!=='n07r-rec'); wb.setQuickEntry(null); wb.refreshView();
+
+  /* ---- AUD-U06/U07：历史筛选紧凑布局与极窄屏图表两行网格 ---- */
+  ok(html.indexOf('class="card alumni-filter-card"')!==-1 && html.indexOf('class="alumni-range-filter"')!==-1
+    && allText.indexOf('.alumni-filter-card{display:grid')!==-1 && allText.indexOf('.alumni-filter-card #alumni-letter-bar{grid-column:1/-1')!==-1,
+    'AUD-U06 历史搜索/助教/范围采用紧凑网格且保留字母与摘要');
+  ok(allText.indexOf('@media(max-width:359px)')!==-1
+    && allText.indexOf('#dash-subject-results .subj-cnt{grid-column:3;grid-row:1}')!==-1
+    && allText.indexOf('#dash-subject-results .subj-bar{grid-column:1/-1;grid-row:2;width:100%}')!==-1,
+    'AUD-U07 320px 图表数量保留首行且柱条独占第二行');
 
   // R06：空字符串与纯空白都是有效草稿，只有显式 null 才清除
   vm.runInContext("draftSave('r06-stu','r06-sub','comment','')", ctx);

@@ -1,0 +1,16 @@
+{
+  "environment": "isolated-full-page-synthetic",
+  "browser": "Kimi Code Desktop built-in Chromium",
+  "version": "v1.16.4",
+  "pass": 7,
+  "fail": 0,
+  "results": [
+    { "name": "N07-R 历史输入框与摘要", "status": "PASS", "actual": "姓名、归属助教、命中数和清除入口均可见" },
+    { "name": "N07-R 历史非首 ID 展开", "status": "PASS", "actual": "历史学生目标科目自动展开" },
+    { "name": "N07-R 清除恢复范围", "status": "PASS", "actual": "关键词、范围及筛选摘要复位" },
+    { "name": "N07-R 现有非首 ID 展开", "status": "PASS", "actual": "现有学生目标科目自动展开" },
+    { "name": "N10 普通导航自动刷新", "status": "PASS", "actual": "第二次读取后显示共 1 条" },
+    { "name": "N10 报告推送后刷新", "status": "PASS", "actual": "第三次读取后显示共 2 条" },
+    { "name": "N10 模考补推后刷新", "status": "PASS", "actual": "第四次读取后显示共 3 条，按钮恢复并显示北京时间更新时间" }
+  ]
+}

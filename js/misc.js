@@ -203,6 +203,7 @@ function archivedStudents(){ return state.students.filter(s=>s.archived); }
 /* topbar 主标题 = 当前页签名称（产品名只在侧栏品牌区出现，顶部不再重复） */
 const TAB_TITLES = { today:'今日概览', dashboard:'数据看板', stats:'现有学生', alumni:'历史学生', accounts:'账号管理', data:'教务管理', audit:'操作记录' };
 function switchTab(name){
+  if(typeof invalidateSalesRequests==='function') invalidateSalesRequests();  // 切页后旧销售搜索/详情不得回流
   // 评语/建议有未保存修改时提醒（不阻塞切页）
   if(typeof qeDirtyToast==='function') qeDirtyToast();
   // 角色页签守卫：教务=全部 6 个；助教=今日/现有/历史/数据；销售=仅现有/历史
@@ -224,6 +225,7 @@ function switchTab(name){
   if(name==='alumni') renderAlumni();
   if(name==='accounts') renderAccounts();
   if(name==='audit') renderAudit();
+  if(name==='data') refreshPushDeliveries();  // 普通进入教务管理也刷新投递；只读，不自动重发
   window.scrollTo({top:0, behavior:'smooth'});
   return name;
 }

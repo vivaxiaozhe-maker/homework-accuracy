@@ -467,7 +467,25 @@ main{flex:1;min-width:0;max-width:none;padding:16px 24px 72px;margin:0}
 #stu-letter-bar{min-width:0;overflow:hidden}
 #stu-letter-bar .letter-bar{margin-top:0;padding:0;max-width:100%}
 #stu-filter-meta{grid-column:1/-1;min-width:0}
-#stu-filter-meta:empty{display:none}
+#stu-filter-meta:empty,#alumni-filter-meta:empty{display:none}
+#alumni-filter-meta{min-width:0;margin-top:8px;font-size:13px}
+/* 历史筛选桌面紧凑网格：搜索/助教/归档范围一行，字母与摘要自然换行 */
+.alumni-filter-card{display:grid;grid-template-columns:minmax(220px,1fr) minmax(170px,240px) auto;gap:8px 12px;align-items:center}
+.alumni-filter-card .search-box{margin:0;min-width:0}
+.alumni-filter-card .search-box input{min-height:40px;padding:8px 10px;font-size:14px}
+.alumni-filter-card #alumni-ta-filter{min-width:0}
+.alumni-filter-card .stu-ta-select-label{display:flex;align-items:center;gap:6px;margin-top:0;white-space:nowrap}
+.alumni-filter-card .stu-ta-select-label select{min-height:40px;width:100%;max-width:none;font-size:13px}
+.alumni-filter-card .alumni-range-filter{margin-top:0!important;display:flex;gap:8px;white-space:nowrap}
+.alumni-filter-card #alumni-letter-bar{grid-column:1/-1;min-width:0}
+.alumni-filter-card #alumni-letter-bar .letter-bar{margin-top:0;padding:0}
+.alumni-filter-card #alumni-filter-meta{grid-column:1/-1;margin-top:0}
+@media(max-width:768px){
+  .alumni-filter-card{grid-template-columns:1fr}
+  .alumni-filter-card .alumni-range-filter{white-space:normal;flex-wrap:wrap}
+  .alumni-filter-card #alumni-letter-bar,.alumni-filter-card #alumni-filter-meta{grid-column:1}
+  .alumni-filter-card .search-box input,.alumni-filter-card .stu-ta-select-label select{min-height:50px}
+}
 @media (max-width:1100px){
   .stu-filter-row{grid-template-columns:minmax(0,1fr) minmax(150px,220px)}
   #stu-letter-bar{grid-column:1/-1}
@@ -745,6 +763,14 @@ main{flex:1;min-width:0;max-width:none;padding:16px 24px 72px;margin:0}
   #dash-subject-results .subj-name{font-size:12px}
   #dash-subject-results .subj-pct{font-size:12px}
   #dash-subject-results .subj-cnt{font-size:11px}
+}
+@media(max-width:359px){
+  /* 极窄屏改为两行：名称/百分比/数量在上，细条占下一整行，不再裁切右列 */
+  #dash-subject-results .dash-subject-row{grid-template-columns:minmax(0,1fr) 44px 84px;gap:5px 6px;min-height:40px}
+  #dash-subject-results .subj-name{grid-column:1;grid-row:1}
+  #dash-subject-results .subj-pct{grid-column:2;grid-row:1}
+  #dash-subject-results .subj-cnt{grid-column:3;grid-row:1}
+  #dash-subject-results .subj-bar{grid-column:1/-1;grid-row:2;width:100%}
 }
 .dash-sub-pager{margin-top:12px}
 .dash-return-btn{margin-bottom:12px}
