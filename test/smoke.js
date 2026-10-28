@@ -180,7 +180,7 @@ function ok(cond, name){
     && accGrp.indexOf('助教<span class="cnt">') < accGrp.indexOf('销售<span class="cnt">'), '组序：教务管理员 → 助教 → 销售');
   ok(/教务管理员<span class="cnt">1 个账号/.test(accGrp) && /助教<span class="cnt">3 个账号/.test(accGrp)
     && /销售<span class="cnt">1 个账号/.test(accGrp), '分组数量正确（教务 1 / 助教 3 / 销售 1）');
-  ok(html.indexOf('id="login-ver">v1.16.5') !== -1, '登录页版本号升至 v1.16.5');
+  ok(html.indexOf('id="login-ver">v1.16.6') !== -1, '登录页版本号升至 v1.16.6');
 
   /* ---- 账号删除（v1.9.2 NEW-01，mock 与 API 同规则）：tombstone + 阻断式 + 用户名锁定 ---- */
   {
@@ -831,8 +831,8 @@ function ok(cond, name){
   vm.runInContext("todayExpandKey = null; todayTaFilter = {}", ctx);
   wb.renderToday();
   let tfHtml = documentStub.getElementById('today-list').innerHTML;
-  ok(tfHtml.indexOf('id="today-owner-miss"') !== -1 && tfHtml.indexOf('全部助教 ') !== -1, '教务视角组内渲染完整助教筛选下拉');
-  ok(tfHtml.indexOf(ta1.name + ' ') !== -1 && tfHtml.indexOf(ta2.name + ' ') !== -1, '助教下拉含两位归属助教及各自条数');
+  ok(tfHtml.indexOf('today-owner-summary') !== -1 && tfHtml.indexOf('id="today-owner-miss-all"') !== -1, '教务视角默认展示助教统计按钮区');
+  ok(tfHtml.indexOf('data-owner-id="' + ta1.id + '"') !== -1 && tfHtml.indexOf('data-owner-id="' + ta2.id + '"') !== -1, '统计区含两位归属助教及各自数量');
   vm.runInContext("todayTaSet('miss','" + ta2.id + "')", ctx);
   tfHtml = documentStub.getElementById('today-list').innerHTML;
   const missOnly = tfHtml.split('id="today-grp-miss"')[1].split('id="today-grp-lowAcc"')[0] || '';
@@ -864,6 +864,59 @@ function ok(cond, name){
   wb.pool.students = wb.pool.students.filter(s=>s.id!=='tf-s1' && s.id!=='tf-s2');
   wb.pool.missed = wb.pool.missed.filter(m=>m.id!=='tf-m1' && m.id!=='tf-m2' && m.id!=='tf-m3');
   wb.refreshView();
+  /* ---- 今日概览助教统计：全量计数、独立筛选、零值/未知归属与焦点恢复 ---- */
+  const tsPool = {students:wb.pool.students,records:wb.pool.records,missed:wb.pool.missed,planRequests:wb.pool.planRequests,alertActions:wb.pool.alertActions};
+  const tsSub1 = '学科 / AP / 统计', tsSub2 = '学科 / AP / 心理';
+  wb.pool.students = [
+    {id:'ts-s1',name:'统计甲生',ownerId:ta1.id,archived:false,subjects:[tsSub1,tsSub2],subjPlans:{[tsSub1]:5,[tsSub2]:5},subjPlanSetAt:{[tsSub1]:dAgo(-30),[tsSub2]:dAgo(-30)},subjFirstClass:{[tsSub1]:dAgo(-40),[tsSub2]:dAgo(-40)}},
+    {id:'ts-s2',name:'统计乙生',ownerId:ta2.id,archived:false},
+    {id:'ts-s3',name:'未知归属生',ownerId:'ghost-owner',archived:false}
+  ];
+  wb.pool.records = [
+    {id:'ts-r1',studentId:'ts-s1',date:dAgo(-3),total:20,correct:5,wrongs:[1],subject:'低分甲',ownerId:ta1.id},
+    {id:'ts-r2',studentId:'ts-s1',date:dAgo(-2),total:20,correct:8,wrongs:[2],subject:'低分甲',ownerId:ta1.id},
+    {id:'ts-r3',studentId:'ts-s1',date:dAgo(-1),total:20,correct:10,wrongs:[3],subject:'低分乙',ownerId:ta1.id}
+  ];
+  wb.pool.missed = [
+    {id:'ts-m1',studentId:'ts-s1',date:dAgo(-2),subject:'未交甲',resolved:false,ownerId:ta1.id},
+    {id:'ts-m2',studentId:'ts-s1',date:dAgo(-1),subject:'未交乙',resolved:false,ownerId:ta1.id},
+    {id:'ts-m3',studentId:'ts-s2',date:dAgo(-1),subject:tsSub1,resolved:false,ownerId:ta2.id},
+    {id:'ts-m4',studentId:'ts-s3',date:dAgo(-1),subject:tsSub1,resolved:false,ownerId:'ghost-owner'}
+  ];
+  wb.pool.planRequests = []; wb.pool.alertActions = []; wb.refreshView();
+  vm.runInContext("todayExpandKey=null;todayTaFilter={};todayQuery={};renderToday()",ctx);
+  const tsCount = (key,oid)=>{
+    const html = documentStub.getElementById('today-list').innerHTML;
+    const m = html.match(new RegExp('id="today-owner-' + key + '-' + oid + '"[\\s\\S]*?today-owner-count">(\\d+)</span>'));
+    return m ? Number(m[1]) : -1;
+  };
+  ok(tsCount('miss','all')===4 && tsCount('miss',ta1.id)===2 && tsCount('miss',ta2.id)===1 && tsCount('miss','ghost-owner')===1,
+    '助教统计各桶求和等于全部且未知归属不丢失');
+  const tsInitialHtml = documentStub.getElementById('today-list').innerHTML;
+  ok(tsInitialHtml.indexOf('id="today-owner-miss-all"') < tsInitialHtml.indexOf('data-owner-id="' + ta1.id + '"')
+    && tsInitialHtml.indexOf('today-owner-stat zero')!==-1 && tsInitialHtml.indexOf('aria-pressed="false"')!==-1,
+    '全部固定首位、零值助教保留且按钮提供选中语义');
+  vm.runInContext("todayTaSet('miss','" + ta2.id + "')",ctx);
+  ok(tsCount('miss','all')===4 && tsCount('miss',ta1.id)===2
+    && documentStub.getElementById('today-list').innerHTML.indexOf('已选 <b>' + ta2.name + '</b> <b>1</b> 条')!==-1
+    && documentStub.getElementById('today-owner-miss-' + ta2.id).dataset.focused==='1', '点选助教只过滤明细且统计不变并恢复焦点');
+  vm.runInContext("todaySearchSet('miss','无匹配关键词')",ctx);
+  ok(tsCount('miss','all')===4 && tsCount('miss',ta1.id)===2
+    && documentStub.getElementById('today-list').innerHTML.indexOf('当前搜索匹配 <b>0</b> 条')!==-1, '搜索只改变匹配数不让其他统计归零');
+  vm.runInContext("todayClearFilters('miss');todayCatGo('overdue')",ctx);
+  ok(tsCount('overdue','all')===2 && tsCount('overdue',ta1.id)===2, '逾期统计按学生乘科目事项计数');
+  vm.runInContext("todayCatGo('lowAcc')",ctx);
+  ok(tsCount('lowAcc','all')===2 && tsCount('lowAcc',ta1.id)===2, '低分统计按学生乘科目聚合并排除重复低分');
+  const zeroTaId = vm.runInContext("getUsersCache().find(u=>u.role==='ta' && u.id!=='" + ta1.id + "' && u.id!=='" + ta2.id + "').id",ctx);
+  vm.runInContext("todayCatGo('miss');todayTaSet('miss','" + zeroTaId + "')",ctx);
+  ok(documentStub.getElementById('today-list').innerHTML.indexOf('没有符合当前筛选条件')!==-1
+    && documentStub.getElementById('today-list').innerHTML.indexOf('id="today-owner-miss-' + zeroTaId + '" class="today-owner-stat active zero"')!==-1
+    && documentStub.getElementById('today-list').innerHTML.indexOf('清除条件')!==-1, '零值助教保留选中空态与清除入口');
+  vm.runInContext("todayTaSet('miss','" + ta2.id + "');todayCatGo('overdue');todayCatGo('miss')",ctx);
+  ok(vm.runInContext("todayTaFilter.miss",ctx)===ta2.id
+    && documentStub.getElementById('today-list').innerHTML.indexOf('id="today-owner-miss-' + ta2.id + '" class="today-owner-stat active"')!==-1, '切换类别返回保留独立助教选中态');
+  Object.assign(wb.pool, tsPool); wb.refreshView();
+
   // 正确率偏低按学生+科目聚合：同科目两条低分只显示一条（取最低分那条）
   wb.pool.records.push({id:'al-r1', studentId:'al-s1', date:dAgo(-2), total:20, correct:5, wrongs:[1], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
   wb.pool.records.push({id:'al-r2', studentId:'al-s1', date:dAgo(-1), total:20, correct:8, wrongs:[2], subject:'学科 / AP / 统计', images:[], ownerId:ta1.id});
@@ -1212,8 +1265,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.16.5') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.16.5」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.16.6') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.16.6」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');

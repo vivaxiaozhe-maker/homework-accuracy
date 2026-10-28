@@ -39,8 +39,8 @@
 
 ## 工程规约
 
-- **版本号**：功能或行为变更必升版（当前线上与仓库均为 v1.16.5；纯文档不升）。源文件 `学生作业正确率.html` 的 `#login-ver`+`#side-foot`、`js/data.js` `APP_VERSION`、smoke/e2e 版本断言同步；再从源文件 `cp` 到 `index.html`、`dist/index.html` 并用 `cmp` 校验
-- **测试**：三套全绿才交付——`node test/smoke.js`（当前 595 项）、`node test/e2e.api.js`（177 项）、`cd server && npm test --cache /tmp/npm-cache-xueqing`（472 项，9 个里程碑套件）。CSS 纯改动只跑 smoke；逻辑改动加 e2e；server 改动跑后端。大版本候选另跑 `node test/ui-upgrade-matrix.js`（112 项证据台账）和 `node test/ui-upgrade-fixtures.js`（空/基础/扩展/分页边界）
+- **版本号**：功能或行为变更必升版（当前线上 v1.16.5，仓库本地候选 v1.16.6；纯文档不升）。源文件 `学生作业正确率.html` 的 `#login-ver`+`#side-foot`、`js/data.js` `APP_VERSION`、smoke/e2e 版本断言同步；再从源文件 `cp` 到 `index.html`、`dist/index.html` 并用 `cmp` 校验
+- **测试**：三套全绿才交付——`node test/smoke.js`（当前 603 项）、`node test/e2e.api.js`（177 项）、`cd server && npm test --cache /tmp/npm-cache-xueqing`（472 项，9 个里程碑套件）。CSS 纯改动只跑 smoke；逻辑改动加 e2e；server 改动跑后端。大版本候选另跑 `node test/ui-upgrade-matrix.js`（112 项证据台账）和 `node test/ui-upgrade-fixtures.js`（空/基础/扩展/分页边界）
 - **发布授权**：Git commit/push、生产备份和生产部署**每次都要用户明确授权**，不存在长期授权，AGENTS 不能自行扩权。大版本、后端、依赖或数据相关发布按 `docs/ui-upgrade/release-checklist.md`：在线备份 → 隔离恢复演练 → 隔离预发布 → 先后端再前端 → 线上验证
 - **`deploy.sh` 限制**：脚本会同步副本、跑 smoke、`git add -A`、push、scp 并重启；没有备份，且不保证“先后端再前端”。仅在用户明确同意且确认为小前端改动时使用；大版本按上面的受控流程手工执行。运行期间禁止其他进程改文件
 - **GitHub 网络**：repo 已配 `http.version=HTTP/1.1`（必须，HTTP/2 易挂）；443 断流时让用户开全局代理。不要擅自绕过 Git 直接 scp 生产来“补提交”，生产发布和 Git 操作都必须已获当次授权
@@ -62,4 +62,4 @@
 - **小活不派子代理**：边界清楚、单文件级的小改由主代理直接改（成本约为派代理的 1/5）；子代理只用于跨多文件的大功能
 - **任务书钉锚点**：派子代理时把行号/函数名/文件路径写进 brief，减少其探索消耗；涉及前后端联动的方案，两端改动点都在方案阶段钉死，避免"后端改了前端没跟上"式返工
 - **测试分层**：迭代期只跑受影响套件，部署前才跑全量三套
-- 测试断言总量不省（smoke 595＋e2e 177＋服务端 472，合计 1,244 项是线上零事故的保障）
+- 测试断言总量不省（smoke 603＋e2e 177＋服务端 472，合计 1,249 项是线上零事故的保障）

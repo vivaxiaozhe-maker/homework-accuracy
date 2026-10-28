@@ -24,7 +24,11 @@ function restoreInputFocus(id){
   el.focus();
   if(el.setSelectionRange){ const end = String(el.value || '').length; el.setSelectionRange(end,end); }
 }
-function todayTaSet(key, oid){ todayTaFilter[key] = oid; todayPage[key] = 1; renderToday(); }
+function todayTaSet(key, oid){
+  todayTaFilter[key] = oid; todayPage[key] = 1; renderToday();
+  const btn = document.getElementById('today-owner-' + key + '-' + (oid || 'all'));
+  if(btn && btn.focus) btn.focus({preventScroll:true});  // 重绘后焦点回到被点击的统计按钮
+}
 function todaySearchSet(key, value){
   todayQuery[key] = value; todayPage[key] = 1; renderToday(); restoreInputFocus('today-search-' + key);
 }
@@ -256,6 +260,7 @@ function renderToday(){
     const query = (todayQuery[active.key] || '').trim().toLowerCase();
     let rows = active.rows.slice();
     if(admin && owner!=='all') rows = rows.filter(r=>(active.ownerOf(r)||'')===owner);
+    const selectedCount = admin && owner!=='all' ? rows.length : active.rows.length;
     if(query) rows = rows.filter(r=>active.searchOf(r).toLowerCase().indexOf(query)!==-1);
     if(active.key==='miss') rows.sort((a,b)=>a.date===b.date ? String(a.id).localeCompare(String(b.id)) : (a.date<b.date?-1:1));
     else if(active.key==='overdue') rows.sort((a,b)=>(b.days-a.days) || String(a.refKey).localeCompare(String(b.refKey)));
@@ -267,16 +272,26 @@ function renderToday(){
       active.rows.forEach(r=>{ const oid = active.ownerOf(r) || ''; counts[oid] = (counts[oid]||0)+1; });
       const ownerIds = new Set(Object.keys(counts));
       getUsersCache().filter(u=>u.role==='ta').forEach(u=>ownerIds.add(u.id));
-      const options = Array.from(ownerIds).sort((a,b)=>(counts[b]||0)-(counts[a]||0) || ownerName(a).localeCompare(ownerName(b)));
-      ownerHtml = '<select id="today-owner-' + active.key + '" class="today-owner" aria-label="按助教筛选" onchange="todayTaSet(\'' + active.key + '\',this.value)">' +
-        '<option value="all">全部助教 ' + active.rows.length + '</option>' + options.map(oid=>
-          '<option value="' + esc(oid) + '"' + (owner===oid?' selected':'') + '>' + esc(ownerName(oid)) + ' ' + (counts[oid]||0) + '</option>').join('') + '</select>';
+      const options = Array.from(ownerIds).sort((a,b)=>(counts[b]||0)-(counts[a]||0) || ownerName(a).localeCompare(ownerName(b)) || String(a).localeCompare(String(b)));
+      const statBtn = (oid,name,count)=>{
+        const selected = owner===oid;
+        return '<button type="button" id="today-owner-' + active.key + '-' + esc(oid) + '" class="today-owner-stat' +
+          (selected?' active':'') + (count===0?' zero':'') + '" data-owner-id="' + esc(oid) + '" aria-pressed="' + (selected?'true':'false') +
+          '" title="' + esc(name + '：' + count + ' 项待处理') + '" aria-label="' + esc(name + '，' + count + ' 项待处理') +
+          '" onclick="todayTaSet(\'' + active.key + '\',\'' + esc(jsStr(oid)) + '\')">' +
+          '<span class="today-owner-name">' + (selected?'✓ ':'') + esc(name) + '</span><span class="today-owner-count">' + count + '</span></button>';
+      };
+      ownerHtml = '<div class="today-owner-summary" role="group" aria-label="按助教查看"><div class="today-owner-summary-title">按助教查看 · 数量为当前类别待处理事项</div>' +
+        '<div class="today-owner-stats">' + statBtn('all','全部',active.rows.length) + options.map(oid=>statBtn(oid,ownerName(oid),counts[oid]||0)).join('') + '</div></div>';
     }
     const filtered = pagedRows(rows,todayPage[active.key],todayPageSize[active.key]);
     todayPage[active.key] = filtered.page;
     todayPageSize[active.key] = filtered.pageSize;
     const hasConditions = owner!=='all' || !!query;
-    const filterHtml = '<div class="today-filter">' + ownerHtml +
+    const summaryHtml = '<span class="today-filter-summary">本类别全部 <b>' + active.rows.length + '</b> 条' +
+      (owner!=='all' ? ' · 已选 <b>' + esc(ownerName(owner)) + '</b> <b>' + selectedCount + '</b> 条' : '') +
+      (query ? ' · 当前搜索匹配 <b>' + filtered.total + '</b> 条' : '') + '</span>';
+    const filterHtml = ownerHtml + '<div class="today-filter">' + summaryHtml +
       '<input id="today-search-' + active.key + '" class="today-search" value="' + esc(todayQuery[active.key] || '') + '" placeholder="搜索学生或科目" aria-label="搜索学生或科目" oninput="todaySearchSet(\'' + active.key + '\',this.value)">' +
       (hasConditions ? '<button type="button" class="btn ghost sm" onclick="todayClearFilters(\'' + active.key + '\')">清除条件</button>' : '') + '</div>';
     const pagerHtml = '<div class="today-pager"><span class="pager-meta" id="today-page-meta-' + active.key + '" aria-live="polite">第 ' + filtered.start + '–' + filtered.end + ' 条 / 共 ' + filtered.total + ' 条</span>' +

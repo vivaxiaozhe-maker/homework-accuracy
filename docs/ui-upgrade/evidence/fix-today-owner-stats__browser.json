@@ -1,0 +1,29 @@
+{
+  "environment": "isolated-full-page-synthetic",
+  "browser": "Kimi Code Desktop built-in Chromium",
+  "version": "v1.16.6",
+  "pass": 32,
+  "fail": 0,
+  "fixture": {
+    "owners": 30,
+    "pendingItems": 1000,
+    "buttonsIncludingAll": 31,
+    "includesZeroCount": true,
+    "includesUnknownOwners": true,
+    "includesLongChineseAndEnglishNames": true
+  },
+  "viewports": [
+    { "width": 1280, "pass": 8, "fail": 0, "documentWidth": 1272, "columns": 6 },
+    { "width": 768, "pass": 8, "fail": 0, "documentWidth": 768, "columns": 2 },
+    { "width": 375, "pass": 8, "fail": 0, "documentWidth": 375, "columns": 2 },
+    { "width": 320, "pass": 8, "fail": 0, "documentWidth": 320, "columns": 2 }
+  ],
+  "checks": [
+    "全部 1000 项，30 位助教及零值/未知归属均默认展示",
+    "点击后仅明细过滤，统计不跟随搜索或分页变化，焦点回到被点击按钮",
+    "零值保留选中空态和清除入口，类别切换保留独立选择",
+    "原生 button、aria-pressed、完整 title/aria-label 均存在",
+    "320/375/768/1280 无横向溢出，手机两列",
+    "助教角色不显示统计区或其他助教姓名"
+  ]
+}
