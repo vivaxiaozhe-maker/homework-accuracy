@@ -1,0 +1,12 @@
+{
+  "environment": "isolated-full-page-synthetic",
+  "browser": "Kimi Code Desktop built-in Chromium",
+  "version": "v1.16.8",
+  "pass": 3,
+  "fail": 0,
+  "results": [
+    { "name": "弹窗标注必填", "status": "PASS", "actual": "归档原因（必填，如：已结课 / 已毕业）" },
+    { "name": "空原因阻止归档", "status": "PASS", "actual": "学生保持现有状态并提示请填写归档原因" },
+    { "name": "填写后归档并保留原因", "status": "PASS", "actual": "archived=true，archivedReason=已结课" }
+  ]
+}

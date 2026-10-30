@@ -96,6 +96,9 @@ function ok(cond, name){
   ok(r.status === 403, '销售不能新增学生');
   // 归档/恢复
   r = await req('POST', '/api/students/' + stuA + '/archive', {}, T1);
+  ok(r.status === 400 && r.data.msg === '请填写归档原因'
+    && db.prepare('SELECT archived FROM students WHERE id = ?').get(stuA).archived === 0, '归档原因必填且空原因不改变学生状态');
+  r = await req('POST', '/api/students/' + stuA + '/archive', { reason: '已结课' }, T1);
   ok(r.status === 200 && r.data.updated === 2, '归档同名组');
   r = await req('GET', '/api/state', null, T1);
   ok(r.data.state.students.every(s => s.archived), '归档后 state 中标记 archived');
@@ -148,7 +151,7 @@ function ok(cond, name){
   ok(!r.data.state.students.some(s => s.id === stuA), '转移后原助教 state 不再含该学生');
   // 转移回来继续用
   await req('POST', '/api/students/' + stuA + '/owner', { ownerId: ta1.user.id }, adminTok);
-  await req('POST', '/api/students/' + stuA + '/archive', {}, T1);
+  await req('POST', '/api/students/' + stuA + '/archive', { reason: '已结课' }, T1);
   r = await req('PUT', '/api/records/' + recA, { date: today(), total: 20, correct: 19, wrongs: [], subject: '学科 / AP / 微积分BC' }, T1);
   ok(r.status === 400 && r.data.msg.indexOf('只读') !== -1, '历史学生编辑已有作业被服务端只读守卫拒绝');
   r = await req('DELETE', '/api/records/' + recA, null, T1);
@@ -234,7 +237,7 @@ function ok(cond, name){
   ok(r.status === 409 && r.data.msg.indexOf('撤回') !== -1, 'N01 待审批时阻止科目改名');
   r = await req('POST', '/api/students/subject-operation', { operation: 'delete', studentId: 'n01-a', studentIds: ['n01-a'], oldSubject: n01Sub }, T1);
   ok(r.status === 409, 'N01 待审批时阻止科目删除');
-  r = await req('POST', '/api/students/n01-a/archive', {}, T1);
+  r = await req('POST', '/api/students/n01-a/archive', { reason: '已结课' }, T1);
   ok(r.status === 409, 'N01 待审批时阻止学生归档');
   stuRow = db.prepare('SELECT * FROM students WHERE id = ?').get('n01-a');
   ok(stuRow.archived === 0 && JSON.parse(stuRow.subj_plans)[n01Sub] === 8, 'N01 被阻止后学生与计划不变');

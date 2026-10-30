@@ -198,8 +198,9 @@ function setArchived(req, res, flag){
                                     AND student_id IN (${inSql}) LIMIT 1`).get(...group);
     if(pendingPlan) return res.status(409).json({ ok: false, msg: '该学生有待审批的计划修改申请，请先撤回后再归档' });
   }
-  // v1.7.1：归档写 archived_at + 可选原因；恢复清空
+  // 归档写 archived_at + 必填原因；恢复清空
   const reason = flag ? String((req.body && req.body.reason) || '').trim() : '';
+  if(flag && !reason) return res.status(400).json({ ok: false, msg: '请填写归档原因' });
   const upd = db.prepare('UPDATE students SET archived = ?, archived_at = ?, archived_reason = ? WHERE id = ?');
   group.forEach(gid => upd.run(flag, flag ? new Date().toISOString() : null, flag ? reason : null, gid));
   logAudit(req.user, flag ? '归档学生' : '恢复学生', 'student', st.name,

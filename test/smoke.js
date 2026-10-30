@@ -180,7 +180,7 @@ function ok(cond, name){
     && accGrp.indexOf('助教<span class="cnt">') < accGrp.indexOf('销售<span class="cnt">'), '组序：教务管理员 → 助教 → 销售');
   ok(/教务管理员<span class="cnt">1 个账号/.test(accGrp) && /助教<span class="cnt">3 个账号/.test(accGrp)
     && /销售<span class="cnt">1 个账号/.test(accGrp), '分组数量正确（教务 1 / 助教 3 / 销售 1）');
-  ok(html.indexOf('id="login-ver">v1.16.7') !== -1, '登录页版本号升至 v1.16.7');
+  ok(html.indexOf('id="login-ver">v1.16.8') !== -1, '登录页版本号升至 v1.16.8');
 
   /* ---- 账号删除（v1.9.2 NEW-01，mock 与 API 同规则）：tombstone + 阻断式 + 用户名锁定 ---- */
   {
@@ -1265,8 +1265,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.16.7') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.16.7」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.16.8') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.16.8」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');
@@ -1553,6 +1553,18 @@ function ok(cond, name){
   await wb.doLogin('ta1', 'ta123456', 'ta');
   ok(documentStub.getElementById('badge-today').style.display==='none'
     && documentStub.getElementById('badge-today-tab').style.display==='none', '助教端不显示审批徽章');
+
+  /* ---- 归档原因必填：空原因阻止，填写后保留原因 ---- */
+  const requiredStu = {id:'archive-required-stu',name:'归档必填生',ownerId:ta1.id,archived:false,subjects:[],subjPlans:{}};
+  wb.pool.students.push(requiredStu); wb.refreshView();
+  vm.runInContext("archiveGroup(['archive-required-stu'])",ctx);
+  documentStub.getElementById('cf-ok').onclick(); await new Promise(r=>setTimeout(r,0));
+  ok(requiredStu.archived===false && alerts[alerts.length-1].indexOf('请填写归档原因')!==-1, '归档原因留空时阻止归档并提示');
+  vm.runInContext("archiveGroup(['archive-required-stu'])",ctx);
+  documentStub.getElementById('cf-input').value = '已结课';
+  documentStub.getElementById('cf-ok').onclick(); await new Promise(r=>setTimeout(r,0));
+  ok(requiredStu.archived===true && requiredStu.archivedReason==='已结课', '填写归档原因后归档并保留原因');
+  wb.pool.students = wb.pool.students.filter(s=>s.id!==requiredStu.id); wb.refreshView();
 
   /* ---- N02：今日统计排除未来成绩，未来明细仍保留 ---- */
   const n02Sub = 'N02 / 未来科目';

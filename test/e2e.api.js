@@ -94,7 +94,7 @@ function ok(cond, name){
 
   /* ---- 模式探测 ---- */
   ok(wb.USE_API === true, '探测到 /api/health → 进入 API 模式');
-  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.16.7', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
+  ok(documentStub.getElementById('side-foot').textContent === '学情跟踪平台 · 内部系统 · v1.16.8', 'API 模式侧栏脚注为「内部系统」文案并带版本号');
   ok(documentStub.getElementById('login-demo').style.display === 'none', 'API 模式隐藏演示账号提示');
   ok(documentStub.getElementById('login-screen').style.display === 'flex', '未登录显示登录页');
 
@@ -346,8 +346,8 @@ function ok(cond, name){
   await wb.doLogin('admin', 'admin456', 'admin');
   await wb.HttpApi.addStudent({ id: 'e2e-arch-new', name: '归档新生', gradYear: '2026' });
   await wb.HttpApi.addStudent({ id: 'e2e-arch-old', name: '归档旧生', gradYear: '2026' });
-  await wb.HttpApi.setStudentArchived('e2e-arch-new', true);
-  await wb.HttpApi.setStudentArchived('e2e-arch-old', true);
+  await wb.HttpApi.setStudentArchived('e2e-arch-new', true, '已结课');
+  await wb.HttpApi.setStudentArchived('e2e-arch-old', true, '已结课');
   // 旧生归档时间篡改为 40 天前（超出近 30 天窗口）
   require('../server/db.js').prepare('UPDATE students SET archived_at = ? WHERE id = ?').run('2026-09-01 08:00:00', 'e2e-arch-old');
   await wb.doLogin('sales1', 'sales654321', 'sales');

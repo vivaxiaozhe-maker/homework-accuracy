@@ -613,13 +613,14 @@ document.getElementById('ns-ok').addEventListener('click', ()=>{
   renderAll();
 });
 
-/* 归档 / 恢复学生（按同名组操作，作业记录保留；v1.7.1 起记录归档时间 + 可选原因） */
+/* 归档 / 恢复学生（按同名组操作，作业记录保留；归档时间 + 必填原因） */
 function archiveGroup(ids){
   const denied = ids.some(id=>{ const s = pool.students.find(x=>x.id===id); return !s || !canWriteOwner(s.ownerId); });
   if(denied){ toast('没有权限操作该数据'); return; }
   if(pendingPlanInGroup(ids)){ toast('该学生有待审批的计划修改申请，请先撤回后再归档。'); return; }
   askConfirm('转为历史学生', '该学生将从「现有学生」移到「历史学生」，录入下拉中不再出现；科目、作业记录、打卡、评语、模考等数据完整保留，可在历史板块查看（恢复为现有学生后可继续编辑）。确定吗？', async (reason)=>{
     const rs = (reason || '').trim();
+    if(!rs){ toast('请填写归档原因'); return; }
     if(USE_API){
       const res = await HttpApi.setStudentArchived(ids[0], true, rs);  // 服务端确认成功后再改本地，避免被拦截却已归档
       if(!res.ok){ toast(res.msg || '归档失败，请先处理待审批申请'); await resyncState(); return; }
@@ -629,7 +630,7 @@ function archiveGroup(ids){
     const st0 = pool.students.find(x=>x.id===ids[0]);
     logAction('归档学生', 'student', st0 ? st0.name : '', '转为历史学生' + (rs ? '，原因：' + rs : ''), {ownerId: st0 ? st0.ownerId : undefined});
     save(); renderAll();
-  }, { input: '归档原因（选填，如：已结课 / 已毕业）' });
+  }, { input: '归档原因（必填，如：已结课 / 已毕业）' });
 }
 function restoreGroup(ids){
   const denied = ids.some(id=>{ const s = pool.students.find(x=>x.id===id); return !s || !canWriteOwner(s.ownerId); });
