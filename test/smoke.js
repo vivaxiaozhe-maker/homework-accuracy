@@ -180,7 +180,7 @@ function ok(cond, name){
     && accGrp.indexOf('助教<span class="cnt">') < accGrp.indexOf('销售<span class="cnt">'), '组序：教务管理员 → 助教 → 销售');
   ok(/教务管理员<span class="cnt">1 个账号/.test(accGrp) && /助教<span class="cnt">3 个账号/.test(accGrp)
     && /销售<span class="cnt">1 个账号/.test(accGrp), '分组数量正确（教务 1 / 助教 3 / 销售 1）');
-  ok(html.indexOf('id="login-ver">v1.16.8') !== -1, '登录页版本号升至 v1.16.8');
+  ok(html.indexOf('id="login-ver">v1.16.9') !== -1, '登录页版本号升至 v1.16.9');
 
   /* ---- 账号删除（v1.9.2 NEW-01，mock 与 API 同规则）：tombstone + 阻断式 + 用户名锁定 ---- */
   {
@@ -985,6 +985,11 @@ function ok(cond, name){
   wb.setQuickEntry({gid: bindStu.id, subject: '学科 / AP / 微积分BC'});
   wb.toggleTaGroup(ta1.id);  // 教务分组视图默认折叠，展开 ta1 组才渲染卡内面板
   ok(documentStub.getElementById('stu-list').innerHTML.indexOf('未绑定微信') !== -1, '未绑定学生卡头部显示「未绑定微信」入口');
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('class="tag amber stu-row-bind"') !== -1, '左侧学生行显示未绑定状态');
+  bindStu.bindCnt = 2; wb.renderStats();
+  ok(documentStub.getElementById('stu-list').innerHTML.indexOf('class="tag mint stu-row-bind"') !== -1
+    && documentStub.getElementById('stu-list').innerHTML.indexOf('已绑定家长 2 人') !== -1, '左侧学生行显示已绑定状态与家长人数');
+  bindStu.bindCnt = 0; wb.renderStats();
   await vm.runInContext('pushReportToParent()', ctx);
   ok(alerts[alerts.length-1].indexOf('演示环境暂不支持推送') !== -1, 'mock 模式推送提示演示环境不支持');
   await vm.runInContext('openBindModal("' + (typeof bindStu!=='undefined'?bindStu.id:sid) + '")', ctx);
@@ -1265,8 +1270,8 @@ function ok(cond, name){
   wb.doLogout();
 
   /* ---- 侧栏脚注按运行模式区分 + 带版本号：mock 保持「演示环境」静态文案（API 模式覆盖见 e2e 断言） ---- */
-  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.16.8') !== -1
-    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.16.8」（未被覆盖）');
+  ok(html.indexOf('id="side-foot">演示环境 · 数据暂存本机 · v1.16.9') !== -1
+    && documentStub.getElementById('side-foot').textContent === '', 'mock 模式侧栏脚注为「演示环境 · 数据暂存本机 · v1.16.9」（未被覆盖）');
 
   /* ---- 转移归属：学生 + 记录 + 未交一并跟随 ---- */
   await wb.doLogin('admin', 'admin456', 'admin');

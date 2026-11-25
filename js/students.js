@@ -751,8 +751,13 @@ function renderStats(){
   const renderStuRow = g=>{
     const recCnt = g.ids.reduce((n,id)=>n+(recCounts[id]||0),0);
     const missCnt = g.ids.reduce((n,id)=>n+(missCounts[id]||0),0);
+    const repStu = state.students.find(x=>x.id===g.ids[0]);
+    const bindCnt = repStu ? (repStu.bindCnt || 0) : 0;
+    const bindHtml = bindCnt > 0
+      ? '<span class="tag mint stu-row-bind" title="已绑定家长 ' + bindCnt + ' 人">已绑定</span>'
+      : '<span class="tag amber stu-row-bind" title="未绑定家长微信">未绑定</span>';
     return '<button type="button" class="stu-row' + (g.ids.includes(selectedId)?' active':'') + '" onclick="selectStudentWorkspace(\'' + esc(jsStr(g.ids[0])) + '\')">' +
-      '<span class="stu-row-avatar">' + esc(g.name.slice(0,1)) + '</span><span class="stu-row-main"><b>' + esc(g.name) + '</b>' +
+      '<span class="stu-row-avatar">' + esc(g.name.slice(0,1)) + '</span><span class="stu-row-main"><span class="stu-row-title"><b>' + esc(g.name) + '</b>' + bindHtml + '</span>' +
       '<span class="stu-row-meta">' + (g.school?esc(g.school)+' · ':'') + (g.gradYear?esc(g.gradYear)+' 届':'') + (isAdminView()?' · '+esc(ownerName(g.ownerId)):'') + '</span>' +
       '<span class="stu-row-meta">作业 ' + recCnt + ' 次' + (missCnt?' · 未交 '+missCnt+' 次':'') + '</span></span><span class="stu-row-go">›</span></button>';
   };

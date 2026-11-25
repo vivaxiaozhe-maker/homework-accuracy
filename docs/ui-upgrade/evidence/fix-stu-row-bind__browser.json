@@ -1,0 +1,16 @@
+{
+  "environment": "isolated-full-page-synthetic",
+  "browser": "Kimi Code Desktop built-in Chromium",
+  "version": "v1.16.9",
+  "pass": 4,
+  "fail": 0,
+  "viewports": [
+    { "width": 1280, "pass": 2, "fail": 0, "documentWidth": 1272 },
+    { "width": 320, "pass": 2, "fail": 0, "documentWidth": 320 }
+  ],
+  "checks": [
+    "左侧学生行显示薄荷绿已绑定标签及已绑定家长人数",
+    "左侧学生行显示琥珀色未绑定标签",
+    "1280/320 无横向溢出"
+  ]
+}
